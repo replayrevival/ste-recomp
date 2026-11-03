@@ -1,0 +1,190 @@
+# Godzilla STE recomp — public export ignore rules
+# Never commit game data, generated/lifted code, secrets, or local tooling state.
+
+# --- game data / disc images / executables ---
+*.iso
+*.xiso
+*.xbe
+*.xbx
+*.xex
+*.xcp
+*.bin
+
+# extracted disc / media assets
+*.dds
+*.tga
+*.wxv
+*.mic
+*.xwm
+*.wav
+*.mp3
+*.ogg
+*.wma
+*.mp4
+*.avi
+*.mkv
+*.webm
+
+# --- AI-upscaled / derived game assets ---
+**/texturepacks/**
+**/upscaled/**
+**/ai_textures/**
+**/*upscale*/**
+
+# --- generated or lifted from game binary ---
+recomp_*.c
+recomp_*.h
+recomp_*.cpp
+recomp_*.hpp
+recomp_manual.c
+**/generated/**
+**/disasm/**
+**/decompile/**
+**/ghidra_export/**
+FUNCTION_NAMES.tsv
+FUNCTION_NAMES.*
+KNOWN_RECOMP_CORRECTIONS.json
+*.map
+
+# --- reverse-engineering databases / dumps ---
+*.gpr
+*.rep
+*.idb
+*.i64
+*.til
+*.gpd
+*.dmp
+*.mdmp
+*.sqlite
+*.sqlite-journal
+
+# --- build outputs ---
+*.exe
+*.dll
+*.pdb
+*.ilk
+*.obj
+*.o
+*.lib
+*.a
+*.exp
+**/obj/**
+**/bin/**
+**/Debug/**
+**/Release/**
+**/x64/**
+**/Win32/**
+**/build/**
+**/builds/**
+**/artifacts/**
+**/mission-l6/**
+**/phase3*/**
+**/phase4*/**
+**/candidate*/**
+vc140.pdb
+.venv/
+*.pyc
+*.lock
+
+# --- logs / caches / screenshots / notes ---
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+**/logs/**
+**/traces/**
+**/oracle/**
+**/saves/**
+**/shadercache/**
+**/_to_delete/**
+**/tmp/**
+**/temp/**
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.webp
+
+# agent / IDE / local state
+.git/
+.agent-state/
+.claude/
+.hermes/
+.vs/
+.vscode/
+.idea/
+.cursor/
+.github/
+__pycache__/
+.cache/
+.pytest_cache/
+.mypy_cache/
+node_modules/
+AGENTS.md
+AGENTS.md.*
+CLAUDE.md
+CLAUDE.md.*
+HERMES_NOTES.md
+docs/GAME_LIBRARY.md
+
+# --- secrets / env / keys / tokens / LLM configs ---
+.env
+.env.*
+*.env
+*.pem
+*.key
+*.p12
+*.pfx
+*secret*
+*token*
+*credentials*
+id_rsa*
+id_ed25519*
+.secrets.baseline
+detect-secrets*
+**/llm*/**
+**/openai*/**
+**/anthropic*/**
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+# Game data and extracted disc contents
+extracted/
+game-owned/
+textures/
+texturepacks/
+models/
+audio/
+video/
+# Generated or binary-lifted output
+generated/
+recompiled/
+disassembly/
+decompilation/
+function_dumps/
+symbol_dumps/
+# Reverse-engineering databases and dumps
+*.dump
+# Builds, logs, caches and generated media
+build/
+builds/
+bin/
+obj/
+Debug/
+Release/
+*.trace
+logs/
+cache/
+caches/
+screenshots/
+# Secrets and local configuration
+# IDE and agent state
+# Existing history

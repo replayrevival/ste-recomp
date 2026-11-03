@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Add a game</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="http<local-folder>/">
+<link href="http<local-folder>/" rel="stylesheet">
+<style>
+body{margin:0;background:#0A1A33}
+a{color:#7FE3FF}a:hover{color:#C2F3FF}
+button{font:inherit}
+</style>
+</helmet>
+<div style="min-height: 820px; background-color: #0A1A33; background-image: linear-gradient(rgba(90,160,230,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(90,160,230,0.08) 1px, transparent 1px); background-size: 32px 32px; color: #D6ECFF; font-family: 'Chakra Petch', system-ui, sans-serif; font-size: 15px; display: flex; flex-direction: column">
+
+<main style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; padding: 48px 24px; text-align: center">
+
+<div style="display: flex; align-items: center; gap: 12px; color: #FFD43B; font-family: 'Pixelify Sans', monospace; font-size: 14px; letter-spacing: 0.14em"><span aria-hidden="true">◀ ─ ─</span>STEP {{stepNum}} OF 2<span aria-hidden="true">─ ─ ▶</span></div>
+
+<sc-if value="{{isChoose}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 22px; max-width: 640px">
+<h1 style="margin: 0; font-family: 'Pixelify Sans', monospace; font-weight: 700; font-size: 40px; color: #FFFFFF">Add a game</h1>
+<p style="margin: 0; color: #A9C6E6; line-height: 1.7">Point to your own backup of a supported game. The launcher works out which game it is, checks it, and only ever reads your file.</p>
+
+<button type="button" onClick="{{choose}}" style="width: 100%; max-width: 560px; clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px); background: #3FD4FF; padding: 2px; border: none; cursor: pointer; filter: drop-shadow(0 0 10px rgba(63,212,255,0.45))">
+<span style="display: flex; flex-direction: column; align-items: center; gap: 8px; clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px); background: #12396A; padding: 32px 24px">
+<span style="font-family: 'Pixelify Sans', monospace; font-weight: 700; font-size: 22px; color: #FFFFFF; letter-spacing: 0.06em">CHOOSE GAME FILE…</span>
+<span style="color: #A9C6E6; font-size: 13px">or drag it onto this window · disc images (.iso, .xiso, .wbfs, .zso) or a game folder</span>
+</span>
+</button>
+
+<div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px">
+<button type="button" onClick="{{choose}}" style="background: transparent; border: 1px solid #2F5C93; color: #EAF5FF; padding: 11px 20px; cursor: pointer; min-height: 44px">Search my drives</button>
+<a href="#" style="align-self: center; padding: 10px 6px">How do I back up my disc?</a>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{isCheck}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 20px; max-width: 640px">
+<h1 style="margin: 0; font-family: 'Pixelify Sans', monospace; font-weight: 700; font-size: 36px; color: #FFFFFF">Found it</h1>
+<div style="width: 100%; max-width: 500px; text-align: left; border: 1px solid #1E3A63">
+<div style="display: flex; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #1E3A63; background: #0D2142"><span style="color: #7C9CC4">Game</span><span style="font-weight: 600">Godzilla: Save the Earth</span></div>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #1E3A63; background: #0D2142"><span style="color: #7C9CC4">Version</span><span style="font-weight: 600">Xbox · NTSC (USA)</span></div>
+<div style="display: flex; justify-content: space-between; gap: 12px; padding: 12px 16px; background: #0D2142"><span style="color: #7C9CC4">Check</span><span style="font-weight: 600; color: #7FE3FF">Matches a known good copy</span></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px">
+<a href="Main.dc.html" style="clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px); background: #FFD43B; color: #0A1A33; padding: 14px 34px; font-family: 'Pixelify Sans', monospace; font-weight: 700; font-size: 18px; letter-spacing: 0.1em; text-decoration: none">ADD TO LIBRARY</a>
+<button type="button" onClick="{{back}}" style="background: transparent; border: 1px solid #2F5C93; color: #EAF5FF; padding: 12px 22px; cursor: pointer; min-height: 44px">Pick a different file</button>
+</div>
+<p style="margin: 0; color: #7C9CC4; font-size: 13px; max-width: 500px; line-height: 1.6">If a file doesn't match, the launcher says why in plain words: unsupported game, other region, or a damaged backup.</p>
+</div>
+</sc-if>
+
+</main>
+
+<div aria-label="Controller buttons" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; padding: 14px 40px; border-top: 1px solid #1E3A63; font-size: 13px; color: #A9C6E6">
+<span style="display: flex; align-items: center; gap: 8px"><span style="border: 1px solid #3FD4FF; color: #3FD4FF; padding: 1px 8px; font-weight: 700; font-size: 12px">A</span>select</span>
+<span style="display: flex; align-items: center; gap: 8px"><span style="border: 1px solid #3FD4FF; color: #3FD4FF; padding: 1px 8px; font-weight: 700; font-size: 12px">B</span>back</span>
+<span style="display: flex; align-items: center; gap: 8px"><span style="border: 1px solid #3FD4FF; color: #3FD4FF; padding: 1px 8px; font-weight: 700; font-size: 12px">X</span>search drives</span>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":820}}'>
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    this.state = { step: 'choose' };
+  }
+  renderVals() {
+    const s = this.state;
+    return {
+      isChoose: s.step === 'choose',
+      isCheck: s.step === 'check',
+      stepNum: s.step === 'choose' ? '1' : '2',
+      choose: () => this.setState({ step: 'check' }),
+      back: () => this.setState({ step: 'choose' })
+    };
+  }
+}
+</script>
+</body>
+</html>
