@@ -1,6 +1,6 @@
 # Godzilla: Save the Earth — Recompiled
 *A Replay Revival project*
-
+   ![Original 4:3 vs 21:9 ultrawide](docs/screenshots/compare_original_vs_ultrawide.jpg)
 A native PC static recompilation of **Godzilla: Save the Earth** (Xbox, 2004), so the game can be
 played on modern hardware at modern resolutions, without emulation.
 
@@ -33,6 +33,49 @@ approach. You're free to ignore it, or to use it to help keep the games we love 
 Xbox controllers detected, with dead zone and rumble settings.
 **Not yet:** .iso loading (coming next), button remapping in game, some distant buildings still
 pop in, PlayStation/Switch pads untested, in-game overlay unfinished.
+
+## Screenshots
+
+![Original 4:3 vs 21:9](docs/screenshots/compare_original_vs_ultrawide.jpg)
+
+*Same moment, original 4:3 view vs 21:9 — true widescreen, nothing stretched*
+
+![Aspect ratio comparison](docs/screenshots/compare_aspect_strip.jpg)
+
+*Original 4:3, 16:9, 21:9 and 32:9 views of the same scene.*
+
+![Resolution comparison](docs/screenshots/compare_resolution.jpg)
+
+*Original 640×480 compared with 4K 3840×2160 using the same crop.*
+
+### Action gallery
+
+![1080p HUD](docs/screenshots/ste_1920x1080_16x9_fight_hud.jpg)
+
+*1080p action shot with the original HUD visible.*
+
+![4K HUD](docs/screenshots/ste_3840x2160_16x9_fight_hud.jpg)
+
+*4K action shot with the original HUD visible.*
+
+![21:9 HUD](docs/screenshots/ste_3440x1440_21x9_fight_hud.jpg)
+
+*21:9 action shot with the original HUD centered.*
+
+![32:9 HUD](docs/screenshots/ste_5120x1440_32x9_fight_hud.jpg)
+
+*32:9 action shot with the original HUD centered.*
+
+### Launcher
+
+![Launcher overview](docs/screenshots/launcher_overview.png)
+
+*Launcher Overview tab.*
+
+![Launcher video settings](docs/screenshots/launcher_video.png)
+
+*Launcher Video tab.*
+
 
 ## Roadmap
 1. Load .iso files directly (next update)
