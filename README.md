@@ -18,20 +18,18 @@ approach. You're free to ignore it, or to use it to help keep the games we love 
 
 ## Requirements
 - Windows 10/11 (64-bit) with a Direct3D 11 GPU (runtime DLLs included)
-- **Your own copy of the Xbox version**, extracted to a folder (for example with
-  [extract-xiso](https://github.com/XboxDev/extract-xiso)). Disc images (.iso) aren't supported
-  directly yet. No game files are included or distributed.
+- **Your own copy of the Xbox version**, as a disc image (.iso) or extracted folder. An .iso is unpacked automatically on first use. No game files are included or distributed.
 - Windows "N" editions need the Media Feature Pack.
 
 ## Getting started
 1. Download the latest release from the [Releases](../../releases) page.
 2. Extract it to a folder you can write to (not Program Files).
-3. Run `launcher.exe`, choose your extracted game folder, pick a preset and press Play.
+3. Run `launcher.exe`, choose your disc image or extracted game folder, pick a preset and press Play.
 
 ## Status
-**Working:** boots and plays, fights playable, launcher with video presets and settings,
+**Working:** boots and plays, .iso loading, fights playable, launcher with video presets and settings,
 Xbox controllers detected, with dead zone and rumble settings.
-**Not yet:** .iso loading (coming next), button remapping in game, some distant buildings still
+**Not yet:** button remapping in game, some distant buildings still
 pop in, PlayStation/Switch pads untested, in-game overlay unfinished.
 
 ## Screenshots
@@ -78,13 +76,12 @@ pop in, PlayStation/Switch pads untested, in-game overlay unfinished.
 
 
 ## Roadmap
-1. Load .iso files directly (next update)
-2. Stable widescreen and high resolutions, locked 60 fps
-3. Controller remapping in game, wider controller testing
-4. Optimisation (4K 60 on capable PCs, 1080p 60 on low-end PCs)
-5. Enhancements and toggles, including restoring Biollante, who is unused on the disc
-6. Linux (and maybe Mac) support
-7. Longer term: a full decompilation, laying the groundwork for future Godzilla recomp projects
+1. Stable widescreen and high resolutions, locked 60 fps
+2. Controller remapping in game, wider controller testing
+3. Optimisation (4K 60 on capable PCs, 1080p 60 on low-end PCs)
+4. Enhancements and toggles, including restoring Biollante, who is unused on the disc
+5. Linux (and maybe Mac) support
+6. Longer term: a full decompilation, laying the groundwork for future Godzilla recomp projects
 
 ## Reporting bugs
 Open an [issue](../../issues) with your Windows version, GPU, and what happened.
