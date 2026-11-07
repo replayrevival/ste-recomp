@@ -1,4 +1,4 @@
-/*
+﻿/*
  * NV2A Kelvin (NV097) pushbuffer -> D3D8 layer translator.
  *
  * Method numbers, vertex-program microcode fields and texture formats follow
@@ -68,7 +68,8 @@ extern void d3d8_set_kelvin_vertex_fog(int on);
  * the title loaded the canonical screen mapping (c96..c99 = 1/320, -1/240) -- the D3D pre-transform state. */
 static void kelvin_apply_xmap(int stretch, int untextured_fullscreen);
 static int g_no_fog;          /* KELVIN_NO_FOG=1 */
-static float g_fog_scale = 1.0f; /* ste_video.ini fog_scale / STE_VIDEO_FOG_SCALE: fog distances x scale (divides the fog slope g_fog_p[1]) */
+static int g_fog_user_scale;  /* c267: fog_scale came from the env / ini: the draw_distance=unlimited hint (kelvin_fog_scale_default) does not override it */
+static float g_fog_scale = 1.0f;/* ste_video.ini fog_scale / STE_VIDEO_FOG_SCALE: fog distances x scale (divides the fog slope g_fog_p[1]) */
 static void kelvin_tex_forget(IDirect3DTexture8 *t);   /* c79: drop a released texture from the SetTexture dedupe cache */
 static int g_rhw_legacy;   /* KELVIN_RHW_LEGACY=1, read once in kelvin_init() */
 
@@ -214,7 +215,7 @@ void kelvin_init(void)
         if (e && *e) strncpy(b, e, sizeof(b) - 1);
         else { if (iv && *iv) { strncpy(ini, iv, MAX_PATH - 1); ini[MAX_PATH - 1] = 0; } else { GetModuleFileNameA(NULL, ini, MAX_PATH); p = strrchr(ini, 0x5C); if (p) strcpy(p + 1, "ste_video.ini"); }
                GetPrivateProfileStringA("video", "fog_scale", "", b, sizeof(b), ini); }
-        if (b[0]) { g_fog_scale = (float)atof(b); if (g_fog_scale < 0.25f) g_fog_scale = 0.25f; if (g_fog_scale > 16.0f) g_fog_scale = 16.0f; }
+        if (b[0]) { g_fog_user_scale = 1; g_fog_scale = (float)atof(b); if (g_fog_scale < 0.25f) g_fog_scale = 0.25f; if (g_fog_scale > 16.0f) g_fog_scale = 16.0f; }
         if (g_fog_scale != 1.0f) fprintf(stderr, "[CAMCFG] fog_scale=%.3f\n", g_fog_scale);
     }
     for (int i = 0; i < 16; ++i) {
@@ -1094,6 +1095,24 @@ static uint32_t g_target_key;          /* 0 = back buffer */
  * so the scene was gone by the time the composite pass sampled it. */
 static int g_target_dirty;
 
+/* c269 probe (STE_RTPROBE=1): small offscreen targets (clip width <= 128) and the draws that render into / sample them. Logging only. */
+static uint32_t g_rtp_small[16]; static int g_rtp_nsmall; static uint32_t g_rtp_cur_w, g_rtp_cur_h;
+static int g_rtp_on(void) { static int on = -1; if (on < 0) { const char *q = getenv("STE_RTPROBE"); on = q && q[0] == '1'; } return on; }
+static int rtp_is_small(uint32_t key) { int i; for (i = 0; i < g_rtp_nsmall; ++i) if (g_rtp_small[i] == key) return 1; return 0; }
+static void rtp_note_select(uint32_t key)
+{
+    static int nl; uint32_t w, h; int j;
+    g_rtp_cur_w = g_rtp_cur_h = 0;
+    if (!g_rtp_on() || !key) return;
+    w = K.clip_h >> 16; h = K.clip_v >> 16; g_rtp_cur_w = w; g_rtp_cur_h = h;
+    if (w <= 128 && h <= 128) {
+        for (j = 0; j < g_rtp_nsmall; ++j) if (g_rtp_small[j] == key) break;
+        if (j == g_rtp_nsmall && g_rtp_nsmall < 16) g_rtp_small[g_rtp_nsmall++] = key;
+        { extern unsigned g_kelvin_fsq_count; g_kelvin_fsq_count++; }   /* the exe's STE_SHOT_FLASH shoots the frame when this moves */
+        if (nl++ < 400) fprintf(stderr, "[RTSMALL] kf=%u select surface=%08X clip=%ux%u\n", K.frame, key, w, h);
+    }
+}
+
 static void apply_target(void)
 {
     if (!g_target_dirty) return;
@@ -1113,14 +1132,17 @@ static void select_target(void)
     if (kenv("KELVIN_NO_RT")) key = 0;
     if (key == g_target_key) return;
     {
-        static int n;
-        if (n++ < 40)
+        static int n, nn, seen_n; static uint32_t seen[128]; uint32_t sk = (K.clip_h >> 16) * 8191u + (K.clip_v >> 16) + (key ? 1u << 31 : 0u); int j, fresh = 1;
+        for (j = 0; j < seen_n; ++j) if (seen[j] == sk) { fresh = 0; break; }
+        if (fresh && seen_n < 128) { seen[seen_n++] = sk; }   /* c267: every new (target size, offscreen/backbuffer) combination is logged, however late (the first 40 switches as before) */
+        if (n++ < 40 || (fresh && nn++ < 128))
             fprintf(stderr, "[RT] frame=%u surface=%08X -> %s (display %08X/%08X) clip=%ux%u\n",
                     K.frame, g_surf_color, key ? "offscreen" : "backbuffer",
                     g_display[0], g_display[1], K.clip_h >> 16, K.clip_v >> 16);
     }
     g_target_key = key;
     g_target_dirty = 1;
+    rtp_note_select(key);
 }
 
 /* Decode one w x h image at src into A8R8G8B8 rows (dst, dst_pitch bytes). */
@@ -1721,6 +1743,15 @@ static float nan_to_one(float f) { return f != f ? 1.0f : f; }
  * KELVIN_NO_FOG=1 forces factor 1 (the pre-c56 behaviour). */
 static uint32_t g_fog_en, g_fog_mode;
 static float g_fog_p[3];
+static float g_fog_p1_raw;   /* c267: the title's own slope, before fog_scale */
+/* c267: draw_distance=unlimited asks for the fog to start beyond the farthest geometry (the exe calls this once, with 8). Original / numeric draw distance never call it: fog is then exactly the title's. */
+void kelvin_fog_scale_default(float s)
+{
+    if (g_fog_user_scale || s < 0.25f || s > 16.0f || s == g_fog_scale) return;
+    g_fog_scale = s;
+    if (g_fog_p1_raw != 0.0f) g_fog_p[1] = g_fog_p1_raw / g_fog_scale;
+    fprintf(stderr, "[FOG] draw_distance=unlimited: fog distances x%.2f\n", s);
+}
 static float fog_factor(float coord)
 {
     float f, d = coord;
@@ -2014,10 +2045,46 @@ static int xf_indexed_unique(uint32_t count, OutVertex *src, float tex_scale[4][
     return 1;
 }
 
+/* c263 probe (STE_FSQUAD_LOG=<max lines>): small draws (<= 16 vertices) whose window-space bbox covers (nearly) the whole 640x480, from both vertex paths. The CPU path widens only
+ * untextured ones (fs); the GPU path never did (kelvin_apply_xmap(0, 0)). Logged once per (program, texture, colour, blend) key. g_kelvin_fsq_count counts every such draw (the exe can shoot a frame on it). */
+unsigned g_kelvin_fsq_count;
+static int g_fsq_lim(void) { static int lim = -1; if (lim < 0) { const char *q = getenv("STE_FSQUAD_LOG"); lim = q ? atoi(q) : 0; } return lim; }
+static void fsquad_probe(const char *path, uint32_t n, uint32_t prim, float x0, float x1, float y0, float y1, uint32_t cd, uint32_t tex0)
+{
+    static int nl; static uint32_t seen[256][2]; static int nseen;
+    if (g_rtp_on() && ((g_rtp_cur_w && g_rtp_cur_w <= 128) || (tex0 && rtp_is_small(tex0)))) {
+        static int nd;
+        if (nd++ < 500) fprintf(stderr, "[RTDRAW] %s kf=%u n=%u prim=%u box=(%.0f..%.0f,%.0f..%.0f) col=%08X tex0=%08X into=%ux%u samples_small=%d blend=%u %X/%X vp=%u c96=%.5f c97=%.5f c58=%.1f,%.1f\n",
+                path, K.frame, n, prim, x0, x1, y0, y1, cd, tex0, g_rtp_cur_w, g_rtp_cur_h, tex0 && rtp_is_small(tex0), K.blend_enable, K.sfactor, K.dfactor, K.program_start,
+                K.constants[96][0], K.constants[97][1], K.constants[58][0], K.constants[58][1]);
+    }
+    static int area_mode = -1;   /* c267: STE_FSQUAD_AREA=1: log every small draw whose bbox is >= 15% of 640x480 (centred sub-rectangles included), key includes the bbox */
+    if (area_mode < 0) { const char *q = getenv("STE_FSQUAD_AREA"); area_mode = q && q[0] == '1'; }
+    if (nl < g_fsq_lim() && (area_mode ? ((x1 - x0) * (y1 - y0) >= 0.15f * 640.0f * 480.0f && (x1 - x0) < 1e6f && (y1 - y0) < 1e6f) : (x0 <= 8.0f && x1 >= 632.0f && y0 <= 8.0f && y1 >= 472.0f))) {
+        uint32_t key[2] = { (K.program_start << 24) ^ tex0 ^ (K.sfactor << 4) ^ K.dfactor ^ (K.blend_enable << 20) ^ (area_mode ? ((uint32_t)(int)(x0 / 16.0f) * 2654435761u ^ (uint32_t)(int)(x1 / 16.0f) * 40503u ^ (uint32_t)(int)(y0 / 16.0f) * 97u ^ (uint32_t)(int)(y1 / 16.0f) * 7919u) : 0u), cd };
+        int hit = 0, j;
+        if (K.blend_enable && K.dfactor == 1 && !d3d8_front_end_active()) g_kelvin_fsq_count++;   /* additive in-game flash only (the exe shoots a frame on it) */
+        for (j = 0; j < nseen; ++j) if (seen[j][0] == key[0] && seen[j][1] == key[1]) { hit = 1; break; }
+        if (!hit && nseen < 256) { seen[nseen][0] = key[0]; seen[nseen][1] = key[1]; nseen++; }
+        if (!hit) { nl++; fprintf(stderr, "[FSQUAD] %s kf=%u fe=%d vp=%u n=%u prim=%u box=(%.0f..%.0f,%.0f..%.0f) col=%08X tex0=%08X blend=%u %X/%X depth=%u/%u cmask=%08X c96=%.5f c97=%.5f c58=%.1f,%.1f\n",
+            path, K.frame, d3d8_front_end_active(), K.program_start, n, prim, x0, x1, y0, y1, cd, tex0, K.blend_enable, K.sfactor, K.dfactor, K.depth_test, K.depth_mask, K.color_mask,
+            K.constants[96][0], K.constants[97][1], K.constants[58][0], K.constants[58][1]); }
+    }
+}
+
 /* Pixel-side state for a Kelvin draw (render states, register combiners, textures, FVF) shared by the CPU and GPU vertex paths. */
 extern void d3d8_set_scissor(int on, int l, int t, int r, int b);
 static void setup_draw_state(IDirect3DDevice8 *dev, int textured[4], IDirect3DTexture8 *tex[4])
 {
+    {   /* c264 probe (STE_FOG_LOG=<max lines>): every change of the fog state a draw is issued with (enable, mode, params, colour), as the title set it (g_fog_p already divided by fog_scale) */
+        static int lim = -1, nl; static uint32_t l_en = 0xFFFFFFFFu, l_mode, l_col; static float l_p[3];
+        if (lim < 0) { const char *q = getenv("STE_FOG_LOG"); lim = q ? atoi(q) : 0; }
+        if (lim > 0 && nl < lim && (g_fog_en != l_en || g_fog_mode != l_mode || K.psh.fog_color != l_col || memcmp(l_p, g_fog_p, sizeof l_p))) {
+            l_en = g_fog_en; l_mode = g_fog_mode; l_col = K.psh.fog_color; memcpy(l_p, g_fog_p, sizeof l_p); nl++;
+            fprintf(stderr, "[FOGSTATE] kf=%u fe=%d vp=%u en=%u mode=0x%X p=(%g,%g,%g) color(argb)=%08X no_fog=%d fog_scale=%g\n", K.frame, d3d8_front_end_active(), K.program_mode ? K.program_start : 0,
+                    g_fog_en, g_fog_mode, g_fog_p[0], g_fog_p[1], g_fog_p[2], K.psh.fog_color, g_no_fog, g_fog_scale);
+        }
+    }
     {   /* c136: with aspect=wide + menu_aspect=pillar the screen-space UI draws (vertex program start 17/34) are laid out as the centred 640x480 block, but some run far past the TV frame
          * (the CRT static overlay: quads up to x = 1779 in the 640-wide layout; bubble sprites) and bled onto the wall beside the TV. The 4:3 screen clipped them at its edge: scissor them to the block. STE_FE_STATIC_CLIP=0 disables. */
         static int on = -1; int clip = 0;
@@ -2398,6 +2465,18 @@ static int gpu_vp_draw(IDirect3DDevice8 *dev, uint32_t count, int (*fetch)(uint3
     }
 
     setup_draw_state(dev, textured, tex);
+    if ((g_fsq_lim() > 0 || g_rtp_on()) && n <= 64) {   /* c263 probe: bbox of a small GPU-path draw through the CPU interpreter (see fsquad_probe) */
+        float x0 = 1e30f, x1 = -1e30f, y0 = 1e30f, y1 = -1e30f; uint32_t cd = 0; int ok = 1;
+        for (i = 0; i < n; ++i) {
+            Vec4 v[16]; OutVertex o;
+            if (kind == 1) fetch_inline(i, v); else fetch_array(kind == 0 ? K.array_start + i : kind == 2 ? g_uniq[i] : K.indices[i], v);
+            transform_vertex(v, &o, (const float (*)[2])tex_scale);
+            if (!(o.rhw > 0.0f) || o.x != o.x || o.y != o.y) { ok = 0; break; }
+            if (o.x < x0) x0 = o.x; if (o.x > x1) x1 = o.x; if (o.y < y0) y0 = o.y; if (o.y > y1) y1 = o.y;
+            if (!i) cd = o.diffuse;
+        }
+        if (ok) fsquad_probe("gpu", n, prim, x0, x1, y0, y1, cd, textured[0] ? K.tex[0].offset : 0);
+    }
     kelvin_apply_xmap(0, 0);
     {   /* c108 debug: KELVIN_ZDBG=<hex tex offset>:<bits> (1 = depth write off, 2 = depth test off, 4 = alpha blend off) for draws whose stage-0 texture sits at that offset */
         static int zi = -1; static uint32_t zoff, zbits; static int zhit;
@@ -2809,13 +2888,14 @@ static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
     setup_draw_state(dev, textured, tex);
     {
         int fs = 0;
-        if (!textured[0] && count <= 16) {
+        if ((!textured[0] || g_fsq_lim() > 0 || g_rtp_on()) && count <= 64) {
             float x0 = 1e30f, x1 = -1e30f, y0 = 1e30f, y1 = -1e30f;
             for (uint32_t i = 0; i < count; ++i) {
                 if (src[i].x < x0) x0 = src[i].x; if (src[i].x > x1) x1 = src[i].x;
                 if (src[i].y < y0) y0 = src[i].y; if (src[i].y > y1) y1 = src[i].y;
             }
-            fs = x0 <= 4.0f && x1 >= 636.0f && y0 <= 4.0f && y1 >= 476.0f;
+            if (!textured[0] && count <= 16) fs = x0 <= 4.0f && x1 >= 636.0f && y0 <= 4.0f && y1 >= 476.0f;
+            if (g_fsq_lim() > 0 || g_rtp_on()) fsquad_probe("cpu", count, prim, x0, x1, y0, y1, src[0].diffuse, textured[0] ? K.tex[0].offset : 0);
         }
         kelvin_apply_xmap(0, fs);
     }
@@ -3046,7 +3126,7 @@ int kelvin_method(uint32_t subchannel, uint32_t method, uint32_t param)
     if (method >= 0x0AC0 && method < 0x0AE0) { K.psh.rgb_in[(method - 0x0AC0) / 4] = param; return 1; }
     if (method >= 0x1E40 && method < 0x1E60) { K.psh.rgb_out[(method - 0x1E40) / 4] = param; return 1; }
     if (method == 0x029C) g_fog_mode = param; else if (method == 0x02A4) g_fog_en = param;
-    else if (method >= 0x09C0 && method <= 0x09C8) { float fv; memcpy(&fv, &param, 4); if (method == 0x09C4) { static int nlog; if (nlog++ < 8) fprintf(stderr, "[FOG] mode=0x%X en=%u p1(raw)=%g\n", g_fog_mode, g_fog_en, (double)fv); if (g_fog_scale != 1.0f) fv /= g_fog_scale; } g_fog_p[(method - 0x09C0) / 4] = fv; }
+    else if (method >= 0x09C0 && method <= 0x09C8) { float fv; memcpy(&fv, &param, 4); if (method == 0x09C4) { static int nlog; if (nlog++ < 8) fprintf(stderr, "[FOG] mode=0x%X en=%u p1(raw)=%g\n", g_fog_mode, g_fog_en, (double)fv); g_fog_p1_raw = fv; if (g_fog_scale != 1.0f) fv /= g_fog_scale; } g_fog_p[(method - 0x09C0) / 4] = fv; }
     switch (method) {
     case 0x0288: K.psh.final0 = param; return 1;               /* SPECULAR_FOG_CW0 */
     case 0x028C: K.psh.final1 = param; return 1;               /* SPECULAR_FOG_CW1 */
