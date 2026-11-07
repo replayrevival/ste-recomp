@@ -66,9 +66,35 @@ static void ste_sem_release(uint32_t value)
     *p = value;
     g_sem_writes++;
 }
+/* c262: pointer auto-hide. Hidden while the window is active and the mouse has been still for 2 s; shown on movement and
+ * whenever the window is not active. ste_cursor_force_visible() is the hook for the 0.1.4 overlay (count of requests;
+ * >0 keeps the pointer visible). No clipping, no capture. */
+#define STE_CURSOR_IDLE_MS 2000u
+#define STE_CURSOR_TIMER   0x5C01
+static volatile LONG g_cursor_force;
+static volatile LONG g_active = 1;
+static DWORD         g_last_move;
+void ste_cursor_force_visible(int on) { if (on) InterlockedIncrement(&g_cursor_force); else if (g_cursor_force > 0) InterlockedDecrement(&g_cursor_force); }
+static int ste_cursor_should_hide(void) { return g_active && g_cursor_force <= 0 && (GetTickCount() - g_last_move) >= STE_CURSOR_IDLE_MS; }
 static LRESULT CALLBACK ste_wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
     if (m == WM_CLOSE) { ExitProcess(0); }
+    switch (m) {
+    case WM_MOUSEMOVE: g_last_move = GetTickCount(); break;
+    case WM_SETCURSOR:
+        if (LOWORD(l) == HTCLIENT && ste_cursor_should_hide()) { SetCursor(NULL); return TRUE; }
+        break;
+    case WM_TIMER:
+        if (w == STE_CURSOR_TIMER) {
+            POINT p; RECT cr;   /* the pointer sits still, so Windows sends no WM_SETCURSOR: apply the state here */
+            if (GetCursorPos(&p) && ScreenToClient(h, &p) && GetClientRect(h, &cr) && PtInRect(&cr, p) && GetForegroundWindow() == h) {
+                HWND under; POINT sp; GetCursorPos(&sp); under = WindowFromPoint(sp);
+                if (under == h) SetCursor(ste_cursor_should_hide() ? NULL : LoadCursorA(NULL, (LPCSTR)IDC_ARROW));
+            }
+            return 0;
+        }
+        break;
+    }
     switch (m) {   /* c134: keyboard as a port-0 pad (keyboard.c; ste_video.ini [input] keyboard, RECOMP_KEYBOARD) */
     case WM_KEYDOWN: case WM_SYSKEYDOWN:
         xbox_InputKeySet((int)w, 1); ste_sdl_key((int)w, 1);   /* c248: key bindings + overlay key */
@@ -81,6 +107,7 @@ static LRESULT CALLBACK ste_wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         xbox_InputKeysClear(); ste_sdl_keys_clear();
         break;
     case WM_ACTIVATE:
+        g_active = LOWORD(w) != WA_INACTIVE; g_last_move = GetTickCount();
         if (LOWORD(w) == WA_INACTIVE) { xbox_InputKeysClear(); ste_sdl_keys_clear(); }
         break;
     }
@@ -106,6 +133,22 @@ static int ste_attach(void)
     g_hwnd = CreateWindowA("STE_KELVIN", "Godzilla STE - Kelvin", wstyle | WS_VISIBLE, wx, wy,
                            r.right - r.left, r.bottom - r.top, NULL, NULL, wc.hInstance, NULL);
     if (!g_hwnd) { fprintf(stderr, "[PB-ATTACH] CreateWindow failed %lu\n", GetLastError()); g_state = -1; return -1; }
+    g_last_move = GetTickCount(); SetTimer(g_hwnd, STE_CURSOR_TIMER, 250, NULL);
+    {   /* c266: STE_CAPTURE_RING=1 (frame ring, F12 saves it): captures go to <data>\logs\captures unless STE_CAPTURE_DIR says otherwise */
+        const char *rq = getenv("STE_CAPTURE_RING");
+        if (rq && rq[0] == '1' && !(getenv("STE_CAPTURE_DIR") && getenv("STE_CAPTURE_DIR")[0])) {
+            char cd[MAX_PATH], *sl; ste_dump_dir(cd, sizeof cd - 16);
+            sl = strrchr(cd, '\\'); if (sl && !_stricmp(sl, "\\dumps")) strcpy(sl, "\\captures"); else strcat(cd, "\\captures");
+            _putenv_s("STE_CAPTURE_DIR", cd);
+        }
+    }
+    if (vc->mode == D3D8V_WINDOW) {   /* c261: AdjustWindowRect uses the system DPI; on a monitor with another DPI the frame differs and the client area came out smaller (1280x720 -> 1274x703). Correct the outer size from the real client rect. */
+        RECT cr, wr; GetClientRect(g_hwnd, &cr); GetWindowRect(g_hwnd, &wr);
+        if ((cr.right - cr.left) != (LONG)vc->out_w || (cr.bottom - cr.top) != (LONG)vc->out_h) {
+            SetWindowPos(g_hwnd, NULL, 0, 0, (wr.right - wr.left) + ((LONG)vc->out_w - (cr.right - cr.left)), (wr.bottom - wr.top) + ((LONG)vc->out_h - (cr.bottom - cr.top)), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+            fprintf(stderr, "[VIDEO] window client %ldx%ld corrected to %ux%u (frame differs at this monitor's DPI)\n", cr.right - cr.left, cr.bottom - cr.top, vc->out_w, vc->out_h);
+        }
+    }
     memset(&pp, 0, sizeof(pp));
     pp.BackBufferWidth = vc->out_w; pp.BackBufferHeight = vc->out_h; pp.BackBufferCount = 1; pp.Windowed = TRUE;
     pp.hDeviceWindow = g_hwnd; pp.EnableAutoDepthStencil = TRUE;
@@ -267,6 +310,19 @@ static void ste_process_range(uint32_t from, uint32_t cur, uint32_t lo, uint32_t
                 done_n++;
             }
         }
+    }
+    {   /* c263 probe: STE_SHOT_FLASH=<n>: up to n shots (fl_<frame>.bmp) on frames in which the renderer saw a near-full-screen small draw (STE_FSQUAD_LOG must be set), >= 3 frames apart */
+        extern unsigned g_kelvin_fsq_count; static int init; static unsigned lim, taken, seen_cnt, last_fr;
+        if (!init) { const char *e = getenv("STE_SHOT_FLASH"); init = 1; lim = e ? (unsigned)atoi(e) : 0; }
+        if (lim && taken < lim && g_kelvin_fsq_count != seen_cnt && (!last_fr || g_frame - last_fr >= 3)) {
+            char path[MAX_PATH]; const char *dir = getenv("STE_SHOT_DIR");
+            if (!dir) dir = ste_shot_dir_default();
+            CreateDirectoryA(dir, NULL);
+            _snprintf(path, sizeof(path), "%s\\fl_%05u.bmp", dir, g_frame);
+            d3d8_capture_backbuffer_bmp_public(path); taken++; last_fr = g_frame;
+            fprintf(stderr, "[FLASHSHOT] frame=%u fsq=%u file=%s\n", g_frame, g_kelvin_fsq_count, path);
+        }
+        seen_cnt = g_kelvin_fsq_count;
     }
     {
         DWORD now = GetTickCount();

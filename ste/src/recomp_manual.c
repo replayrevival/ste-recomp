@@ -739,6 +739,8 @@ static void ste_tune_poll(void)
         if (fh != INVALID_HANDLE_VALUE) { ReadFile(fh, fb, sizeof fb - 1, &got, NULL); CloseHandle(fh); fb[got] = 0; }
         b[0] = 0; p = strstr(fb, "draw_distance="); if (p) { p += 14; { int n = 0; while (n < 30 && p[n] > 0x20) { b[n] = p[n]; n++; } b[n] = 0; } }
         if (b[0]) { v = ste_dd_val(b); if (v != g_ste_draw_dist) { g_ste_draw_dist = v; fprintf(stderr, "[TUNE] tick=%lu draw_distance=%.3f\n", (unsigned long)now, v); fflush(stderr); } }
+        b[0] = 0; p = strstr(fb, "fog_scale="); if (p) { p += 10; { int n = 0; while (n < 30 && p[n] > 0x20) { b[n] = p[n]; n++; } b[n] = 0; } }   /* c270: fog A/B on one frozen frame, independent of the draw-distance gates */
+        if (b[0]) { extern void kelvin_fog_scale_default(float); kelvin_fog_scale_default((float)atof(b)); }
         p = strstr(fb, "cull_fields=");
         if (p) { unsigned o2[8]; int n2 = 0; p += 12; while (*p && *p > 0x20 && n2 < 8) { o2[n2++] = (unsigned)strtoul(p, (char **)&p, 16); if (*p == 0x2C) p++; }
             if (n2 != g_ste_cull_noffs || memcmp(o2, g_ste_cull_offs, sizeof(unsigned) * (size_t)n2)) { memcpy(g_ste_cull_offs, o2, sizeof(unsigned) * (size_t)n2); g_ste_cull_noffs = n2; fprintf(stderr, "[TUNE] tick=%lu cull_fields=%d first=+0x%X\n", (unsigned long)now, n2, n2 ? o2[0] : 0u); fflush(stderr); } }
@@ -1117,7 +1119,15 @@ unsigned g_ste_fc_n_pub; int g_ste_fc_dd = -1;   /* debug (freecam script "dd <n
 static int g_dd_unl; static float g_dd_mul = 1.0f; static unsigned long long g_dd_n[4], g_dd_rej[4], g_dd_pass[4]; static int g_dd_cfgd; static DWORD g_dd_last_fight; volatile int g_dd_win = -1;
 static int g_dd_ab_on; static unsigned g_dd_ab_s; static DWORD g_dd_ab_t0;   /* STE_DD_AB=<seconds>: debug A/B, toggles the override every <seconds> (update-side safety check) */
 /* parse one draw_distance value: "original" -> 1, "unlimited" -> far plane x4 + cull bypass, number -> far plane xN + cull xN. Returns the far-plane multiplier. */
+static float ste_dd_val0(const char *s);
 static float ste_dd_val(const char *s)
+{
+    float r = ste_dd_val0(s);
+    /* c267/c270: unlimited = nothing fades into the fog either (fog starts ~10000 instead of ~1250); original / numeric: fog untouched (a live switch back through STE_TUNE_FILE restores the title's own fog) */
+    { extern void kelvin_fog_scale_default(float); static int hinted; if (g_dd_unl) { kelvin_fog_scale_default(8.0f); hinted = 1; } else if (hinted) { kelvin_fog_scale_default(1.0f); hinted = 0; } }
+    return r;
+}
+static float ste_dd_val0(const char *s)
 {
     float v = 1.0f;
     g_dd_unl = 0; g_dd_mul = 1.0f;
