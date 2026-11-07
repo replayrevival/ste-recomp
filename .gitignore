@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Never commit game data, code generated from the game, dumps, saves or local state.
+
+# build output (build.ps1 writes to build\ by default)
+/build/
+/deps/
+*.obj
+*.lib
+*.exp
+*.pdb
+*.ilk
+*.res
+*.exe
+*.dll
+
+# code generated from the user's default.xbe: game-derived, never published
+generated/
+recomp_0*.c
+recomp_dispatch.c
+recomp_stubs_unresolved.c
+recomp_funcs.h
+
+# game data and disc images
+*.xbe
+*.iso
+*.xiso
+*.xbx
+*.xwm
+*.wxv
+*.xmv
+*.bsf
+*.pvm
+
+# dumps, saves, logs, captures
+*.dmp
+*.mdmp
+saves/
+shadercache/
+logs/
+dumps/
+*.log
+*.bmp
+
+# python / editors / OS
+__pycache__/
+*.pyc
+.vs/
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

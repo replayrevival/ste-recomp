@@ -1,0 +1,134 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# STE instruction hooks (docs\formats\RECOMP_HOOKS.md). Hook functions live in candidate<N>\src\recomp_manual.c.
+# STEM gameplay toggles (goal 3c); STEM/NastySoft pnach is only the specification, see docs\community\STEM_TOGGLES.md.
+
+# stem_no_knockback_scaling: sub_0010D2E0 knockback class, esi-- / esi++ (PS2 0x003C2260 / 0x003C2278)
+[[hook]]
+addr = 0x0010D36A
+fn   = "ste_hook_knock_dec"
+mode = "replace"
+[[hook]]
+addr = 0x0010D380
+fn   = "ste_hook_knock_inc"
+mode = "replace"
+
+# stem_no_juggle_limit: sub_0011E490 juggle counter inc [monster+0x938] (PS2 0x003ABA5C)
+[[hook]]
+addr = 0x0011ED54
+fn   = "ste_hook_juggle"
+mode = "replace"
+[[hook]]
+addr = 0x0011ED54
+fn   = "ste_hook_juggle_after"
+mode = "after"
+
+# logging probes (STE_STEM_LOG=1) in the health-floor function sub_00112AC0 (stem_no_min_health patches its 0.025f constant instead)
+[[hook]]
+addr = 0x00112AC0
+fn   = "ste_hook_floor_entry"
+mode = "before"
+[[hook]]
+addr = 0x00112B0B
+fn   = "ste_hook_floor_unclamped"
+mode = "before"
+[[hook]]
+addr = 0x00112B33
+fn   = "ste_hook_floor_neg"
+mode = "before"
+[[hook]]
+addr = 0x00112B44
+fn   = "ste_hook_floor_clamped"
+mode = "before"
+
+# stem_no_results_dim (PS2 0x00430EA4/EAC/ED8/EDC): sub_000E0F00 pushes the dim alpha (0.6 survival / 0.4 other modes) for the results screen, then `call [vtbl+0x68]`. The hook zeroes the pushed argument.
+[[hook]]
+addr = 0x000E0F8D
+fn   = "ste_hook_nodim"
+mode = "before"
+[[hook]]
+addr = 0x000E0F99
+fn   = "ste_hook_nodim"
+mode = "before"
+
+# stem_more_ai_vehicles (PS2 0x003F9404 bc1f -> nop): sub_000EA940 (vehicle manager update) spawns a vehicle only when its cooldown [mgr+0x78] <= 0 and count [mgr+0x20] < limit [0x442508].
+# STEM removes the cooldown test; here the hook after `fnstsw ax` forces the "cooldown elapsed" status bits. Probe: count/limit are logged (STE_STEM_LOG=1) at the loop head.
+[[hook]]
+addr = 0x000EA9CA
+fn   = "ste_hook_veh_force"
+mode = "after"
+[[hook]]
+addr = 0x000EA9AB
+fn   = "ste_hook_veh_log"
+mode = "before"
+
+# stem_weapon_vertical_knockback (PS2 0x00335168 bne -> nop): sub_0016D460 copies the hit's vertical component [src+0x4c] into the knockback vector only for weapon type 2
+# (`cmp [ebp+0x88],2 ; jne skip`). STEM makes it unconditional. ebp is a LOCAL in this function (frameless), so the hook rebuilds it from [esi+8].
+[[hook]]
+addr = 0x0016D79D
+fn   = "ste_hook_vknock"
+mode = "before"
+
+# stem_rule_player_size (STEM Rule 21 Player Size): sub_00121A20 is the per-frame monster update (this = ecx = esi). It blends the size scale [m+0x890] from [m+0x894]/[m+0x898], then at 0x00121B4B derives the
+# "scaled" flag [m+0x88D] from |1.0 - [m+0x890]|. The hook runs just before that and overwrites [m+0x890] with the chosen scale.
+[[hook]]
+addr = 0x00121B4B
+fn   = "ste_hook_size"
+mode = "before"
+
+# probe only (c201): hit class [esi] after the size-based knockback adjustments (sub_0010D2E0), logged as a histogram so stem_no_knockback_scaling has a measurable effect.
+[[hook]]
+addr = 0x0010D381
+fn   = "ste_hook_hitclass"
+mode = "before"
+
+# stem_footstep_camera_shake (PS2 0x003C88B0/CC/E0/E4): sub_0011AC60 (frameless: ebp is a local, the monster is ebx - 0x8A24) shakes the camera after a footstep only when size [m+0x890] > 1.0 and the
+# animation state [[m+0xEC]+0x3C] != 0x11. STEM: size > 0.775, state ignored, intensity constant 0x00313234 (1.0996, used only here) -> 0x3F872B02.
+[[hook]]
+addr = 0x0011AE6D
+fn   = "ste_hook_shake_gate"
+mode = "replace"
+[[hook]]
+addr = 0x0011AE7A
+fn   = "ste_hook_shake_state"
+mode = "replace"
+[[hook]]
+addr = 0x0011AE98
+fn   = "ste_hook_shake_log"
+mode = "before"
+
+# stem_rule_rage_meter HUD (PS2 0x0043383C/40, 'visually build up the rage meter'): sub_00111770 / sub_00111983 copy the monster fields into the HUD record; [esp+0x30] = rage timer [m+0x8CC].
+# STEM shows meter * 30 there while the monster is not in rage.
+[[hook]]
+addr = 0x001119D4
+fn   = "ste_hook_rage_hud"
+mode = "after"
+
+# stem_rule_rage_meter HUD, the getter the HUD actually uses (sub_00102270: out->[4] = monster rage timer [m+0x8CC], monster = ecx): while not in rage report meter * 30 instead.
+[[hook]]
+addr = 0x0010228C
+fn   = "ste_hook_rage_hud2"
+mode = "after"
+
+# draw_distance = original | N | unlimited (c225): the game's per-object distance / size cull in the draw-submit methods; the hook edits the x87 operand (before) or condition code (after) of the compare.
+# Only active in game states 4/5 and only when draw_distance != original (see recomp_manual.c).
+[[hook]]
+addr = 0x0013BF08            # sub_0013BE90: fcomp dword ptr [ecx+0x88]  (range test, st0 = depth*cam[0x140])
+fn   = "ste_hook_dd_range"
+mode = "before"
+[[hook]]
+addr = 0x0013C118            # sub_0013C0A0: fcomp dword ptr [ecx+0x88]
+fn   = "ste_hook_dd_range"
+mode = "before"
+[[hook]]
+addr = 0x0017D27A            # sub_0017D1F0: fcompp (size/depth against set[4]); skipped draw returns mesh 0
+fn   = "ste_hook_dd_size"
+mode = "before"
+[[hook]]
+addr = 0x0017CE4C            # sub_0017CDD0: fcom dword ptr [ecx+0x38] (radius/depth against set[0x38])
+fn   = "ste_hook_dd_size2"
+mode = "after"
+
+[[hook]]
+addr = 0x0013C347            # sub_0013C2D0: test al, al after call sub_0018B7B0 (sphere/distance cull of the third scenery draw variant); the hook clears al
+fn   = "ste_hook_dd_sphere"
+mode = "before"

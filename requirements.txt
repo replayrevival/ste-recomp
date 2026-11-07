@@ -1,0 +1,3 @@
+# Python packages the generator needs (Python 3.11 or newer: hooks.toml is read with the standard tomllib)
+capstone>=5.0.7
+# only to run the generator's unit tests: pytest
