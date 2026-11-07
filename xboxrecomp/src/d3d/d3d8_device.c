@@ -484,7 +484,7 @@ static int g_present_safe;     /* c251: 1 after a Present failure: interval 1, n
  * Memory budget 768 MB of staging textures (60 frames at 1080p, fewer at larger sizes). Saving pauses presentation for the seconds the write takes. PNGs use stored (uncompressed) deflate
  * blocks: no extra library, large files, fast. */
 #define RING_MAX 60
-static struct { int on; int init_done; ID3D11Texture2D *tex[RING_MAX]; unsigned cap, head, count; UINT w, h; DXGI_FORMAT fmt; LONG last_gen; int f12; } g_ring;
+static struct { int on; int init_done; ID3D11Texture2D *tex[RING_MAX]; unsigned cap, head, count; UINT w, h; DXGI_FORMAT fmt; LONG last_gen, last_gen_auto; int f12; } g_ring;
 static uint32_t ring_crc_tab[256]; static int ring_crc_ready;
 static uint32_t ring_crc(uint32_t c, const unsigned char *p, size_t n)
 {
@@ -572,6 +572,22 @@ static void ring_frame(D3D8DeviceState *s, ID3D11Texture2D *bb, LONG gen)
     {   int down = (GetAsyncKeyState(VK_F12) & 0x8000) != 0;
         if (down && !g_ring.f12 && GetForegroundWindow() == s->hwnd && g_ring.count) ring_save(s);
         g_ring.f12 = down;
+    }
+    /* c290: STE_RING_AUTO=1 (burst) or =<n> (absolute): saves the ring by itself on a heavy-fire frame, i.e. a frame with many in-game additive draws (burst = at least 2x the running mean of the last 600
+     * frames and >= 20). At most STE_RING_AUTO_MAX saves (default 3), >= 10 s apart; the first 300 frames and front-end screens never trigger. Every trigger and a 5 s summary are logged ([RINGAUTO]). */
+    {   static int mode = -2, maxsave = 3, nsave; static unsigned last_total, hist[600], hn, hpos, frames, peak5; static ULONGLONG t_last_save, t_sum; static double sum;
+        if (mode == -2) { const char *a = getenv("STE_RING_AUTO"), *m = getenv("STE_RING_AUTO_MAX"); mode = a ? atoi(a) : 0; if (m) maxsave = atoi(m); }
+        if (mode > 0 && gen != g_ring.last_gen_auto) {
+            extern unsigned g_kelvin_add_draws; unsigned d = g_kelvin_add_draws - last_total; ULONGLONG now = GetTickCount64(); double mean;
+            g_ring.last_gen_auto = gen; last_total = g_kelvin_add_draws; frames++;
+            mean = hn ? sum / hn : 0.0; if (d > peak5) peak5 = d;
+            if (frames > 300 && nsave < maxsave && now - t_last_save >= 10000 && g_ring.count >= 8 && (mode == 1 ? (d >= 20 && d >= 2.0 * mean) : (int)d >= mode)) {
+                fprintf(stderr, "[RINGAUTO] trigger frame=%u additive_draws=%u running_mean=%.1f (save %d of %d)\n", frames, d, mean, nsave + 1, maxsave); ring_save(s); nsave++; t_last_save = now;
+            }
+            if (hn == 600) sum -= hist[hpos]; else hn++;
+            hist[hpos] = d; sum += d; hpos = (hpos + 1) % 600;
+            if (now - t_sum >= 5000) { if (t_sum) fprintf(stderr, "[RINGAUTO] frames=%u mean_additive=%.1f peak_last_5s=%u\n", frames, hn ? sum / hn : 0.0, peak5); peak5 = 0; t_sum = now; }
+        }
     }
 }
 

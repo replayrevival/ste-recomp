@@ -2074,8 +2074,10 @@ static void fsquad_probe(const char *path, uint32_t n, uint32_t prim, float x0, 
 
 /* Pixel-side state for a Kelvin draw (render states, register combiners, textures, FVF) shared by the CPU and GPU vertex paths. */
 extern void d3d8_set_scissor(int on, int l, int t, int r, int b);
+unsigned g_kelvin_add_draws;   /* c290: in-game additive-blend draws issued so far (the frame ring's auto trigger takes per-frame deltas: heavy fire = many additive draws) */
 static void setup_draw_state(IDirect3DDevice8 *dev, int textured[4], IDirect3DTexture8 *tex[4])
 {
+    if (K.blend_enable && K.dfactor == 1 && !d3d8_front_end_active()) g_kelvin_add_draws++;
     {   /* c264 probe (STE_FOG_LOG=<max lines>): every change of the fog state a draw is issued with (enable, mode, params, colour), as the title set it (g_fog_p already divided by fog_scale) */
         static int lim = -1, nl; static uint32_t l_en = 0xFFFFFFFFu, l_mode, l_col; static float l_p[3];
         if (lim < 0) { const char *q = getenv("STE_FOG_LOG"); lim = q ? atoi(q) : 0; }
