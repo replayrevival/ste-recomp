@@ -2049,9 +2049,36 @@ static int xf_indexed_unique(uint32_t count, OutVertex *src, float tex_scale[4][
  * untextured ones (fs); the GPU path never did (kelvin_apply_xmap(0, 0)). Logged once per (program, texture, colour, blend) key. g_kelvin_fsq_count counts every such draw (the exe can shoot a frame on it). */
 unsigned g_kelvin_fsq_count;
 static int g_fsq_lim(void) { static int lim = -1; if (lim < 0) { const char *q = getenv("STE_FSQUAD_LOG"); lim = q ? atoi(q) : 0; } return lim; }
+/* c291 probe (STE_FLASH_LOG=<max lines>): in-game (not front-end) small blended draws that are untextured or cover >= 25% of 640x480: the hit/impact screen flash. Logged once per (path, program, RGB, bbox/8)
+ * key (the alpha animates), with the state xmap decides on: canonical-2D constants, full 640x480 viewport, the c96/c97/c58/c99 rows, and the bbox in the 640x480 draw space. */
+static int g_flash_lim(void) { static int lim = -1; if (lim < 0) { const char *q = getenv("STE_FLASH_LOG"); lim = q ? atoi(q) : 0; } return lim; }
+static void flash_probe(const char *path, uint32_t n, uint32_t prim, float x0, float x1, float y0, float y1, uint32_t cd, uint32_t tex0)
+{
+    static int nl; static uint32_t seen[512]; static int nseen; uint32_t key; int j, hit = 0;
+    if (nl >= g_flash_lim() || d3d8_front_end_active() || !K.blend_enable) return;
+    if (!(x1 > x0 && y1 > y0) || x1 - x0 > 1e6f || y1 - y0 > 1e6f) return;
+    {   static int from = -1; static int untex = -1; if (from < 0) { const char *q = getenv("STE_FLASH_FROM"), *u = getenv("STE_FLASH_UNTEX"); from = q ? atoi(q) : 0; untex = u && u[0] == '1'; } if ((int)K.frame < from || (untex && tex0)) return; }   /* STE_FLASH_FROM=<kf>, STE_FLASH_UNTEX=1: skip textured draws */
+    if (tex0 && (x1 - x0) * (y1 - y0) < 0.25f * 640.0f * 480.0f) return;
+    if (!(fabsf(K.constants[58][0] - 320.0f) < 0.5f && fabsf(K.constants[58][1] + 240.0f) < 0.5f)) return;   /* offscreen passes (the 256x256 glow targets) use another viewport */
+    key = (K.program_start * 2654435761u) ^ ((cd & 0xFFFFFFu) * 40503u) ^ ((uint32_t)(int)(x0 / 8.0f) * 97u) ^ ((uint32_t)(int)(x1 / 8.0f) * 7919u) ^ ((uint32_t)(int)(y0 / 8.0f) * 131u) ^ ((uint32_t)(int)(y1 / 8.0f) * 1009u) ^ (path[0] == 'g' ? 1u : 2u) ^ (tex0 ? 0x5555u : 0u);
+    for (j = 0; j < nseen; ++j) if (seen[j] == key) { hit = 1; break; }
+    if (hit) return;
+    if (nseen < 512) seen[nseen++] = key;
+    nl++;
+    {   const float (*c)[4] = (const float (*)[4])K.constants;
+        int canon2d = fabsf(c[96][0] - 0.003125f) < 2e-5f && fabsf(c[97][1] + 1.0f / 240.0f) < 2e-5f && c[96][1] == 0.0f && c[97][0] == 0.0f && c[99][3] == 1.0f;
+        int full_vp = fabsf(c[58][0] - 320.0f) < 0.5f && fabsf(c[58][1] + 240.0f) < 0.5f;
+        const D3D8VideoCfg *vc = d3d8_video_cfg();
+        fprintf(stderr, "[FLASH] %s kf=%u vp=%u n=%u prim=%u box=(%.1f..%.1f,%.1f..%.1f) size=%.1fx%.1f col=%08X tex0=%08X blend %X/%X depth=%u/%u canon2d=%d full_vp=%d c96=(%g,%g,%g,%g) c97=(%g,%g,%g,%g) c98=(%g,%g,%g,%g) c99=(%g,%g,%g,%g) c58=(%g,%g,%g,%g) c59=(%g,%g,%g,%g) rt=%ux%u logical_w=%.1f scale=%.3f\n",
+            path, K.frame, K.program_start, n, prim, x0, x1, y0, y1, x1 - x0, y1 - y0, cd, tex0, K.sfactor, K.dfactor, K.depth_test, K.depth_mask, canon2d, full_vp,
+            c[96][0], c[96][1], c[96][2], c[96][3], c[97][0], c[97][1], c[97][2], c[97][3], c[98][0], c[98][1], c[98][2], c[98][3], c[99][0], c[99][1], c[99][2], c[99][3],
+            c[58][0], c[58][1], c[58][2], c[58][3], c[59][0], c[59][1], c[59][2], c[59][3], g_rtp_cur_w, g_rtp_cur_h, vc->logical_w, vc->scale);
+    }
+}
 static void fsquad_probe(const char *path, uint32_t n, uint32_t prim, float x0, float x1, float y0, float y1, uint32_t cd, uint32_t tex0)
 {
     static int nl; static uint32_t seen[256][2]; static int nseen;
+    if (g_flash_lim() > 0) flash_probe(path, n, prim, x0, x1, y0, y1, cd, tex0);
     if (g_rtp_on() && ((g_rtp_cur_w && g_rtp_cur_w <= 128) || (tex0 && rtp_is_small(tex0)))) {
         static int nd;
         if (nd++ < 500) fprintf(stderr, "[RTDRAW] %s kf=%u n=%u prim=%u box=(%.0f..%.0f,%.0f..%.0f) col=%08X tex0=%08X into=%ux%u samples_small=%d blend=%u %X/%X vp=%u c96=%.5f c97=%.5f c58=%.1f,%.1f\n",
@@ -2467,7 +2494,7 @@ static int gpu_vp_draw(IDirect3DDevice8 *dev, uint32_t count, int (*fetch)(uint3
     }
 
     setup_draw_state(dev, textured, tex);
-    if ((g_fsq_lim() > 0 || g_rtp_on()) && n <= 64) {   /* c263 probe: bbox of a small GPU-path draw through the CPU interpreter (see fsquad_probe) */
+    if ((g_fsq_lim() > 0 || g_rtp_on() || g_flash_lim() > 0) && n <= 64) {   /* c263 probe: bbox of a small GPU-path draw through the CPU interpreter (see fsquad_probe) */
         float x0 = 1e30f, x1 = -1e30f, y0 = 1e30f, y1 = -1e30f; uint32_t cd = 0; int ok = 1;
         for (i = 0; i < n; ++i) {
             Vec4 v[16]; OutVertex o;
@@ -2890,14 +2917,14 @@ static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
     setup_draw_state(dev, textured, tex);
     {
         int fs = 0;
-        if ((!textured[0] || g_fsq_lim() > 0 || g_rtp_on()) && count <= 64) {
+        if ((!textured[0] || g_fsq_lim() > 0 || g_rtp_on() || g_flash_lim() > 0) && count <= 64) {
             float x0 = 1e30f, x1 = -1e30f, y0 = 1e30f, y1 = -1e30f;
             for (uint32_t i = 0; i < count; ++i) {
                 if (src[i].x < x0) x0 = src[i].x; if (src[i].x > x1) x1 = src[i].x;
                 if (src[i].y < y0) y0 = src[i].y; if (src[i].y > y1) y1 = src[i].y;
             }
             if (!textured[0] && count <= 16) fs = x0 <= 4.0f && x1 >= 636.0f && y0 <= 4.0f && y1 >= 476.0f;
-            if (g_fsq_lim() > 0 || g_rtp_on()) fsquad_probe("cpu", count, prim, x0, x1, y0, y1, src[0].diffuse, textured[0] ? K.tex[0].offset : 0);
+            if (g_fsq_lim() > 0 || g_rtp_on() || g_flash_lim() > 0) fsquad_probe("cpu", count, prim, x0, x1, y0, y1, src[0].diffuse, textured[0] ? K.tex[0].offset : 0);
         }
         kelvin_apply_xmap(0, fs);
     }
@@ -3337,3 +3364,6 @@ void kelvin_end_frame(void)
         if (every && (K.frame % (uint32_t)every) == 0) g_cullstat_dump_request = 1; }
     kpath_report();
 }
+
+
+
