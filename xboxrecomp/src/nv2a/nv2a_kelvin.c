@@ -2886,7 +2886,30 @@ static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
                     K.attr_format[0]);
         }
     }
-    const OutVertex *draw = src;
+    /* c295: hit/impact screen flash in the widened view. The game sizes this quad (untextured, SRC_ALPHA blend, no depth, centred, 4:3-shaped, a non-canonical screen-space program) from the horizontal projection scale, which
+     * the Hor+ widening shrinks by (4/3)/aspect in BOTH axes: it overshoots the original 4:3 view by ~1.5x, so at 16:9 it still covers the screen but on an ultrawide window it fell to ~0.83 of it, a hard-edged inset rectangle.
+     * Scaling it about its centre by logical_w/640 restores the original quad exactly (955x717 in the 640x480 space); the x stretch of kelvin_apply_xmap then spreads it across the wide surface.
+     * aspect=original and every other draw are untouched. STE_NO_FLASH_FIX=1 turns it off (A/B). */
+    if (count >= 3 && count <= 6 && !textured[0] && K.blend_enable && K.sfactor == 0x302 && K.dfactor == 0x303 && !K.depth_test && !d3d8_front_end_active()) {
+        const D3D8VideoCfg *vc = d3d8_video_cfg();
+        static int off = -1; if (off < 0) { const char *q = getenv("STE_NO_FLASH_FIX"); off = q && q[0] == '1'; }
+        if (!off && vc->aspect == D3D8V_ASPECT_WIDE && vc->logical_w > 640.5f) {
+            const float (*c)[4] = (const float (*)[4])K.constants;
+            int canon2d = fabsf(c[96][0] - 0.003125f) < 2e-5f && fabsf(c[97][1] + 1.0f / 240.0f) < 2e-5f && c[96][1] == 0.0f && c[97][0] == 0.0f && c[99][3] == 1.0f;
+            int full_vp = fabsf(c[58][0] - 320.0f) < 0.5f && fabsf(c[58][1] + 240.0f) < 0.5f;
+            float bx0 = 1e30f, bx1 = -1e30f, by0 = 1e30f, by1 = -1e30f;
+            for (uint32_t i = 0; i < count; ++i) {
+                if (src[i].x < bx0) bx0 = src[i].x; if (src[i].x > bx1) bx1 = src[i].x;
+                if (src[i].y < by0) by0 = src[i].y; if (src[i].y > by1) by1 = src[i].y;
+            }
+            {   float w = bx1 - bx0, h = by1 - by0, cx = 0.5f * (bx0 + bx1), cy = 0.5f * (by0 + by1);
+                if (!canon2d && full_vp && w >= 300.0f && w < 1e4f && h >= 225.0f && h < 1e4f && fabsf(w / h - 4.0f / 3.0f) < 0.05f && fabsf(cx - 320.5f) < 6.0f && fabsf(cy - 240.5f) < 6.0f) {
+                    float k = vc->logical_w / 640.0f;
+                    for (uint32_t i = 0; i < count; ++i) { src[i].x = cx + (src[i].x - cx) * k; src[i].y = cy + (src[i].y - cy) * k; }
+                }
+            }
+        }
+    }    const OutVertex *draw = src;
     if (prim == 8) {
         for (uint32_t q = 0; q < count / 4; ++q) {
             const OutVertex *a = &src[q * 4];
@@ -3364,6 +3387,7 @@ void kelvin_end_frame(void)
         if (every && (K.frame % (uint32_t)every) == 0) g_cullstat_dump_request = 1; }
     kpath_report();
 }
+
 
 
 
