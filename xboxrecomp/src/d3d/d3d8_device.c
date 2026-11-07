@@ -479,6 +479,102 @@ static char g_vrr_str[16] = "auto";
 static int g_present_safe;     /* c251: 1 after a Present failure: interval 1, no tearing flag */
 #define STE_EXIT_DEVICE_LOST 10   /* documented in docs\LAUNCHER_INTERFACE.md: the graphics device was removed / reset (driver crash, GPU unplugged) */
 
+/* c266: opt-in frame ring buffer (STE_CAPTURE_RING=1; the launcher's Debug toggle later). The last <= 60 presented game frames (what the swap chain shows, incl. bars) are copied
+ * GPU-side into staging textures; F12 (game window in front) writes them as PNGs to <STE_CAPTURE_DIR>\ring_<date>_<time>\f_NNN.png, oldest first. Off: no allocation, no per-frame work.
+ * Memory budget 768 MB of staging textures (60 frames at 1080p, fewer at larger sizes). Saving pauses presentation for the seconds the write takes. PNGs use stored (uncompressed) deflate
+ * blocks: no extra library, large files, fast. */
+#define RING_MAX 60
+static struct { int on; int init_done; ID3D11Texture2D *tex[RING_MAX]; unsigned cap, head, count; UINT w, h; DXGI_FORMAT fmt; LONG last_gen; int f12; } g_ring;
+static uint32_t ring_crc_tab[256]; static int ring_crc_ready;
+static uint32_t ring_crc(uint32_t c, const unsigned char *p, size_t n)
+{
+    size_t i;
+    if (!ring_crc_ready) { uint32_t k, j, v; for (k = 0; k < 256; ++k) { v = k; for (j = 0; j < 8; ++j) v = (v & 1) ? 0xEDB88320u ^ (v >> 1) : v >> 1; ring_crc_tab[k] = v; } ring_crc_ready = 1; }
+    c = ~c; for (i = 0; i < n; ++i) c = ring_crc_tab[(c ^ p[i]) & 255] ^ (c >> 8); return ~c;
+}
+static void ring_chunk(FILE *f, const char *type, const unsigned char *d, uint32_t n)
+{
+    unsigned char b[4]; uint32_t c;
+    b[0] = (unsigned char)(n >> 24); b[1] = (unsigned char)(n >> 16); b[2] = (unsigned char)(n >> 8); b[3] = (unsigned char)n; fwrite(b, 1, 4, f); fwrite(type, 1, 4, f);
+    if (n) fwrite(d, 1, n, f);
+    c = ring_crc(0, (const unsigned char *)type, 4); if (n) c = ring_crc(c, d, n);
+    b[0] = (unsigned char)(c >> 24); b[1] = (unsigned char)(c >> 16); b[2] = (unsigned char)(c >> 8); b[3] = (unsigned char)c; fwrite(b, 1, 4, f);
+}
+/* RGB PNG, 8-bit, filter 0, zlib stored blocks. src is BGRA or RGBA rows (pitch bytes). */
+static int ring_write_png(const char *path, const unsigned char *src, UINT pitch, UINT w, UINT h, int bgra)
+{
+    FILE *f = fopen(path, "wb"); unsigned char hd[13]; unsigned char *raw; size_t rawlen = (size_t)(w * 3u + 1u) * h, pos = 0, o = 0;
+    uint32_t a = 1, b = 0, crc = 0; UINT x, y; static const unsigned char sig[8] = { 137, 80, 78, 71, 13, 10, 26, 10 };
+    unsigned char *idat; size_t idatlen, nblk = (rawlen + 65534) / 65535;
+    if (!f) return 0;
+    raw = (unsigned char *)malloc(rawlen); idatlen = 2 + rawlen + nblk * 5 + 4; idat = (unsigned char *)malloc(idatlen);
+    if (!raw || !idat) { free(raw); free(idat); fclose(f); return 0; }
+    for (y = 0; y < h; ++y) {
+        const unsigned char *s = src + (size_t)y * pitch; unsigned char *d = raw + (size_t)y * (w * 3u + 1u);
+        *d++ = 0;
+        for (x = 0; x < w; ++x, s += 4, d += 3) { d[0] = bgra ? s[2] : s[0]; d[1] = s[1]; d[2] = bgra ? s[0] : s[2]; }
+    }
+    idat[o++] = 0x78; idat[o++] = 0x01;
+    while (pos < rawlen) {
+        size_t n = rawlen - pos; unsigned last; size_t i;
+        if (n > 65535) n = 65535; last = (pos + n == rawlen);
+        idat[o++] = (unsigned char)last; idat[o++] = (unsigned char)(n & 255); idat[o++] = (unsigned char)(n >> 8); idat[o++] = (unsigned char)(~n & 255); idat[o++] = (unsigned char)((~n >> 8) & 255);
+        memcpy(idat + o, raw + pos, n); o += n;
+        for (i = 0; i < n; ++i) { a = (a + raw[pos + i]) % 65521u; b = (b + a) % 65521u; }
+        pos += n;
+    }
+    crc = (b << 16) | a; idat[o++] = (unsigned char)(crc >> 24); idat[o++] = (unsigned char)(crc >> 16); idat[o++] = (unsigned char)(crc >> 8); idat[o++] = (unsigned char)crc;
+    hd[0] = (unsigned char)(w >> 24); hd[1] = (unsigned char)(w >> 16); hd[2] = (unsigned char)(w >> 8); hd[3] = (unsigned char)w;
+    hd[4] = (unsigned char)(h >> 24); hd[5] = (unsigned char)(h >> 16); hd[6] = (unsigned char)(h >> 8); hd[7] = (unsigned char)h; hd[8] = 8; hd[9] = 2; hd[10] = hd[11] = hd[12] = 0;
+    fwrite(sig, 1, 8, f); ring_chunk(f, "IHDR", hd, 13); ring_chunk(f, "IDAT", idat, (uint32_t)o); ring_chunk(f, "IEND", NULL, 0);
+    fclose(f); free(raw); free(idat); return 1;
+}
+static void ring_save(D3D8DeviceState *s)
+{
+    char base[MAX_PATH], dir[MAX_PATH], path[MAX_PATH], *e; SYSTEMTIME st; unsigned i, saved = 0; ULONGLONG t0 = GetTickCount64();
+    e = getenv("STE_CAPTURE_DIR"); if (e && e[0]) strncpy(base, e, sizeof base - 1); else strcpy(base, "captures"); base[sizeof base - 1] = 0;
+    CreateDirectoryA(base, NULL); GetLocalTime(&st);
+    _snprintf(dir, sizeof dir, "%s\\ring_%04d%02d%02d_%02d%02d%02d", base, st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond); dir[sizeof dir - 1] = 0;
+    CreateDirectoryA(dir, NULL);
+    for (i = 0; i < g_ring.count; ++i) {
+        unsigned idx = (g_ring.head + g_ring.cap - g_ring.count + i) % g_ring.cap; D3D11_MAPPED_SUBRESOURCE mp;
+        if (SUCCEEDED(ID3D11DeviceContext_Map(s->scanout_context, (ID3D11Resource *)g_ring.tex[idx], 0, D3D11_MAP_READ, 0, &mp))) {
+            _snprintf(path, sizeof path, "%s\\f_%03u.png", dir, i); path[sizeof path - 1] = 0;
+            if (ring_write_png(path, (const unsigned char *)mp.pData, mp.RowPitch, g_ring.w, g_ring.h, g_ring.fmt == DXGI_FORMAT_B8G8R8A8_UNORM || g_ring.fmt == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB)) saved++;
+            ID3D11DeviceContext_Unmap(s->scanout_context, (ID3D11Resource *)g_ring.tex[idx], 0);
+        }
+    }
+    fprintf(stderr, "[CAPTURE] F12: saved %u of %u ring frames (%ux%u) to %s in %llu ms\n", saved, g_ring.count, g_ring.w, g_ring.h, dir, (unsigned long long)(GetTickCount64() - t0));
+}
+/* called by the scan-out thread after every presented frame; gen = the game-frame generation just shown */
+static void ring_frame(D3D8DeviceState *s, ID3D11Texture2D *bb, LONG gen)
+{
+    if (!g_ring.init_done) {
+        const char *q = getenv("STE_CAPTURE_RING"); D3D11_TEXTURE2D_DESC d; unsigned i; size_t fb;
+        g_ring.init_done = 1; if (!(q && q[0] == '1')) return;
+        ID3D11Texture2D_GetDesc(bb, &d); fb = (size_t)d.Width * d.Height * 4u; g_ring.cap = (unsigned)((768u << 20) / (fb ? fb : 1)); if (g_ring.cap > RING_MAX) g_ring.cap = RING_MAX;
+        if (g_ring.cap < 2) { fprintf(stderr, "[CAPTURE] ring: %ux%u too large for the 768 MB budget, ring off\n", d.Width, d.Height); return; }
+        d.Usage = D3D11_USAGE_STAGING; d.BindFlags = 0; d.CPUAccessFlags = D3D11_CPU_ACCESS_READ; d.MiscFlags = 0;
+        for (i = 0; i < g_ring.cap; ++i) if (FAILED(ID3D11Device_CreateTexture2D(s->scanout_device, &d, NULL, &g_ring.tex[i]))) { g_ring.cap = i; break; }
+        if (g_ring.cap < 2) { fprintf(stderr, "[CAPTURE] ring: staging allocation failed, ring off\n"); return; }
+        g_ring.w = d.Width; g_ring.h = d.Height; g_ring.fmt = d.Format; g_ring.on = 1; g_ring.last_gen = gen - 1;
+        fprintf(stderr, "[CAPTURE] ring on: %u frames of %ux%u, F12 saves to %s\n", g_ring.cap, g_ring.w, g_ring.h, getenv("STE_CAPTURE_DIR") ? getenv("STE_CAPTURE_DIR") : "captures");
+    }
+    if (!g_ring.on) return;
+    {   D3D11_TEXTURE2D_DESC d; ID3D11Texture2D_GetDesc(bb, &d);
+        if (d.Width != g_ring.w || d.Height != g_ring.h) { g_ring.count = 0; return; }   /* window resized: the old frames are another size; the ring stays empty until a restart */
+    }
+    if (gen != g_ring.last_gen) {
+        g_ring.last_gen = gen;
+        ID3D11DeviceContext_CopyResource(s->scanout_context, (ID3D11Resource *)g_ring.tex[g_ring.head], (ID3D11Resource *)bb);
+        g_ring.head = (g_ring.head + 1) % g_ring.cap; if (g_ring.count < g_ring.cap) g_ring.count++;
+    }
+    {   int down = (GetAsyncKeyState(VK_F12) & 0x8000) != 0;
+        if (down && !g_ring.f12 && GetForegroundWindow() == s->hwnd && g_ring.count) ring_save(s);
+        g_ring.f12 = down;
+    }
+}
+
 /* c251: the only place that presents. DXGI_PRESENT_ALLOW_TEARING is valid only with SyncInterval 0 on a flip-model chain created with the tearing flag, never in exclusive fullscreen.
  * vsync=1 -> Present(1, 0). Every failure is logged; device removed/reset exits with STE_EXIT_DEVICE_LOST; anything else drops to the safe path (1, 0) and carries on. */
 static HRESULT scan_present(D3D8DeviceState *s)
@@ -657,6 +753,7 @@ static DWORD WINAPI d3d8_scanout_thread(void *opaque)
                     }
                 }
             }
+            ring_frame(state, back_buffer, generation);
             ID3D11Texture2D_Release(back_buffer);
             hr = scan_present(state);
 scanout_presented:
