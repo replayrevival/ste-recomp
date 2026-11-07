@@ -1,5 +1,5 @@
-/**
- * D3D8→D3D11 Compatibility Device Implementation
+﻿/**
+ * D3D8â†’D3D11 Compatibility Device Implementation
  *
  * Implements the Xbox D3D8 IDirect3DDevice8 interface using D3D11.
  * The game's translated RenderWare code calls D3D8 methods through
@@ -575,14 +575,16 @@ static void ring_frame(D3D8DeviceState *s, ID3D11Texture2D *bb, LONG gen)
     }
     /* c290: STE_RING_AUTO=1 (burst) or =<n> (absolute): saves the ring by itself on a heavy-fire frame, i.e. a frame with many in-game additive draws (burst = at least 2x the running mean of the last 600
      * frames and >= 20). At most STE_RING_AUTO_MAX saves (default 3), >= 10 s apart; the first 300 frames and front-end screens never trigger. Every trigger and a 5 s summary are logged ([RINGAUTO]). */
-    {   static int mode = -2, maxsave = 3, nsave; static unsigned last_total, hist[600], hn, hpos, frames, peak5; static ULONGLONG t_last_save, t_sum; static double sum;
+    {   static int mode = -2, maxsave = 3, nsave, flashmode = -1; static unsigned last_total, last_flash, hist[600], hn, hpos, frames, peak5; static ULONGLONG t_last_save, t_sum; static double sum;
         if (mode == -2) { const char *a = getenv("STE_RING_AUTO"), *m = getenv("STE_RING_AUTO_MAX"); mode = a ? atoi(a) : 0; if (m) maxsave = atoi(m); }
-        if (mode > 0 && gen != g_ring.last_gen_auto) {
-            extern unsigned g_kelvin_add_draws; unsigned d = g_kelvin_add_draws - last_total; ULONGLONG now = GetTickCount64(); double mean;
+        if (flashmode < 0) { const char *fm = getenv("STE_RING_FLASH"); flashmode = fm && fm[0] == '1'; }
+        if ((mode > 0 || flashmode) && gen != g_ring.last_gen_auto) {
+            extern unsigned g_kelvin_add_draws, g_kelvin_flash_hits; unsigned d = g_kelvin_add_draws - last_total, fd = g_kelvin_flash_hits - last_flash; ULONGLONG now = GetTickCount64(); double mean;
+            last_flash = g_kelvin_flash_hits;
             g_ring.last_gen_auto = gen; last_total = g_kelvin_add_draws; frames++;
             mean = hn ? sum / hn : 0.0; if (d > peak5) peak5 = d;
-            if (frames > 300 && nsave < maxsave && now - t_last_save >= 10000 && g_ring.count >= 8 && (mode == 1 ? (d >= 20 && d >= 2.0 * mean) : (int)d >= mode)) {
-                fprintf(stderr, "[RINGAUTO] trigger frame=%u additive_draws=%u running_mean=%.1f (save %d of %d)\n", frames, d, mean, nsave + 1, maxsave); ring_save(s); nsave++; t_last_save = now;
+            if (frames > 300 && nsave < maxsave && now - t_last_save >= 10000 && g_ring.count >= 8 && (flashmode ? fd > 0 : mode == 1 ? (d >= 20 && d >= 2.0 * mean) : (int)d >= mode)) {
+                fprintf(stderr, "[RINGAUTO] trigger frame=%u additive_draws=%u flash_quads=%u running_mean=%.1f (save %d of %d)\n", frames, d, fd, mean, nsave + 1, maxsave); ring_save(s); nsave++; t_last_save = now;
             }
             if (hn == 600) sum -= hist[hpos]; else hn++;
             hist[hpos] = d; sum += d; hpos = (hpos + 1) % 600;
@@ -2211,7 +2213,7 @@ static D3D11_PRIMITIVE_TOPOLOGY map_primitive_type(D3DPRIMITIVETYPE pt, UINT cou
 }
 
 /* ================================================================
- * Triangle fan / quad list → triangle list conversion
+ * Triangle fan / quad list â†’ triangle list conversion
  *
  * D3D11 doesn't support triangle fans or quad lists.
  * Convert vertex data in-place to triangle list.
@@ -2242,7 +2244,7 @@ static void *convert_fan_or_quad(D3DPRIMITIVETYPE pt, const void *src,
     }
 
     if (pt == D3DPT_QUADLIST) {
-        /* Quad list: each quad (v0,v1,v2,v3) → 2 triangles (v0,v1,v2), (v0,v2,v3) */
+        /* Quad list: each quad (v0,v1,v2,v3) â†’ 2 triangles (v0,v1,v2), (v0,v2,v3) */
         UINT tri_verts = prim_count * 6;
         dst = (BYTE *)malloc(tri_verts * stride);
         if (!dst) return NULL;
@@ -3120,3 +3122,4 @@ IDirect3D8 *xbox_Direct3DCreate8(UINT SDKVersion)
     g_d3d8_ref = 1;
     return &g_d3d8;
 }
+

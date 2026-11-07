@@ -2101,6 +2101,7 @@ static void fsquad_probe(const char *path, uint32_t n, uint32_t prim, float x0, 
 
 /* Pixel-side state for a Kelvin draw (render states, register combiners, textures, FVF) shared by the CPU and GPU vertex paths. */
 extern void d3d8_set_scissor(int on, int l, int t, int r, int b);
+unsigned g_kelvin_flash_hits;   /* c296: flash-shaped quads drawn (every aspect); the frame ring can auto-save on it (STE_RING_FLASH=1) */
 unsigned g_kelvin_add_draws;   /* c290: in-game additive-blend draws issued so far (the frame ring's auto trigger takes per-frame deltas: heavy fire = many additive draws) */
 static void setup_draw_state(IDirect3DDevice8 *dev, int textured[4], IDirect3DTexture8 *tex[4])
 {
@@ -2893,7 +2894,7 @@ static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
     if (count >= 3 && count <= 6 && !textured[0] && K.blend_enable && K.sfactor == 0x302 && K.dfactor == 0x303 && !K.depth_test && !d3d8_front_end_active()) {
         const D3D8VideoCfg *vc = d3d8_video_cfg();
         static int off = -1; if (off < 0) { const char *q = getenv("STE_NO_FLASH_FIX"); off = q && q[0] == '1'; }
-        if (!off && vc->aspect == D3D8V_ASPECT_WIDE && vc->logical_w > 640.5f) {
+        {
             const float (*c)[4] = (const float (*)[4])K.constants;
             int canon2d = fabsf(c[96][0] - 0.003125f) < 2e-5f && fabsf(c[97][1] + 1.0f / 240.0f) < 2e-5f && c[96][1] == 0.0f && c[97][0] == 0.0f && c[99][3] == 1.0f;
             int full_vp = fabsf(c[58][0] - 320.0f) < 0.5f && fabsf(c[58][1] + 240.0f) < 0.5f;
@@ -2905,7 +2906,8 @@ static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
             {   float w = bx1 - bx0, h = by1 - by0, cx = 0.5f * (bx0 + bx1), cy = 0.5f * (by0 + by1);
                 if (!canon2d && full_vp && w >= 300.0f && w < 1e4f && h >= 225.0f && h < 1e4f && fabsf(w / h - 4.0f / 3.0f) < 0.05f && fabsf(cx - 320.5f) < 6.0f && fabsf(cy - 240.5f) < 6.0f) {
                     float k = vc->logical_w / 640.0f;
-                    for (uint32_t i = 0; i < count; ++i) { src[i].x = cx + (src[i].x - cx) * k; src[i].y = cy + (src[i].y - cy) * k; }
+                    g_kelvin_flash_hits++;
+                    if (!off && vc->aspect == D3D8V_ASPECT_WIDE && vc->logical_w > 640.5f) for (uint32_t i = 0; i < count; ++i) { src[i].x = cx + (src[i].x - cx) * k; src[i].y = cy + (src[i].y - cy) * k; }
                 }
             }
         }
@@ -3387,6 +3389,9 @@ void kelvin_end_frame(void)
         if (every && (K.frame % (uint32_t)every) == 0) g_cullstat_dump_request = 1; }
     kpath_report();
 }
+
+
+
 
 
 
