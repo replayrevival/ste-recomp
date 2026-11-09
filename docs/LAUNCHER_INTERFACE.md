@@ -44,7 +44,7 @@ Settings in the ini files are the normal route; environment variables override t
 | `STE_INPUT_MAP` | absolute path of the launcher's `input_mapping.json` (format 1, `launcher\docs\INPUT_MAPPING.md`); read once at start; missing/damaged = built-in defaults. See section 8. |
 | `STE_INPUT_BACKEND` | `sdl` \| `xinput` \| `auto` (default): overrides `[input] backend`. `auto` = SDL3 gamepads, XInput if SDL cannot start. |
 | `STE_NO_DIALOG` | `1`: startup errors go to stderr and the exit code only; no message box. The launcher should set it. |
-| `STE_VIDEO_<KEY>` | overrides the `[video]` key of that name (verified names: `STE_VIDEO_SCALE`, `_WIDTH`, `_HEIGHT`, `_MODE`, `_ASPECT`, `_DRAW_DISTANCE`, `_FOV_SCALE`, `_FOV_MIN_ZOOM`, `_CULL_MARGIN`, `_ANISOTROPY`, `_MIP_BIAS`, `_PILLAR_CAMFIX`; other keys: see the .sample). |
+| `STE_VIDEO_<KEY>` | overrides the `[video]` key of that name (verified names: `STE_VIDEO_SCALE`, `_WIDTH`, `_HEIGHT`, `_MODE`, `_ASPECT`, `_DRAW_DISTANCE`, `_FOV_SCALE`, `_FOV_MIN_ZOOM`, `_QUERY_SCALE`, `_CULL_MARGIN`, `_ANISOTROPY`, `_MIP_BIAS`, `_PILLAR_CAMFIX`; other keys: see the .sample). |
 | `STE_ENHANCE_<KEY>` | overrides the `[enhance]` key of that name (`STE_ENHANCE_UNLOCK_ALL_MONSTERS`, ...). `STE_INPUT_PORT1..4` override `[input] port1..4`. |
 | `STE_VIDEO_CLAMP` | `0`: keep a requested window size larger than the usable desktop (default: fitted to the desktop). |
 | `STE_KELVIN_CULL` | NV2A face culling: `2` (default) everywhere; the Low preset also sets it explicitly. |
@@ -76,6 +76,7 @@ Writer rules for the launcher: preserve comments and unknown keys, change only m
 | `fsr_sharpness` | float (stops) | `0.25` | 0 = sharpest. |
 | `draw_distance` | `original` \| number 0.25..16 \| `unlimited` | `original` (= `1`) | number N: far plane x N and the per-object cull range x N (radial distance) and small-object threshold / N; `unlimited`: far plane x4 and the per-object culls bypassed (draw only; update/AI/physics unchanged). |
 | `fog_scale` | 0.25..16 | `1` | |
+| `query_scale` | 1..6 | `1.5` | only with `draw_distance=unlimited`: widens the per-frame scene-object query volume (the far slab bound and its box, restored right after each query) by this factor, so scenery stays in the draw list past the game's own ~1250-1360 unit limit (the Tokyo skyline pop-in). `1` = the game's own volume. Draw list only; update/AI/physics unchanged. Cost grows with the factor (dev PC, Tokyo fight, 1765x993: 1.5 about -3 fps, 2 about -8, 4 about -30), see `docs/community/Q1_CAMERA_DRAW_DISTANCE.md`. |
 | `fov_scale` | 0.5..2 | `1` | world cameras only. |
 | `fov_min_zoom` | radians, `0` = off | `0` | `0.7854` = the camera's default FOV (no zoom-in). |
 | `cull_margin` | 0.25..16 | `1` | widens the culling frustum. |
