@@ -726,6 +726,7 @@ static float ste_dd_parse(void); static float ste_dd_val(const char *s);   /* c2
 static float g_ste_draw_dist = 1.0f, g_ste_fov_scale = 1.0f, g_ste_fov_min = 0.0f; static int g_ste_cam_cfg;
 static float g_ste_cull_margin = 1.0f; static int g_ste_tune_on; static unsigned g_ste_cull_offs[8]; static int g_ste_cull_noffs;   /* c113: cull_fields is live-tunable too */
 /* c107: STE_TUNE_FILE=<ini>: [tune] draw_distance / cull_margin re-read every 500 ms while the game runs (live A/B comparisons of one frozen frame, e.g. the pause screen). Off unless set. */
+static float g_qv_scale_live = -1.0f;   /* c305: STE_TUNE_FILE query_scale= (render-list query volume widening, see ste_hook_qvol_pre) */
 static void ste_tune_poll(void)
 {
     static int init; static char path[MAX_PATH]; static DWORD last;
@@ -741,6 +742,8 @@ static void ste_tune_poll(void)
         if (b[0]) { v = ste_dd_val(b); if (v != g_ste_draw_dist) { g_ste_draw_dist = v; fprintf(stderr, "[TUNE] tick=%lu draw_distance=%.3f\n", (unsigned long)now, v); fflush(stderr); } }
         b[0] = 0; p = strstr(fb, "fog_scale="); if (p) { p += 10; { int n = 0; while (n < 30 && p[n] > 0x20) { b[n] = p[n]; n++; } b[n] = 0; } }   /* c270: fog A/B on one frozen frame, independent of the draw-distance gates */
         if (b[0]) { extern void kelvin_fog_scale_default(float); kelvin_fog_scale_default((float)atof(b)); }
+        b[0] = 0; p = strstr(fb, "query_scale="); if (p) { p += 12; { int n = 0; while (n < 30 && p[n] > 0x20) { b[n] = p[n]; n++; } b[n] = 0; } }
+        if (b[0]) { g_qv_scale_live = (float)atof(b); if (g_qv_scale_live < 1.0f) g_qv_scale_live = 1.0f; if (g_qv_scale_live > 6.0f) g_qv_scale_live = 6.0f; }
         p = strstr(fb, "cull_fields=");
         if (p) { unsigned o2[8]; int n2 = 0; p += 12; while (*p && *p > 0x20 && n2 < 8) { o2[n2++] = (unsigned)strtoul(p, (char **)&p, 16); if (*p == 0x2C) p++; }
             if (n2 != g_ste_cull_noffs || memcmp(o2, g_ste_cull_offs, sizeof(unsigned) * (size_t)n2)) { memcpy(g_ste_cull_offs, o2, sizeof(unsigned) * (size_t)n2); g_ste_cull_noffs = n2; fprintf(stderr, "[TUNE] tick=%lu cull_fields=%d first=+0x%X\n", (unsigned long)now, n2, n2 ? o2[0] : 0u); fflush(stderr); } }
@@ -1264,3 +1267,38 @@ int ste_hook_dd_sphere(void)
     if (!cull) { g_eax &= ~0xFFu; g_dd_pass[3]++; }
     return 0;
 }
+
+/* ---- c305: draw_distance = unlimited also widens the render-list query volume (SPDX-License-Identifier: GPL-2.0-or-later).
+ * The scenery objects of a fight are found by a spatial-tree query (sub_0013DF10, called per render list) against a volume record at 0x3F1150 + list*0xCC: a frustum-shaped slab (near plane d0 at +0x5C, far bound d1 at +0x60, ~1230 units
+ * deep in Tokyo = fog start 1250 minus near 20) plus its bounding box (6 floats at +0x64..+0x7C). Objects outside it are never put in the list that the draw loop (sub_0013D830 / sub_0013D770, vtable slot 0x24) walks, so
+ * no per-object test can bring them back: that is the pop-in at ~1360 that the cull overrides above do not remove. The list is only read by those draw loops (sub_0013D590 calls a no-op slot).
+ * Hook pair: entry of sub_0013DF10 widens d1 and the box about its centre by STE_VIDEO_QUERY_SCALE / [video] query_scale (default 1.5, 1 = off; measured fight cost on the dev PC at 1765x993: 1.5 -2 fps, 2 -8 fps, 4 -30 fps, see docs); the ret of sub_0013DF10 puts the original floats back, so nothing else sees the change.
+ * Only while the draw-distance override is active (unlimited); original and numeric draw distances run the game's own query. */
+static struct { unsigned applied, widened, d1, box[6]; } g_qv_s[64]; static unsigned g_qv_last; static unsigned long long g_qv_n;
+static void qv_restore(unsigned idx)
+{
+    unsigned tb, i;
+    if (idx >= 64u || !g_qv_s[idx].applied) return;
+    tb = 0x3F1150u + idx * 0xCCu; g_qv_s[idx].applied = 0;
+    if (G32(tb + 0x60) != g_qv_s[idx].widened) return;   /* the game refilled the record meanwhile: keep the fresh values */
+    G32(tb + 0x60) = g_qv_s[idx].d1; for (i = 0; i < 6; ++i) G32(tb + 0x64 + i * 4) = g_qv_s[idx].box[i];
+}
+int ste_hook_qvol_pre(void)
+{
+    static float scale = -1.0f;
+    unsigned self = g_ecx, idx, tb, i; union { uint32_t u; float f; } d0, d1, v[6]; float c, h;
+    if (scale < 0.0f) { scale = ste_ini_float("query_scale", "STE_VIDEO_QUERY_SCALE", 1.5f); if (scale < 1.0f) scale = 1.0f; if (scale > 6.0f) scale = 6.0f; fprintf(stderr, "[QVOL] query_scale=%g (applies with draw_distance=unlimited)\n", scale); fflush(stderr); }
+    if (self < 0x10000u || self > 0x07F00000u) return 0;
+    idx = G32(self + 0x10); if (idx >= 64u) return 0;
+    qv_restore(idx); g_qv_last = idx;
+    if ((g_qv_scale_live >= 1.0f ? g_qv_scale_live : scale) <= 1.0f || !g_dd_unl || !dd_active()) return 0;
+    tb = 0x3F1150u + idx * 0xCCu; d0.u = G32(tb + 0x5C); d1.u = G32(tb + 0x60);
+    if (!(d1.f - d0.f > 1000.0f && d1.f - d0.f < 1500.0f)) return 0;   /* only the record shape seen in the fights (near 20, far 1250) */
+    g_qv_s[idx].d1 = d1.u; for (i = 0; i < 6; ++i) { v[i].u = G32(tb + 0x64 + i * 4); g_qv_s[idx].box[i] = v[i].u; }
+    if (g_qv_scale_live >= 1.0f) scale = g_qv_scale_live; d1.f = d0.f + (d1.f - d0.f) * scale; G32(tb + 0x60) = d1.u; g_qv_s[idx].widened = d1.u;
+    for (i = 0; i < 3; ++i) { c = 0.5f * (v[i].f + v[i + 3].f); h = 0.5f * (v[i + 3].f - v[i].f) * scale; v[i].f = c - h; v[i + 3].f = c + h; G32(tb + 0x64 + i * 4) = v[i].u; G32(tb + 0x70 + i * 4) = v[i + 3].u; }
+    g_qv_s[idx].applied = 1;
+    if (!g_qv_n++) { fprintf(stderr, "[QVOL] first widened query: list %u far bound %.0f -> %.0f\n", idx, (double)(d1.f - (d1.f - d0.f) * (scale - 1.0f) / scale - d0.f), (double)(d1.f - d0.f)); fflush(stderr); }
+    return 0;
+}
+int ste_hook_qvol_post(void) { qv_restore(g_qv_last); return 0; }

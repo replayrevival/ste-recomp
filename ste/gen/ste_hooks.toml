@@ -132,3 +132,14 @@ mode = "after"
 addr = 0x0013C347            # sub_0013C2D0: test al, al after call sub_0018B7B0 (sphere/distance cull of the third scenery draw variant); the hook clears al
 fn   = "ste_hook_dd_sphere"
 mode = "before"
+
+# c305: draw distance 'unlimited' also widens the render-list query volume (sub_0013DF10, record 0x3F1150 + list*0xCC) for the duration of that one query; the original floats are restored at the function's ret
+[[hook]]
+addr = 0x0013DF10
+fn   = "ste_hook_qvol_pre"
+mode = "before"
+[[hook]]
+addr = 0x0013E198
+fn   = "ste_hook_qvol_post"
+mode = "before"
+
