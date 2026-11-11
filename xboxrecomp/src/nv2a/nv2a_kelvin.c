@@ -54,11 +54,22 @@ static const char *kenv(const char *name)
 
 extern volatile int g_xbox_uaf_on;   /* c89: RECOMP_ASYNC_UAF=1 guard, see xbox_memory_layout.c */
 extern void xbox_AsyncUafCheck(uint32_t phys, uint32_t len, const char *what);
+/* c313: the Xbox has 64 MB of RAM (XBOX_CONTIG_SIZE). A draw whose vertex data lies beyond it (a stale pointer or an index past the end of the buffer: harmless on the console, the GPU just
+ * reads whatever is there) used to fault the render thread. Out-of-range reads now return a block of zeros (all attributes 0 = degenerate vertices) and are counted/logged. This showed up once
+ * draw_distance=unlimited + query_scale drew far scenery objects that the game itself never submits at that distance. */
+#define KELVIN_RAM_BYTES 0x04000000u
+static const uint8_t g_guest_zero[64] = { 0 };
+static volatile long g_guest_oob;
 static const uint8_t *guest_ptr(uint32_t phys)
 {
+    uint32_t p = phys & 0x07FFFFFFu;
     if (g_xbox_uaf_on) xbox_AsyncUafCheck(phys, 4, "attr/tex");
-    return (const uint8_t *)((uintptr_t)(phys & 0x07FFFFFFu) +
-                             (g_kelvin_mem_base ? g_kelvin_mem_base : (uintptr_t)g_xbox_mem_offset));
+    if (p > KELVIN_RAM_BYTES - 16u) {
+        long n = ++g_guest_oob;
+        if (n <= 12 || (n % 100000) == 0) { fprintf(stderr, "[KELVIN-OOB] guest read beyond RAM, address 0x%08X (read #%ld): zeros used\n", phys, n); fflush(stderr); }
+        return g_guest_zero;
+    }
+    return (const uint8_t *)((uintptr_t)p + (g_kelvin_mem_base ? g_kelvin_mem_base : (uintptr_t)g_xbox_mem_offset));
 }
 
 static float u2f(uint32_t u) { float f; memcpy(&f, &u, 4); return f; }
@@ -785,11 +796,11 @@ static uint32_t attr_type(int i) { return K.attr_format[i] & 0xF; }
 static uint32_t attr_size(int i) { return (K.attr_format[i] >> 4) & 0xF; }
 static uint32_t attr_stride(int i) { return K.attr_format[i] >> 8; }
 
-static void decode_attr(int i, const uint8_t *p, float out[4])
+/* c310: type/size passed in so the per-draw pack loops (pack_range) can hoist the switch out of the vertex loop; arithmetic unchanged */
+static inline void decode_attr_t(uint32_t type, uint32_t size, const uint8_t *p, float out[4])
 {
-    uint32_t size = attr_size(i);
     out[0] = out[1] = out[2] = 0.0f; out[3] = 1.0f;
-    switch (attr_type(i)) {
+    switch (type) {
     case 0: /* UB_D3D: stored B,G,R,A -> RGBA */
         if (size >= 4 || size == 3) {
             out[0] = p[2] / 255.0f; out[1] = p[1] / 255.0f; out[2] = p[0] / 255.0f;
@@ -825,6 +836,8 @@ static void decode_attr(int i, const uint8_t *p, float out[4])
     default: break;
     }
 }
+
+static void decode_attr(int i, const uint8_t *p, float out[4]) { decode_attr_t(attr_type(i), attr_size(i), p, out); }
 
 static uint32_t attr_inline_dwords(int i)
 {
@@ -1877,6 +1890,13 @@ static struct {
 } XF;
 
 static void pack_vertex(int kind, uint32_t i, uint32_t mask, float *out);
+static void pack_range(int kind, uint32_t b, uint32_t e, uint32_t mask, float *out_b, int na);
+/* c311: A/B switches. g_ste_opt_off = bit mask of optimisations that fall back to the original code (env STE_OPT_OFF=<hex>, live: STE_TUNE_FILE opt_off=<hex>); KELVIN_PACK_OLD=1 = bit 0. KELVIN_PACK_VERIFY=1 packs both ways and compares (diagnostic) */
+volatile uint32_t g_ste_opt_off;
+#define STE_OPT_PACK 1u   /* attribute-major pack_range instead of per-vertex pack_vertex */
+#define STE_OPT_MORDER 4u /* INLINE_ARRAY dispatched before the register-range checks (bit 1 was the exe-side exact query box experiment, removed) */
+#define STE_OPT_RUN 8u    /* kelvin_method_run: whole runs of ARRAY_ELEMENT16 / INLINE_ARRAY parameters handled in one call */
+static int g_pack_verify;
 
 static void xf_work(void)
 {
@@ -1888,7 +1908,8 @@ static void xf_work(void)
         e = b + XF.chunk < XF.count ? b + XF.chunk : XF.count;
         if (XF.pk) {
             int na = 0; for (int q = 0; q < 16; ++q) na += (XF.pkmask >> q) & 1;
-            for (uint32_t i = b; i < e; ++i) pack_vertex(XF.pkkind, i, XF.pkmask, XF.pk + (size_t)i * na * 4);
+            if (XF.pkkind != 1 && !(g_ste_opt_off & STE_OPT_PACK)) pack_range(XF.pkkind, b, e, XF.pkmask, XF.pk + (size_t)b * na * 4, na);
+            else for (uint32_t i = b; i < e; ++i) pack_vertex(XF.pkkind, i, XF.pkmask, XF.pk + (size_t)i * na * 4);
             continue;
         }
         for (uint32_t i = b; i < e; ++i) {
@@ -2000,7 +2021,13 @@ static void fetch_array(uint32_t index, Vec4 v[16]);
  * vertex in a closed triangle mesh); the transform used to run per index.
  * Run it once per distinct index and copy. */
 static uint32_t *g_uniq, g_uniq_cap;
-static int32_t *g_umap; static uint32_t g_umap_cap;
+/* c317: index remap table. Entry = (epoch << 21) | unique index (n <= 2^20), valid when its epoch equals g_umap_ep; a new draw bumps the epoch instead of clearing range*4 bytes with
+ * memset (range may be 8x the index count, i.e. tens of KB per draw). The table is zeroed when it grows and every 2046 draws. */
+static uint32_t *g_umap; static uint32_t g_umap_cap, g_umap_ep;
+#define UM_VALID(v) (((v) >> 21) == g_umap_ep)
+#define UM_IDX(v) ((v) & 0x1FFFFFu)
+static void umap_grown(void) { memset(g_umap, 0, g_umap_cap * sizeof(uint32_t)); g_umap_ep = 0; }
+static void umap_begin(void) { if (++g_umap_ep >= 0x7FFu) { memset(g_umap, 0, g_umap_cap * sizeof(uint32_t)); g_umap_ep = 1; } }
 static OutVertex *g_utmp; static uint32_t g_utmp_cap;
 static int fetch_unique_cb(uint32_t i, Vec4 v[16]) { fetch_array(g_uniq[i], v); return 1; }
 
@@ -2015,9 +2042,9 @@ static int xf_indexed_unique(uint32_t count, OutVertex *src, float tex_scale[4][
     range = hi - lo + 1;
     if (range > 1u << 20 || range > count * 8u + 1024u) return 0;
     if (range > g_umap_cap) {
-        int32_t *m = (int32_t *)realloc(g_umap, range * sizeof(int32_t));
+        uint32_t *m = (uint32_t *)realloc(g_umap, range * sizeof(uint32_t));
         if (!m) return 0;
-        g_umap = m; g_umap_cap = range;
+        g_umap = m; g_umap_cap = range; umap_grown();
     }
     if (count > g_uniq_cap) {
         uint32_t *u = (uint32_t *)realloc(g_uniq, count * sizeof(uint32_t));
@@ -2027,10 +2054,10 @@ static int xf_indexed_unique(uint32_t count, OutVertex *src, float tex_scale[4][
         if (!u || !t) return 0;
         g_uniq_cap = g_utmp_cap = count;
     }
-    memset(g_umap, 0xFF, range * sizeof(int32_t));
+    umap_begin();
     for (uint32_t i = 0; i < count; ++i) {
         uint32_t k = K.indices[i] - lo;
-        if (g_umap[k] < 0) { g_umap[k] = (int32_t)n; g_uniq[n++] = K.indices[i]; }
+        if (!UM_VALID(g_umap[k])) { g_umap[k] = (g_umap_ep << 21) | n; g_uniq[n++] = K.indices[i]; }
     }
     if (n * 4 > count * 3) return 0;   /* little sharing: plain path is as good */
     if (!(n >= xf_par_min() && xf_parallel(n, fetch_unique_cb, g_utmp, (const float (*)[2])tex_scale))) {
@@ -2041,7 +2068,7 @@ static int xf_indexed_unique(uint32_t count, OutVertex *src, float tex_scale[4][
         }
     }
     for (uint32_t i = 0; i < count; ++i)
-        src[i] = g_utmp[g_umap[K.indices[i] - lo]];
+        src[i] = g_utmp[UM_IDX(g_umap[K.indices[i] - lo])];
     return 1;
 }
 
@@ -2210,6 +2237,48 @@ static void pack_vertex(int kind, uint32_t i, uint32_t mask, float *out)
     }
 }
 
+/* c310: attribute-major pack of vertices [b, e) of an array-based draw (kinds 0 = arrays, 2 = unique-indexed, 3 = indexed); out_b points at vertex b, na = attributes per vertex.
+ * Same values as pack_vertex per vertex (same decode arithmetic, same guest_ptr address expression); the per-attribute descriptor and the type switch are resolved once per range
+ * instead of once per vertex and attribute. */
+static void pack_range(int kind, uint32_t b, uint32_t e, uint32_t mask, float *out_b, int na)
+{
+    int slot = 0;
+    for (int a = 0; a < 16; ++a) {
+        uint32_t size, type, stride, off, i; float *o;
+        if (!(mask & (1u << a))) continue;
+        o = out_b + (size_t)slot * 4; ++slot;
+        size = attr_size(a);
+        if (!size) { for (i = b; i < e; ++i, o += (size_t)na * 4) memcpy(o, K.attr_const[a], 16); continue; }
+        type = attr_type(a); stride = attr_stride(a); off = K.attr_offset[a];
+#define PK_LOOP(T) \
+        if (kind == 0) { for (i = b; i < e; ++i, o += (size_t)na * 4) decode_attr_t((T), size, guest_ptr(off + (K.array_start + i) * stride), o); } \
+        else if (kind == 2) { for (i = b; i < e; ++i, o += (size_t)na * 4) decode_attr_t((T), size, guest_ptr(off + g_uniq[i] * stride), o); } \
+        else { for (i = b; i < e; ++i, o += (size_t)na * 4) decode_attr_t((T), size, guest_ptr(off + K.indices[i] * stride), o); }
+        switch (type) {
+        case 0: PK_LOOP(0u) break;
+        case 4: PK_LOOP(4u) break;
+        case 1: PK_LOOP(1u) break;
+        case 5: PK_LOOP(5u) break;
+        case 2: PK_LOOP(2u) break;
+        case 6: PK_LOOP(6u) break;
+        default: PK_LOOP(type) break;
+        }
+#undef PK_LOOP
+    }
+}
+
+static void pack_verify(int kind, uint32_t n, uint32_t mask, const float *got, int na)
+{
+    static unsigned long long draws, bad_draws; static unsigned reported;
+    size_t cnt = (size_t)n * (size_t)na * 4; float *ref = (float *)malloc(cnt * sizeof(float));
+    if (!ref) return;
+    for (uint32_t i = 0; i < n; ++i) pack_vertex(kind, i, mask, ref + (size_t)i * na * 4);
+    draws++;
+    if (memcmp(ref, got, cnt * sizeof(float)) != 0) { bad_draws++; if (reported++ < 8) fprintf(stderr, "[PACKVERIFY] MISMATCH draw kind=%d n=%u mask=%04X na=%d\n", kind, n, mask, na); }
+    if (draws % 20000 == 0) { fprintf(stderr, "[PACKVERIFY] draws=%llu mismatching=%llu\n", draws, bad_draws); fflush(stderr); }
+    free(ref);
+}
+
 typedef struct {
     uint64_t hash;
     uint32_t nwords, mask, vdraws;
@@ -2293,9 +2362,9 @@ static uint32_t gpu_build_unique(uint32_t count)
     range = hi - lo + 1;
     if (range > 1u << 20 || range > count * 8u + 1024u) return 0;
     if (range > g_umap_cap) {
-        int32_t *m = (int32_t *)realloc(g_umap, range * sizeof(int32_t));
+        uint32_t *m = (uint32_t *)realloc(g_umap, range * sizeof(uint32_t));
         if (!m) return 0;
-        g_umap = m; g_umap_cap = range;
+        g_umap = m; g_umap_cap = range; umap_grown();
     }
     if (count > g_uniq_cap) {
         uint32_t *u = (uint32_t *)realloc(g_uniq, count * sizeof(uint32_t));
@@ -2305,10 +2374,10 @@ static uint32_t gpu_build_unique(uint32_t count)
         if (!u || !tt) return 0;
         g_uniq_cap = g_utmp_cap = count;
     }
-    memset(g_umap, 0xFF, range * sizeof(int32_t));
+    umap_begin();
     for (uint32_t i = 0; i < count; ++i) {
         uint32_t k = K.indices[i] - lo;
-        if (g_umap[k] < 0) { g_umap[k] = (int32_t)n; g_uniq[n++] = K.indices[i]; }
+        if (!UM_VALID(g_umap[k])) { g_umap[k] = (g_umap_ep << 21) | n; g_uniq[n++] = K.indices[i]; }
     }
     if (n * 4 > count * 3) return 0;
     g_gu_lo = lo;
@@ -2416,7 +2485,7 @@ static int gpu_vp_draw(IDirect3DDevice8 *dev, uint32_t count, int (*fetch)(uint3
             if (!q) return 0;
             g_gidx = q; g_gidx_cap = cap;
         }
-#define VID(j) (kind == 2 ? (uint32_t)g_umap[K.indices[(j)] - g_gu_lo] : (uint32_t)(j))
+#define VID(j) (kind == 2 ? (uint32_t)UM_IDX(g_umap[K.indices[(j)] - g_gu_lo]) : (uint32_t)(j))
         if (prim == 7 || prim == 10) {
             uint32_t o = 0;
             for (i = 0; i + 2 < count; ++i) { g_gidx[o++] = VID(0); g_gidx[o++] = VID(i + 1); g_gidx[o++] = VID(i + 2); }
@@ -2447,8 +2516,12 @@ static int gpu_vp_draw(IDirect3DDevice8 *dev, uint32_t count, int (*fetch)(uint3
         }
     }
     XF.pk = g_pk; XF.pkmask = e->mask; XF.pkkind = kind;
-    if (!(n >= xf_par_min() && xf_parallel(n, NULL, NULL, NULL)))
-        for (i = 0; i < n; ++i) pack_vertex(kind, i, e->mask, g_pk + (size_t)i * na * 4);
+    { static int pinit; if (!pinit) { const char *oo = kenv("STE_OPT_OFF"); pinit = 1; if (kenv("KELVIN_PACK_OLD")) g_ste_opt_off |= STE_OPT_PACK; if (oo) g_ste_opt_off |= (uint32_t)strtoul(oo, NULL, 16); g_pack_verify = kenv("KELVIN_PACK_VERIFY") != NULL; } }
+    if (!(n >= xf_par_min() && xf_parallel(n, NULL, NULL, NULL))) {
+        if (kind != 1 && !(g_ste_opt_off & STE_OPT_PACK)) pack_range(kind, 0, n, e->mask, g_pk, (int)na);
+        else for (i = 0; i < n; ++i) pack_vertex(kind, i, e->mask, g_pk + (size_t)i * na * 4);
+    }
+    if (g_pack_verify && kind != 1) pack_verify(kind, n, e->mask, g_pk, (int)na);
     XF.pk = NULL;
     t1 = kperf_now(); g_kelvin_perf[1] += t1 - t0; t0 = t1;
 
@@ -2564,6 +2637,21 @@ static void kpath_report(void)
     fprintf(stderr, "\n"); fflush(stderr); memset(g_kp_draws, 0, sizeof g_kp_draws); memset(g_kp_verts, 0, sizeof g_kp_verts);
 }
 static int g_cullstat_dump_request;   /* c139: set by kelvin_end_frame every STE_CULLSTAT frames */
+/* c324 probe (STE_PREFLASH_LOG=1): rolling record of the recent small draws (<= 400 vertices: key, state, screen bbox of the first 24 vertices); when a hit flash is detected the last 60 frames are dumped
+ * ([PREFLASH] lines, at most 3 times) so a projectile in flight can be looked for among them (offline: tests\preflash_tracks.py). Logging only. */
+typedef struct { uint32_t f, n, prim, tex0, st; float x0, x1, y0, y1, z0; } PfRec;
+static PfRec g_pf[32768]; static unsigned g_pf_w; static int g_pf_on = -1;
+static void preflash_dump(void)
+{
+    static unsigned dumps; unsigned i, first; uint32_t fmin;
+    if (g_pf_on <= 0 || dumps >= 3 || K.frame < 100) return;
+    dumps++; fmin = K.frame > 60 ? K.frame - 60 : 0; first = g_pf_w > 32768u ? g_pf_w - 32768u : 0;
+    fprintf(stderr, "[PREFLASH] dump #%u at frame %u (records for frames >= %u)\n", dumps, K.frame, fmin);
+    for (i = first; i < g_pf_w; ++i) { const PfRec *r = &g_pf[i % 32768u]; if (r->f < fmin) continue;
+        fprintf(stderr, "[PREFLASH] f=%u n=%u prim=%u tex0=%08X st=%08X bbox=%.1f,%.1f,%.1f,%.1f z=%.3f\n", r->f, r->n, r->prim, r->tex0, r->st, r->x0, r->x1, r->y0, r->y1, r->z0); }
+    fflush(stderr);
+}
+
 static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
 {
     long long _t0, _t1;
@@ -2700,6 +2788,29 @@ static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
                     fprintf(stderr, "\n[DRAWLOG]   ranges: tex0 s=[%.3f..%.3f] t=[%.3f..%.3f] diffA=[%u..%u] diffB=[%u..%u]", s0, s1, t0, t1, a0, a1, c0, c1);
                 }
                 fprintf(stderr, "\n");
+            }
+        }
+    }
+    {   if (g_pf_on < 0) { const char *e = getenv("STE_PREFLASH_LOG"); g_pf_on = e && *e && *e != '0'; }
+        if (g_pf_on > 0 && count <= 400 && K.frame > 100) {
+            Vec4 v[16]; OutVertex o; PfRec *r = &g_pf[g_pf_w++ % 32768u]; float x0 = 1e30f, x1 = -1e30f, y0 = 1e30f, y1 = -1e30f, z0 = 1e30f; uint32_t nv = count < 24 ? count : 24, i;
+            for (i = 0; i < nv; ++i) { if (!fetch(i, v)) continue; transform_vertex(v, &o, tex_scale); if (o.x < x0) x0 = o.x; if (o.x > x1) x1 = o.x; if (o.y < y0) y0 = o.y; if (o.y > y1) y1 = o.y; if (o.z < z0) z0 = o.z; }
+            r->f = K.frame; r->n = count; r->prim = prim; r->tex0 = K.tex[0].offset; r->st = (K.blend_enable << 28) | (K.depth_test << 27) | (K.depth_mask << 26) | ((uint32_t)K.program_mode << 25) | (K.sfactor & 0xFFF) << 12 | (K.dfactor & 0xFFF); r->x0 = x0; r->x1 = x1; r->y0 = y0; r->y1 = y1; r->z0 = z0;
+        }
+    }
+    {   /* c324 probe (STE_NEWKEY_LOG=1): the first time a draw key (vertex count, primitive, vertex program, texture 0, blend, depth state, GPU/CPU path) is seen, one line with its screen bounding box (post vertex program, first 64 vertices) and the first 3 vertices; STE_NEWKEY_MAXN=<n> limits to draws with <= n vertices (default 400). Logging only. */
+        static int nk_init, nk_on; static uint32_t nk_maxn = 400; static uint64_t nk_seen[4096]; static unsigned nk_n;
+        if (!nk_init) { const char *e = getenv("STE_NEWKEY_LOG"), *m = getenv("STE_NEWKEY_MAXN"); nk_init = 1; nk_on = e && *e && *e != '0'; if (m && atoi(m) > 0) nk_maxn = (uint32_t)atoi(m); }
+        if (nk_on && count <= nk_maxn && K.frame > 100) {
+            uint64_t h = 1469598103934665603ull; uint32_t kk[10]; unsigned q; int dup = 0;
+            kk[0] = count; kk[1] = prim; kk[2] = (uint32_t)K.program_mode * 65536u + K.program_start; kk[3] = K.tex[0].offset; kk[4] = K.tex[0].format; kk[5] = K.blend_enable * 4096u + K.sfactor * 16u + K.dfactor; kk[6] = K.depth_test * 4096u + K.depth_func * 2u + K.depth_mask; kk[7] = K.psh.shader_stage_program; kk[8] = K.cull_enable; kk[9] = K.alpha_test;
+            for (q = 0; q < 10; ++q) { h ^= kk[q]; h *= 1099511628211ull; }
+            for (q = 0; q < nk_n && q < 4096; ++q) if (nk_seen[q] == h) { dup = 1; break; }
+            if (!dup && nk_n < 4096) {
+                Vec4 v[16]; OutVertex o; float x0 = 1e30f, x1 = -1e30f, y0 = 1e30f, y1 = -1e30f, z0 = 1e30f, z1 = -1e30f; uint32_t nv = count < 64 ? count : 64, i;
+                nk_seen[nk_n++] = h;
+                for (i = 0; i < nv; ++i) { if (!fetch(i, v)) continue; transform_vertex(v, &o, tex_scale); if (o.x < x0) x0 = o.x; if (o.x > x1) x1 = o.x; if (o.y < y0) y0 = o.y; if (o.y > y1) y1 = o.y; if (o.z < z0) z0 = o.z; if (o.z > z1) z1 = o.z; }
+                fprintf(stderr, "[NEWKEY] #%u f=%u n=%u prim=%u prog=%d/%u tex0=%08X/%08X blend=%u %X/%X depth=%u/%X zmask=%u atest=%u cull=%u psh=%08X bbox=[%.0f..%.0f]x[%.0f..%.0f] z=[%.3f..%.3f]\n", nk_n, K.frame, count, prim, (int)K.program_mode, K.program_start, K.tex[0].offset, K.tex[0].format, K.blend_enable, K.sfactor, K.dfactor, K.depth_test, K.depth_func, K.depth_mask, K.alpha_test, K.cull_enable, K.psh.shader_stage_program, x0, x1, y0, y1, z0, z1);
             }
         }
     }
@@ -2906,7 +3017,7 @@ static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
             {   float w = bx1 - bx0, h = by1 - by0, cx = 0.5f * (bx0 + bx1), cy = 0.5f * (by0 + by1);
                 if (!canon2d && full_vp && w >= 300.0f && w < 1e4f && h >= 225.0f && h < 1e4f && fabsf(w / h - 4.0f / 3.0f) < 0.05f && fabsf(cx - 320.5f) < 6.0f && fabsf(cy - 240.5f) < 6.0f) {
                     float k = vc->logical_w / 640.0f;
-                    g_kelvin_flash_hits++;
+                    g_kelvin_flash_hits++; preflash_dump();
                     if (!off && vc->aspect == D3D8V_ASPECT_WIDE && vc->logical_w > 640.5f) for (uint32_t i = 0; i < count; ++i) { src[i].x = cx + (src[i].x - cx) * k; src[i].y = cy + (src[i].y - cy) * k; }
                 }
             }
@@ -3066,6 +3177,39 @@ static void push_index(uint32_t idx)
 /* pushbuffer address of the word being executed (set by the host walker) */
 uint32_t g_kelvin_pb_addr, g_kelvin_pb_in_call;
 
+/* c317: the pushbuffer walker hands over a whole run of parameters of one non-incrementing command (ARRAY_ELEMENT16 index pairs, INLINE_ARRAY vertex dwords: together ~60% of all
+ * methods in a busy frame) instead of calling kelvin_method once per dword. Same state changes as the per-dword path; returns 0 (nothing done) when the method is not handled here, the
+ * switch STE_OPT_RUN is set or memory could not be grown, and the walker then feeds the dwords one by one. g_kelvin_pb_addr / g_kelvin_pb_in_call describe the first dword. */
+int kelvin_method_run(uint32_t subchannel, uint32_t method, const uint32_t *params, uint32_t count)
+{
+    (void)subchannel;
+    if (!K.initialized || (g_ste_opt_off & STE_OPT_RUN) || !count) return 0;
+    if (method == M_ARRAY_ELEMENT16) {
+        uint32_t need = K.index_count + 2u * count, i; uint32_t *o;
+        if (need > K.index_cap) {
+            uint32_t cap = K.index_cap ? K.index_cap : 4096u, *p;
+            while (cap < need) cap *= 2u;
+            p = (uint32_t *)realloc(K.indices, cap * sizeof(uint32_t));
+            if (!p) return 0;
+            K.indices = p; K.index_cap = cap;
+        }
+        o = K.indices + K.index_count;
+        for (i = 0; i < count; ++i) { uint32_t pv = params[i]; *o++ = pv & 0xFFFFu; *o++ = pv >> 16; }
+        K.index_count += 2u * count;
+        return 1;
+    }
+    if (method == M_INLINE_ARRAY) {
+        uint32_t room, n;
+        if (!K.inline_count) { g_inline_src = g_kelvin_pb_addr; g_inline_in_call = g_kelvin_pb_in_call; }
+        room = K.inline_count < MAX_VERTS * 4 ? MAX_VERTS * 4 - K.inline_count : 0;
+        n = count < room ? count : room;
+        if (n) memcpy(K.inline_data + K.inline_count, params, (size_t)n * 4u);
+        K.inline_count += n;
+        return 1;
+    }
+    return 0;
+}
+
 int kelvin_method(uint32_t subchannel, uint32_t method, uint32_t param)
 {
     (void)subchannel;
@@ -3074,6 +3218,11 @@ int kelvin_method(uint32_t subchannel, uint32_t method, uint32_t param)
     /* c80: the two per-index methods of every indexed draw come first (they used to sit behind ~25 range checks) */
     if (method == M_ARRAY_ELEMENT16) { push_index(param & 0xFFFF); push_index(param >> 16); return 1; }
     if (method == M_ARRAY_ELEMENT32) { push_index(param); return 1; }
+    if (method == M_INLINE_ARRAY && !(g_ste_opt_off & STE_OPT_MORDER)) {   /* c313: same code as the case below, without the ~25 range checks in front of it */
+        if (!K.inline_count) { g_inline_src = g_kelvin_pb_addr; g_inline_in_call = g_kelvin_pb_in_call; }
+        if (K.inline_count < MAX_VERTS * 4) K.inline_data[K.inline_count++] = param;
+        return 1;
+    }
 
     if (method == M_CONTEXT_DMA_A || method == M_CONTEXT_DMA_B) {
         uint32_t *slot = method == M_CONTEXT_DMA_A ? &K.dma_a : &K.dma_b;
