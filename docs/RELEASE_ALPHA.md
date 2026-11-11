@@ -1,0 +1,42 @@
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+# Replay Revival - Godzilla: Save the Earth (Xbox) recomp - ALPHA 0.1.3 (draft)
+
+**Early alpha. Work in progress, development continues.** Not affiliated with or endorsed by Toho, Atari or Pipeworks. You must own the game; no game data is included or distributed. Windows only for now.
+Draft prepared 2026-11-10. Nothing here is published; the owner publishes.
+
+## What changed since 0.1.2d
+| Area | Change | Status |
+|---|---|---|
+| Input / window | mouse pointer auto-hides while the game has focus; window client size corrected on monitors with a different DPI | in |
+| Capture | opt-in frame ring (`STE_CAPTURE_RING=1`, F12 saves the last 60 frames) | in, off by default |
+| Widescreen | hit/impact screen flash covers the whole widened view (it was an inset rectangle on ultrawide) | in |
+| Draw distance | `draw_distance=unlimited` fog x8 and the scenery query volume `query_scale` (1..4, default 1.5): the Tokyo skyline no longer pops in at ~1360 units | in, optional |
+| Performance | game code is built optimised (four hot generated chunks were not), faster vertex path, precise 60 Hz vblank; governor keeps the frame rate when the distance is wide (`query_scale_auto`) | in |
+| Stability | frames are consumed from a private copy of the pushbuffer ring (the faster game could overwrite unconsumed commands), vertex reads beyond RAM are zero-filled instead of crashing; x4/x8 sessions of ~19 min ran clean | in |
+| Build recipe | the `D3DDevice_Swap` frame hook is now a normal `ste_hooks.toml` hook; before this a build from the published recipe produced no picture | in (**must be in the public tree**) |
+| Test tools | `STE_PERF`, `STE_PERF_SAMPLE`, `STE_TITLE_FPS` (fps in the title bar), `[PBLAP]`, `[QGUARD]` log lines | in, opt-in |
+
+## Known issues
+- Mechagodzilla 3's back missiles are invisible in flight (impacts show). Not reproduced yet with the scripted flow: ring captures were early in the fight; probes `STE_NEWKEY_LOG` and `STE_PREFLASH_LOG` are ready. Needs the exact moment/attack from the reporter.
+- Black Mamba (the owner's other PC) feedback is pending: two-monitor window test (c261) and the distance/performance test zip `ste-recomp-distance-perf.zip`.
+- 1%-low frame rate reads ~52 fps in every mode (frame-pacing jitter, about 18-19 ms p99); average is ~59 fps.
+- `query_scale` above 1 draws far objects the game never draws at that distance; some may look odd (stale vertex data is zero-filled, so they vanish rather than glitch). The governor lowers the distance in heavy fights.
+- Linux/macOS are not supported yet (see `PORTABILITY_AUDIT.md`).
+
+## Release checklist (before anyone publishes)
+1. Licence audit of the merged tree file by file (GPL-2.0-or-later for our code; compiled-in third-party code GPL-compatible; Apache-2.0 compiled in => binaries ship as GPL-3.0). Reports: `F:\GodzillaFamily_Assets\reports\hermes2\license_audit.md`.
+2. No game data anywhere: no default.xbe, no extracted files, no generated C in the repo (`.gitignore` covers `generated/`); screenshots with game imagery stay out. Run the repo scan.
+3. GPL notices, `THIRD_PARTY_NOTICES.md`, `CREDITS.md` current; `GAME_DATA_NOTICE.md` in the package.
+4. Disclaimer in README, About and the launcher: "Not affiliated with or endorsed by Toho, Atari or Pipeworks. You must own the game."
+5. Hash checks: `ste/gen/xbe.sha256` verifies the user's default.xbe; `expected_generated.sha256` (includes the new `recomp_0013.c`) verifies a local regeneration; record the SHA-256 of every shipped binary.
+6. Clean-directory run: unzip into an empty folder, point at a legitimate copy, play Versus Tokyo + New York for 15 minutes.
+7. Version strings 0.1.3 (exe resource, launcher, README); changelog from the table above.
+8. A build from the **published recipe** (not the dev tree) must show a picture and match the dev build's behaviour.
+
+## Test plan for 2-3 PCs
+| PC | What |
+|---|---|
+| Dev PC (RTX 2080 SUPER, Windows 11) | done: 1765x993 and 3840x2160, original / x4 / x8, Tokyo + New York, 3 x 19-min x8 + 1 NY + 1 x4 soaks |
+| Black Mamba (owner) | `play_dist_original.bat`, `_4`, `_8` at 1080p and its native resolution; report fps in the title bar, pop-in, any stutter; send `data\logs\play_dist_*.log`; two-monitor window test when asked |
+| Low-end 4-core / iGPU | `play_dist_original.bat` at 1280x720 and 1920x1080 (the 60 fps floor), then `_4`; the governor should hold the frame rate by shortening the distance |
+Record for each run: exe SHA-256, resolution, mode, median fps, worst frame, `[QGUARD]` cap range, crash/replay lines (`[CRASH]`, `[PB-REPLAY]`, `[KELVIN-OOB]`).
