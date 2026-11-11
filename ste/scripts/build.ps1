@@ -1,4 +1,4 @@
-﻿# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-License-Identifier: GPL-2.0-or-later
 # Build ste-recomp.exe from source. See BUILD.md.
 #   .\ste\scripts\build.ps1 -Xbe "D:\path\to\your\extracted\default.xbe" [-Sdl3Src <SDL 3.4.x source>] [-Out build]
 # Needs: Visual Studio 2022 Build Tools (C++ x64 workload + Windows SDK), CMake >= 3.20, Python >= 3.10, and
@@ -89,8 +89,14 @@ if (Test-Path $exp) {   # generation is deterministic: compare every generated f
     $p = "$Gen\generated\$($n.Trim().TrimStart('*'))"
     if (-not (Test-Path $p) -or (Get-FileHash $p -Algorithm SHA256).Hash -ne $w) { Write-Warning "generated file differs from the recorded hash: $n"; $bad++ }
   }
+  # every generated chunk must be listed: a file that exists but is not in the list was added or patched outside the recipe
+  $known = @(Get-Content $exp | ForEach-Object { ($_ -split '\s+', 2)[1] } | Where-Object { $_ } | ForEach-Object { $_.Trim().TrimStart('*') })
+  foreach ($gf in Get-ChildItem "$Gen\generated" -Filter "recomp_*.c" -ErrorAction SilentlyContinue) { if ($known -notcontains $gf.Name) { Write-Warning "generated file not in expected_generated.sha256: $($gf.Name)"; $bad++ } }
   if ($bad -eq 0) { Write-Host "generated code matches ste/gen/expected_generated.sha256" }
-}& $Python "$Root\ste\scripts\verify_generated.py" --root $Gen | Out-Host; if ($LASTEXITCODE) { throw "generated-code validator reported FAIL" }
+  elseif ($env:STE_ALLOW_HASH_MISMATCH -eq "1") { Write-Warning "$bad generated file(s) differ from the recipe (STE_ALLOW_HASH_MISMATCH=1: continuing)" }
+  else { throw "$bad generated file(s) differ from ste/gen/expected_generated.sha256. Generated code must come only from default.xbe + ste/gen/ste_hooks.toml (+ exclude_manual.c); a hook patched into the C by hand will not exist for anyone else (the D3DDevice_Swap hook was such a case). Fix ste_hooks.toml and regenerate; update the hashes only for an intended change (STE_ALLOW_HASH_MISMATCH=1 bypasses for experiments)." }
+}
+& $Python "$Root\ste\scripts\verify_generated.py" --root $Gen | Out-Host; if ($LASTEXITCODE) { throw "generated-code validator reported FAIL" }
 
 # --- 4. compile
 Write-Host "== compiling"
