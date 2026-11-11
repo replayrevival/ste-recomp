@@ -1600,6 +1600,7 @@ static HRESULT d3d11_create_device_and_swap_chain(
     }
     d3d8_debug_attach(0, state->d3d11_device);
     d3d8_debug_attach(1, state->scanout_device);
+    { extern void d3d8_perf_install(ID3D11DeviceContext *c); d3d8_perf_install(state->d3d11_context); }   /* c308: STE_PERF=1 call-count/timing shim */
 
     /* Diagnostic capture can also read the scanout texture from the guest
      * thread. Serialize both immediate contexts: protecting only the render
