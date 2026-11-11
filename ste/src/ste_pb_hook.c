@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 #include <windows.h>
 #include "d3d8_xbox.h"
 #include "nv2a_kelvin.h"
@@ -37,6 +38,11 @@ static long long sp_km, sp_pf; static long long g_t_km, g_t_ef, g_t_pf; static l
 static uint32_t rd(uint32_t va) { return *(volatile uint32_t *)((uintptr_t)g_xbox_mem_offset + va); }
 /* physical pushbuffer word, through the contiguous window at guest 0x80000000 */
 static uint32_t rdp(uint32_t phys) { return rd(0x80000000u | (phys & PHYS_MASK)); }
+/* c322: the pushbuffer ring is 2 MB and the game thread, now much faster, can lap the render thread (a frame can use >50% of the ring): the writer then overwrites commands that have not been consumed and the walker replays
+ * stale data (c317, c321 run b: 24M methods from a 290k-dword frame; also the old x8 / 4K crashes). Every frame is therefore consumed from a private copy of its ring range, taken on the game thread when the frame is handed over
+ * (before the game writes the next one); the copy mirrors the ring offsets, one buffer per job in flight. STE_PB_SNAP=0 reads the live ring as before. */
+static const uint32_t *g_walk_snap; static uint32_t g_walk_lo, g_walk_hi; volatile int g_ste_pb_snap_on = -1;
+static uint32_t wrd(uint32_t pos) { pos &= PHYS_MASK; if (g_walk_snap && pos >= g_walk_lo && pos < g_walk_hi) return g_walk_snap[(pos - g_walk_lo) >> 2]; return rdp(pos); }
 
 static int       g_state;            /* 0 = not attached, 1 = attached, -1 = disabled/failed */
 static uint32_t  g_last = 0xFFFFFFFFu;
@@ -174,11 +180,14 @@ extern volatile int g_nv2a_get_async;
 extern volatile uint32_t *xbox_Nv2aRegPtr(uint32_t offset);
 static int g_async = -1;               /* 1 = render thread, 0 = synchronous */
 static void ste_set_get(uint32_t phys) { volatile uint32_t *g = xbox_Nv2aRegPtr(0x800044); if (g) *g = phys & PHYS_MASK; }
+static unsigned g_pf_mh[0x800]; static int g_pf_mh_on;   /* c312: STE_PERF method histogram (see ste_pf_mh_report) */
 /* Walk physical [from, cur). Returns number of methods fed. */
+extern int kelvin_method_run(uint32_t subchannel, uint32_t method, const uint32_t *params, uint32_t count);
 static void ste_walk(uint32_t from, uint32_t cur, uint32_t ring_lo, uint32_t ring_hi,
                      unsigned *methods, unsigned *unhandled, unsigned *malformed, unsigned *flips, unsigned *jumps, unsigned *calls)
 {
     uint32_t pos = from & PHYS_MASK, ret = 0, in_call = 0;
+    if (g_pf_mh_on == 0) { const char *pe = getenv("STE_PERF"); g_pf_mh_on = (pe && pe[0] && pe[0] != 0x30) ? 1 : -1; }
     unsigned budget = 0x400000;
     unsigned since_get = 0;
     while (budget--) {
@@ -186,7 +195,8 @@ static void ste_walk(uint32_t from, uint32_t cur, uint32_t ring_lo, uint32_t rin
         if (g_async == 1 && !in_call && ++since_get >= 2048u) { since_get = 0; ste_set_get(pos); }   /* c84: tell the guest how far the pushbuffer has really been consumed */
         if (!in_call && pos == (cur & PHYS_MASK)) return;
         if (!in_call && (pos < ring_lo || pos >= ring_hi)) { (*malformed)++; return; }
-        w = rdp(pos);
+        if ((pos & PHYS_MASK) >= 0x04000000u) { (*malformed)++; return; }   /* c313: a CALL/JUMP into garbage (beyond the 64 MB of RAM) ends the range instead of faulting the render thread */
+        w = wrd(pos);
         if ((w & 0xE0000003u) == 0x20000000u) { (*jumps)++; pos = w & 0x1FFFFFFCu; continue; }
         if ((w & 3u) == 1u)                   { (*jumps)++; pos = w & PHYS_MASK; continue; }
         if ((w & 3u) == 2u) {
@@ -203,11 +213,24 @@ static void ste_walk(uint32_t from, uint32_t cur, uint32_t ring_lo, uint32_t rin
             int noninc = (w & 0xE0000000u) == 0x40000000u;
             uint32_t i;
             pos += 4;
+            if (noninc && count >= 4 && (method == 0x1800 || method == 0x1818)) {   /* c317: ARRAY_ELEMENT16 / INLINE_ARRAY runs in one call (kelvin_method_run), unless the run touches the cursor, the ring end or memory beyond RAM */
+                uint32_t end = pos + 4u * count, cur_p = cur & PHYS_MASK;
+                if ((in_call || (end <= ring_hi && !(cur_p >= pos && cur_p < end))) && (end & PHYS_MASK) <= 0x04000000u) {
+                    g_kelvin_pb_addr = pos; g_kelvin_pb_in_call = in_call;
+                    if (kelvin_method_run(subch, method, (g_walk_snap && pos >= g_walk_lo && end <= g_walk_hi) ? g_walk_snap + ((pos - g_walk_lo) >> 2) : (const uint32_t *)((uintptr_t)g_xbox_mem_offset + (0x80000000u | (pos & PHYS_MASK))), count)) {
+                        g_subch_methods[subch] += count; (*methods) += count; if (g_pf_mh_on > 0) g_pf_mh[(method >> 2) & 0x7FF] += count;
+                        g_kelvin_pb_addr = end - 4u; pos = end;
+                        if (!in_call && pos >= ring_hi) pos = ring_lo;
+                        continue;
+                    }
+                }
+            }
             for (i = 0; i < count; i++) {
-                uint32_t m = noninc ? method : method + i * 4u, param = rdp(pos);
+                uint32_t m = noninc ? method : method + i * 4u, param = wrd(pos);
                 if (!in_call && pos == (cur & PHYS_MASK)) { (*malformed)++; return; }   /* command crossed the cursor */
                 g_kelvin_pb_addr = pos; g_kelvin_pb_in_call = in_call;
                 g_subch_methods[subch]++;
+                if (g_pf_mh_on > 0) g_pf_mh[(m >> 2) & 0x7FF]++;   /* c312: STE_PERF method histogram */
                 if (m == 0 && g_obj_logged < 16) { g_obj_logged++; fprintf(stderr, "[PB-OBJ] subch=%u SET_OBJECT 0x%08X at %08X\n", subch, param, pos); }
                 (*methods)++;
                 if (m == 0x01A8) { if (g_sem_dma != param) fprintf(stderr, "[PB-SEM] SET_CONTEXT_DMA_SEMAPHORE handle=%08X\n", param); g_sem_dma = param; }
@@ -283,6 +306,10 @@ static void ste_process_range(uint32_t from, uint32_t cur, uint32_t lo, uint32_t
     static DWORD t_shot;
     kelvin_get_stats(&a);
     ste_walk(from, cur, lo, hi, &methods, &unhandled, &malformed, &flips, &jumps, &calls);
+    {   /* c319 diagnostic: more methods than dwords in the range = the walker went round the ring again (a replay of stale commands); logged for the first 20 such frames */
+        uint32_t dw = (cur >= from ? cur - from : (hi - lo) - (from - cur)) >> 2; static unsigned rp;
+        if (methods > dw * 2u + 2000u && rp < 20) { uint32_t dv = rd(DEV_PTR_VA), put_now = rd(dv + DEV_PUT) & PHYS_MASK; rp++;
+            fprintf(stderr, "[PB-REPLAY] #%u frame=%u seg %08X..%08X ring %08X..%08X dwords=%u methods=%u jumps=%u calls=%u malformed=%u | game write pointer now %08X\n", rp, g_frame + 1, from, cur, lo, hi, dw, methods, jumps, calls, malformed, put_now); fflush(stderr); } }
     kelvin_get_stats(&b);
     g_frame++;
     if (g_frame <= 20 || (g_frame % g_log_every) == 0)
@@ -342,13 +369,33 @@ static void ste_process_range(uint32_t from, uint32_t cur, uint32_t lo, uint32_t
 
 /* Render-thread frame statistics: interval between consecutive completed frames (what the display receives), busy time per frame, cold/warm
  * shader counters.  [RFT] every 10 s to the stats file. */
+static unsigned g_pf_mh[0x800]; static int g_pf_mh_on;
+static void ste_pf_mh_report(unsigned frames);
+static volatile uint32_t g_pf_pbmax, g_pf_ringdw; static volatile float g_pf_outst_max;
+/* c320: STE_TITLE_FPS=1 shows the frame rate in the window title (test builds): "Godzilla STE - 59.8 fps (16.7 ms avg, worst 21.0) | query scale 3.4/4 | pushbuffer 31%", refreshed twice a second.
+ * Called from ste_rft on the render thread, which created and owns the window (async mode): a cross-thread SendMessage from the game thread stalled it and locked the game to 2 vblanks per frame (c319). */
+static void ste_title_fps_rt(double interval_ms)
+{
+    static int on = -1; static unsigned n; static double worst, sum;
+    if (on < 0) { const char *e = getenv("STE_TITLE_FPS"); on = (e && e[0] && e[0] != '0'); }
+    if (!on || !g_hwnd) return;
+    if (interval_ms > worst) worst = interval_ms;
+    sum += interval_ms; n++;
+    if (sum >= 500.0 && n) {
+        extern float g_qv_scale_cur; extern volatile float g_ste_qv_max, g_ste_pb_fill; wchar_t w[200];
+        _snwprintf(w, 200, L"Godzilla STE - %.1f fps (%.1f ms avg, worst %.1f) | query scale %.1f/%.1f | pushbuffer %.0f%%", 1000.0 * n / sum, sum / n, worst, (double)g_qv_scale_cur, (double)g_ste_qv_max, (double)g_ste_pb_fill * 100.0);
+        w[199] = 0; SetWindowTextW(g_hwnd, w);
+        sum = 0.0; worst = 0.0; n = 0;
+    }
+}
 static void ste_rft(double busy_ms)
 {
     static LARGE_INTEGER last, freq, win; static double buf[8192], bsum; static unsigned n;
     LARGE_INTEGER now; extern unsigned g_psh_compiles;
+    { extern volatile float g_ste_render_busy_ms; g_ste_render_busy_ms = g_ste_render_busy_ms == 0.0f ? (float)busy_ms : g_ste_render_busy_ms * 0.8f + (float)busy_ms * 0.2f; }   /* c317 governor input */
     if (!freq.QuadPart) QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&now);
-    if (last.QuadPart) { if (n < 8192) { buf[n++] = (double)(now.QuadPart - last.QuadPart) * 1000.0 / (double)freq.QuadPart; bsum += busy_ms; } }
+    if (last.QuadPart) { if (n < 8192) { buf[n++] = (double)(now.QuadPart - last.QuadPart) * 1000.0 / (double)freq.QuadPart; bsum += busy_ms; } ste_title_fps_rt((double)(now.QuadPart - last.QuadPart) * 1000.0 / (double)freq.QuadPart); }
     last = now;
     if (!win.QuadPart) win = now;
     if ((now.QuadPart - win.QuadPart) >= 10 * freq.QuadPart && n > 10) {
@@ -357,15 +404,87 @@ static void ste_rft(double busy_ms)
         qsort(sorted, n, sizeof(double), ste_cmp_d);
         fprintf(ste_statf(), "[RFT] n=%u fps=%.1f avg=%.2f p50=%.2f p99=%.2f max=%.2f >16.7:%u >33.3:%u >50:%u busy=%.2f psh_compiles=%u\n",
                 n, 1000.0 * n / sum, sum / n, sorted[n / 2], sorted[(unsigned)(n * 0.99)], mx, o17, o33, o50, bsum / n, g_psh_compiles);
+        { extern void d3d8_perf_report(unsigned frames, double busy_ms, double scale, unsigned opt_off); extern float g_qv_scale_cur; extern volatile uint32_t g_ste_opt_off; d3d8_perf_report(n, bsum, (double)g_qv_scale_cur, (unsigned)g_ste_opt_off); } ste_pf_mh_report(n);   /* c308: STE_PERF=1 */
         fflush(ste_statf()); n = 0; bsum = 0; win = now;
     }
 }
 
-typedef struct { uint32_t from, cur, lo, hi, seq; } PbJob;   /* c89: seq = contiguous-pool sequence at submit (RECOMP_ASYNC_UAF guard) */
+/* c308 probe (opt-in): STE_PERF_SAMPLE=1 samples the instruction pointer of the game thread (which calls ste_pb_frame_hook) and of the render thread every ~1 ms
+ * (SuspendThread / GetThreadContext / ResumeThread, nothing else runs while a thread is suspended) and every 10 s prints a per-module summary ([PERFS]) and appends the
+ * hottest 30000 addresses per thread to STE_PERF_OUT (module, RVA, count) for offline symbolisation against the linker map.  Measurement only. */
+static long long g_pg_thr, g_pg_pace;   /* game thread: QPC ticks waiting for the render thread / inside the fps pacer */
+typedef struct { uintptr_t rip; uint32_t cnt; } PsEnt;
+#define PS_N 65536u
+static PsEnt g_ps[2][PS_N]; static HANDLE g_ps_h[2]; static int g_ps_on = -1; static unsigned g_ps_tot[2];
+static void ste_ps_register(int which)
+{
+    if (g_ps_on < 0) { const char *e = getenv("STE_PERF_SAMPLE"); g_ps_on = (e && e[0] && e[0] != '0'); }
+    if (g_ps_on && !g_ps_h[which]) DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &g_ps_h[which], 0, FALSE, DUPLICATE_SAME_ACCESS);
+}
+static int ps_cmp(const void *a, const void *b) { const PsEnt *x = (const PsEnt *)a, *y = (const PsEnt *)b; return x->cnt < y->cnt ? 1 : x->cnt > y->cnt ? -1 : 0; }
+static void ps_dump(unsigned window)
+{
+    static const char *const tn[2] = { "game", "render" }; extern float g_qv_scale_cur; extern volatile uint32_t g_ste_opt_off; const char *outp = getenv("STE_PERF_OUT"); FILE *of = outp ? fopen(outp, "a") : NULL; int w;
+    for (w = 0; w < 2; w++) {
+        static PsEnt cp[PS_N]; unsigned n = 0, i, nm = 0; char names[8][64]; unsigned mc[8]; memset(mc, 0, sizeof mc);
+        for (i = 0; i < PS_N; i++) if (g_ps[w][i].rip) cp[n++] = g_ps[w][i];
+        memset(g_ps[w], 0, sizeof g_ps[w]);
+        qsort(cp, n, sizeof(PsEnt), ps_cmp);
+        if (of) fprintf(of, "W%u %s scale=%.2f opt=%x total=%u\n", window, tn[w], (double)g_qv_scale_cur, (unsigned)g_ste_opt_off, g_ps_tot[w]);
+        for (i = 0; i < n; i++) {
+            HMODULE hm = NULL; char path[MAX_PATH] = "?", *base; unsigned m;
+            if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)cp[i].rip, &hm) && hm) GetModuleFileNameA(hm, path, sizeof path);
+            base = strrchr(path, '\\'); base = base ? base + 1 : path;
+            if (of && i < 30000) fprintf(of, "%s %llx %u\n", base, (unsigned long long)(cp[i].rip - (uintptr_t)hm), cp[i].cnt);
+            for (m = 0; m < nm; m++) if (!_stricmp(names[m], base)) break;
+            if (m == nm && nm < 8) { strncpy(names[nm], base, 63); names[nm][63] = 0; mc[nm++] = 0; }
+            if (m < nm) mc[m] += cp[i].cnt;
+        }
+        fprintf(ste_statf(), "[PERFS] W%u %s scale=%.2f samples=%u:", window, tn[w], (double)g_qv_scale_cur, g_ps_tot[w]);
+        for (i = 0; i < nm; i++) fprintf(ste_statf(), " %s=%.1f%%", names[i], g_ps_tot[w] ? 100.0 * mc[i] / g_ps_tot[w] : 0.0);
+        fprintf(ste_statf(), "\n"); fflush(ste_statf()); g_ps_tot[w] = 0;
+    }
+    if (of) fclose(of);
+}
+static DWORD WINAPI ste_ps_thread(LPVOID unused)
+{
+    HANDLE tm = CreateWaitableTimerExW(NULL, NULL, 0x2 /* CREATE_WAITABLE_TIMER_HIGH_RESOLUTION */, TIMER_ALL_ACCESS); LARGE_INTEGER due, t0, now, fq; unsigned window = 0; (void)unused;
+    if (!tm) tm = CreateWaitableTimerW(NULL, FALSE, NULL);
+    due.QuadPart = -10000; SetWaitableTimer(tm, &due, 1, NULL, NULL, FALSE);
+    QueryPerformanceFrequency(&fq); QueryPerformanceCounter(&t0);
+    for (;;) {
+        int w; WaitForSingleObject(tm, 50);
+        for (w = 0; w < 2; w++) if (g_ps_h[w] && SuspendThread(g_ps_h[w]) != (DWORD)-1) {
+            CONTEXT c; memset(&c, 0, sizeof c); c.ContextFlags = CONTEXT_CONTROL;
+            if (GetThreadContext(g_ps_h[w], &c)) {
+                uintptr_t rip = (uintptr_t)c.Rip; unsigned h = (unsigned)((rip * 0x9E3779B1u) >> 7) & (PS_N - 1), k;
+                for (k = 0; k < 64; k++, h = (h + 1) & (PS_N - 1)) { if (g_ps[w][h].rip == rip) { g_ps[w][h].cnt++; break; } if (!g_ps[w][h].rip) { g_ps[w][h].rip = rip; g_ps[w][h].cnt = 1; break; } }
+                g_ps_tot[w]++;
+            }
+            ResumeThread(g_ps_h[w]);
+        }
+        QueryPerformanceCounter(&now);
+        if (now.QuadPart - t0.QuadPart >= 10 * fq.QuadPart) { t0 = now; ps_dump(++window); }
+    }
+}
+/* c312: STE_PERF=1 -> histogram of the pushbuffer methods the walker fed to Kelvin; [PERFM] top 12 per window (methods per frame) */
+static void ste_pf_mh_report(unsigned frames)
+{
+    unsigned top[12], tn[12], i, k, j, tot = 0;
+    if (g_pf_mh_on <= 0) return;
+    for (k = 0; k < 12; k++) { top[k] = 0; tn[k] = 0; }
+    for (i = 0; i < 0x800; i++) { unsigned c = g_pf_mh[i]; if (!c) continue; tot += c;
+        for (k = 0; k < 12; k++) if (c > tn[k]) { for (j = 11; j > k; j--) { top[j] = top[j - 1]; tn[j] = tn[j - 1]; } top[k] = i << 2; tn[k] = c; break; } }
+    fprintf(ste_statf(), "[PERFM] n=%u methods/frame=%.0f pushbuffer max=%u dwords of ring %u (%.0f%%) in-flight max=%.0f%% top:", frames, frames ? (double)tot / frames : 0.0, (unsigned)g_pf_pbmax, (unsigned)g_pf_ringdw, g_pf_ringdw ? 100.0 * g_pf_pbmax / g_pf_ringdw : 0.0, 100.0 * (double)g_pf_outst_max);
+    for (k = 0; k < 12 && tn[k]; k++) fprintf(ste_statf(), " %04X=%.0f", top[k], (double)tn[k] / frames);
+    fprintf(ste_statf(), "\n"); fflush(ste_statf()); memset(g_pf_mh, 0, sizeof g_pf_mh); g_pf_pbmax = 0; g_pf_outst_max = 0.0f;
+}typedef struct { uint32_t from, cur, lo, hi, seq, snap; } PbJob;   /* c89: seq = contiguous-pool sequence at submit (RECOMP_ASYNC_UAF guard) */
 extern volatile int g_xbox_fence_on; extern volatile long g_xbox_fence_enq; extern void xbox_FenceFrameDone(long done);   /* c90: contiguous-free fence */
 extern uint32_t xbox_ContigSeq(void); extern void xbox_AsyncUafBegin(uint32_t seq, uint32_t frame);
 #define PBQ 64
 static PbJob g_q[PBQ];
+#define PB_SNAPS 4
+static uint32_t *g_snap[PB_SNAPS]; static uint32_t g_snap_bytes[PB_SNAPS];
 static volatile LONG g_q_w, g_q_r, g_enq_cnt, g_done_cnt;   /* single producer (game thread) / single consumer (render thread) */
 static HANDLE g_ev_job, g_ev_done, g_ev_attached;
 static uint32_t g_enq_from;
@@ -373,16 +492,18 @@ static int g_async_depth = 2;
 
 static DWORD WINAPI ste_render_thread(LPVOID unused)
 {
-    (void)unused;
+    (void)unused; ste_ps_register(1);
     if (ste_attach() < 0) g_state = -1; else ste_set_get(g_last);
     SetEvent(g_ev_attached);
     for (;;) {
         WaitForSingleObject(g_ev_job, INFINITE);
         while (g_q_r != g_q_w) {
             PbJob j = g_q[(unsigned)g_q_r % PBQ];
+            { uint32_t dw = (j.cur >= j.from ? (j.cur - j.from) : ((j.hi - j.lo) - (j.from - j.cur))) >> 2; if (dw > g_pf_pbmax) g_pf_pbmax = dw; g_pf_ringdw = (j.hi - j.lo) >> 2;
+              { extern volatile float g_ste_pb_fill; static float h[3]; float f = g_pf_ringdw ? (float)dw / (float)g_pf_ringdw : 0.0f, m; h[2] = h[1]; h[1] = h[0]; h[0] = f; m = h[0] > h[1] ? h[0] : h[1]; if (h[2] > m) m = h[2]; g_ste_pb_fill = m; } }   /* c312: dwords in this frame's pushbuffer range; c318: pushbuffer fill of the last 3 frames for the query guard */
             LARGE_INTEGER q0, q1; double busy;
             QueryPerformanceCounter(&q0);
-            if (g_state > 0) { xbox_AsyncUafBegin(j.seq, g_frame + 1); ste_process_range(j.from, j.cur, j.lo, j.hi); }
+            if (g_state > 0) { xbox_AsyncUafBegin(j.seq, g_frame + 1); g_walk_snap = j.snap < PB_SNAPS ? g_snap[j.snap] : NULL; g_walk_lo = j.lo; g_walk_hi = j.hi; ste_process_range(j.from, j.cur, j.lo, j.hi); g_walk_snap = NULL; }
             QueryPerformanceCounter(&q1);
             busy = (double)(q1.QuadPart - q0.QuadPart) * 1000.0 / 10000000.0;   /* QPC is 10 MHz here; only used for the average in [RFT] */
             ste_set_get(j.cur);
@@ -429,7 +550,32 @@ static void ste_pb_frame_hook_impl(void)
     dev = rd(DEV_PTR_VA);
     cur = rd(dev + DEV_PUT) & PHYS_MASK;
     lo = rd(dev + DEV_RING_LO) & PHYS_MASK; hi = rd(dev + DEV_RING_HI) & PHYS_MASK;
+    {   /* c322: private copy of this frame's ring range (see wrd) */
+        PbJob *jq = &g_q[(unsigned)g_q_w % PBQ]; unsigned slot = (unsigned)g_enq_cnt % PB_SNAPS; uint32_t ringb = hi - lo;
+        if (g_ste_pb_snap_on < 0) { const char *e = getenv("STE_PB_SNAP"); g_ste_pb_snap_on = !(e && e[0] == '0'); fprintf(stderr, "[PB-SNAP] %s\n", g_ste_pb_snap_on ? "frames are consumed from a private copy of their ring range" : "STE_PB_SNAP=0: live ring"); fflush(stderr); }
+        jq->snap = ~0u;
+        if (g_ste_pb_snap_on && ringb && ringb <= 0x800000u && (lo & 3u) == 0 && g_enq_from >= lo && g_enq_from <= hi && cur >= lo && cur <= hi) {
+            if (g_snap_bytes[slot] != ringb) { free(g_snap[slot]); g_snap[slot] = (uint32_t *)malloc(ringb); g_snap_bytes[slot] = g_snap[slot] ? ringb : 0; }
+            if (g_snap[slot]) {
+                const uint8_t *live = (const uint8_t *)((uintptr_t)g_xbox_mem_offset + 0x80000000u); uint8_t *dst = (uint8_t *)g_snap[slot] - lo;
+                if (cur >= g_enq_from) memcpy(dst + g_enq_from, live + g_enq_from, cur - g_enq_from);
+                else { memcpy(dst + g_enq_from, live + g_enq_from, hi - g_enq_from); memcpy(dst + lo, live + lo, cur - lo); }
+                jq->snap = slot;
+            }
+        }
+    }
+    { LARGE_INTEGER tq0, tq1; QueryPerformanceCounter(&tq0);
+    {   /* c322: pushbuffer data in flight when this frame is handed over = this frame's size + what the render thread has not consumed of the previous one (GET is what it last reported). Over 100% of the ring means the writer lapped the reader. */
+        extern volatile float g_ste_pb_outst; static float h[3]; static unsigned lap_logged; volatile uint32_t *gp = xbox_Nv2aRegPtr(0x800044); uint32_t ringb = hi - lo;
+        if (ringb && gp) {
+            uint32_t get = *gp & PHYS_MASK, size = cur >= g_enq_from ? cur - g_enq_from : ringb - (g_enq_from - cur), rem = g_enq_from >= get ? g_enq_from - get : g_enq_from + ringb - get; float f = (float)((double)size + (double)rem) / (float)ringb, m;
+            h[2] = h[1]; h[1] = h[0]; h[0] = f; m = h[0] > h[1] ? h[0] : h[1]; if (h[2] > m) m = h[2]; g_ste_pb_outst = m;
+            if (f > g_pf_outst_max) g_pf_outst_max = f;
+            if (f >= 1.0f && lap_logged < 20) { lap_logged++; fprintf(stderr, "[PBLAP] frame data in flight %.0f%% of the ring (this frame %u + unconsumed %u of %u bytes): the writer lapped the reader\n", f * 100.0, size, rem, ringb); fflush(stderr); }
+        }
+    }
     while (g_enq_cnt - g_done_cnt >= g_async_depth) WaitForSingleObject(g_ev_done, 2);   /* frame-latency throttle */
+    QueryPerformanceCounter(&tq1); g_pg_thr += tq1.QuadPart - tq0.QuadPart; }
     g_q[(unsigned)g_q_w % PBQ].from = g_enq_from; g_q[(unsigned)g_q_w % PBQ].cur = cur; g_q[(unsigned)g_q_w % PBQ].lo = lo; g_q[(unsigned)g_q_w % PBQ].hi = hi; g_q[(unsigned)g_q_w % PBQ].seq = xbox_ContigSeq();
     g_enq_from = cur;
     MemoryBarrier();
@@ -447,7 +593,7 @@ static void ste_pb_frame_hook_impl(void)
 #pragma comment(lib, "dbghelp.lib")
 /* c256: where crash / watchdog dumps go. STE_DUMP_DIR (the launcher can set it to <data>\logs\dumps) wins; else <data>\logs\dumps next to the launcher's settings (STE_VIDEO_INI is
  * <data>\<settings folder>\ste_video.ini); else <exe dir>\data\logs\dumps (portable layout); else the old ..\logs\dumps; last resort .\dumps. Nothing outside the user's own folders is touched:
- * the old "less than 5 GB free -> redirect to a roomier drive" behaviour is now opt-in (STE_DUMP_FALLBACK_DIR). */
+ * the old "less than 5 GB free -> a roomier drive" redirect is now opt-in (STE_DUMP_FALLBACK_DIR). */
 static int ste_dir_ok(const char *d) { DWORD a = GetFileAttributesA(d); return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY); }
 static void ste_dump_dir(char *dir, size_t n)
 {
@@ -649,7 +795,40 @@ extern long long g_kelvin_perf[4];
 static long long vtot_now(void) { KelvinStats ks; kelvin_get_stats(&ks); return (long long)ks.vertices; }
 extern unsigned g_psh_compiles;
 static unsigned long long ste_cyc(void) { ULONG64 c = 0; QueryThreadCycleTime(GetCurrentThread(), &c); return (unsigned long long)c; }
-
+/* c317: query_scale governor (opt-in: [video] query_scale_auto=1 / STE_VIDEO_QUERY_AUTO=1; query_scale then is the MAXIMUM). The wider scenery query costs CPU on both threads: the game thread (object setup, push
+ * buffer writing) and the render thread (Kelvin translation). Every frame the game thread's CPU time (thread cycles, calibrated once against the QPC) and the render thread's busy time (g_ste_render_busy_ms,
+ * set in ste_rft) are smoothed; if the larger of the two exceeds the budget (query_budget_ms, default 14 ms of the 16.7 ms frame) the cap g_ste_qv_auto_cap that ste_hook_qvol_pre applies to the scale is lowered
+ * quickly, and it creeps back up (about +0.4% per frame) while the load stays below 90% of the budget. Heavy moments therefore shorten the draw distance for a while instead of dropping frames. */
+volatile int g_ste_qv_auto_on, g_ste_qv_guard_on; volatile float g_ste_qv_auto_cap = 16.0f, g_ste_qv_budget_ms = 14.0f, g_ste_qv_max = 4.0f; volatile float g_ste_render_busy_ms, g_ste_pb_fill, g_ste_pb_outst;
+#define QV_FILL_HI 0.80   /* c322: pushbuffer data in flight (this frame + the unconsumed rest of the previous one) above this share of the ring: the writer is about to lap the reader */
+#define QV_FILL_AIM 0.68
+static void ste_qv_governor(unsigned long long dcyc)
+{
+    static double cyc_per_ms, game_ms, last_log; static LARGE_INTEGER qf; double load = 0.0, cap = (double)g_ste_qv_auto_cap, budget = (double)g_ste_qv_budget_ms, mx = (double)g_ste_qv_max, fill = (double)g_ste_pb_outst; int over = 0, calm = 1;
+    if (!g_ste_qv_guard_on) return;
+    if (!qf.QuadPart) QueryPerformanceFrequency(&qf);
+    if (g_ste_qv_auto_on) {
+        if (cyc_per_ms == 0.0) {   /* calibrate thread cycles per ms: spin 25 ms */
+            LARGE_INTEGER q0, q1; unsigned long long c0, c1; QueryPerformanceCounter(&q0); c0 = ste_cyc();
+            do { QueryPerformanceCounter(&q1); } while ((q1.QuadPart - q0.QuadPart) < qf.QuadPart / 40);
+            c1 = ste_cyc(); cyc_per_ms = (double)(c1 - c0) / ((double)(q1.QuadPart - q0.QuadPart) * 1000.0 / (double)qf.QuadPart);
+            if (!(cyc_per_ms > 1000.0)) cyc_per_ms = 3.0e6;
+            fprintf(stderr, "[QAUTO] load governor on: budget %.1f ms, thread cycles per ms %.0f\n", budget, cyc_per_ms); fflush(stderr);
+            return;
+        }
+        { double ms = (double)dcyc / cyc_per_ms; if (ms > 100.0) ms = 100.0; game_ms = game_ms == 0.0 ? ms : game_ms * 0.8 + ms * 0.2; }
+        load = game_ms > (double)g_ste_render_busy_ms ? game_ms : (double)g_ste_render_busy_ms;
+        if (load > budget) { double f = pow(budget / load, 0.30); if (f < 0.97) f = 0.97; cap *= f; over = 1; }   /* at most 3% per frame */
+        if (load > 0.9 * budget) calm = 0;
+    }
+    if (fill > QV_FILL_HI && g_ste_pb_snap_on <= 0) { double f = pow(QV_FILL_AIM / fill, 0.6); if (f < 0.97) f = 0.97; cap *= f; over = 1; }   /* only without the private frame copies */   /* pushbuffer guard: always while the query is widened; at most 3% per frame */
+    if (fill > 0.68 && g_ste_pb_snap_on <= 0) calm = 0;   /* hold between 68% and 80%: no creep up, no push down */
+    if (cap < 1.0) cap = 1.0;
+    if (!over && calm) { cap *= 1.005; }
+    if (cap > mx) cap = mx;
+    g_ste_qv_auto_cap = (float)cap;
+    { LARGE_INTEGER n; QueryPerformanceCounter(&n); if ((double)(n.QuadPart - (long long)last_log) / (double)qf.QuadPart >= 5.0) { last_log = (double)n.QuadPart; if (cap < mx - 0.01) { fprintf(stderr, "[QGUARD] cap=%.2f (max %.2f) pushbuffer fill=%.0f%% game_cpu=%.2f ms render_busy=%.2f ms\n", cap, mx, fill * 100.0, game_ms, (double)g_ste_render_busy_ms); fflush(stderr); } } }
+}
 /* c78 probe (STE_SNAP_T="t1,t2,..." process-age seconds, STE_SNAP_DIR=<dir>): copies guest RAM [0x100000,0x4000000) at the first frame after each
  * time and writes it to <dir>\snap_<t>.bin on a worker thread (used to locate fighter state for the fps_cap physics check). */
 extern ptrdiff_t g_xbox_mem_offset;
@@ -763,6 +942,8 @@ static void ste_cam_probe(void)
     static double sum_wall, sum_cpu, sum_hw, sum_hc, sum_tex, sum_xf, sum_sub; static unsigned nfr; static long long pk0[4], tk0, te0, tp0, v0;
     LARGE_INTEGER q0, q1; unsigned long long c0, c1;
     if (!freq.QuadPart) { QueryPerformanceFrequency(&freq); QueryPerformanceCounter(&cps_q0); cps_c0 = ste_cyc(); }
+    { static int ps_started; if (!ps_started) { ps_started = 1; ste_ps_register(0); if (g_ps_on > 0) CloseHandle(CreateThread(NULL, 0, ste_ps_thread, NULL, 0, NULL)); } }   /* c308 */
+    { static unsigned long long gc0; unsigned long long gc = ste_cyc(); if (g_ste_qv_guard_on) ste_qv_governor(gc0 ? gc - gc0 : 0ull); gc0 = gc; }   /* c317/c318: query_scale pushbuffer guard + optional load governor */
     QueryPerformanceCounter(&q0); c0 = ste_cyc();
     if (cyc_per_ms == 0.0 && (q0.QuadPart - cps_q0.QuadPart) > freq.QuadPart) cyc_per_ms = (double)(c0 - cps_c0) / ((double)(q0.QuadPart - cps_q0.QuadPart) * 1000.0 / (double)freq.QuadPart);
     if (last_enter.QuadPart && cyc_per_ms > 0.0) {
@@ -771,13 +952,16 @@ static void ste_cam_probe(void)
         nfr++;
     }
     ste_ft_stats();
+    /* (c319: the title update moved to the render thread, ste_rft; a SendMessage from this thread locked the game to 2 vblanks per frame) */
     ste_prof_start();
     ste_snap_poll();
     ste_watch_poll();
     ste_cam_probe();
     { extern void ste_fe_camera_tick(void); ste_fe_camera_tick(); }   /* c168 */
     ste_pb_frame_hook_impl();
+    { LARGE_INTEGER tp0, tp1; QueryPerformanceCounter(&tp0);
     d3d8_video_pace();   /* c76: ste_video.ini fps_cap (QPC pacing after the frame's work) */
+    QueryPerformanceCounter(&tp1); g_pg_pace += tp1.QuadPart - tp0.QuadPart; }
     QueryPerformanceCounter(&q1); c1 = ste_cyc();
     sum_hw += (double)(q1.QuadPart - q0.QuadPart) * 1000.0 / (double)freq.QuadPart;
     sum_hc += cyc_per_ms > 0.0 ? (double)(c1 - c0) / cyc_per_ms : 0.0;
@@ -802,6 +986,12 @@ static void ste_cam_probe(void)
                 nfr, sum_wall / nfr, sum_cpu / nfr, (sum_wall - sum_cpu) / nfr, sum_hw / nfr, sum_hc / nfr, (sum_cpu - sum_hc) / nfr, (double)(g_t_km - tk0) * k, sum_tex, sum_xf, sum_sub, (double)(g_t_ef - te0) * k, (double)(g_t_pf - tp0) * k,
                 (double)(g_kelvin_perf[3] - pk0[3]) / nfr, (double)(vtot_now() - v0) / nfr);
         fflush(ste_statf());
+        {   /* c308: game-thread split: wall per frame, time waiting for the render thread (throttle), time in the fps pacer, remainder = game thread work */
+            static long long thr0, pace0; extern float g_qv_scale_cur; extern volatile uint32_t g_ste_opt_off;
+            double wf = sum_wall / nfr, tf = (double)(g_pg_thr - thr0) * 1000.0 / (double)freq.QuadPart / nfr, pf = (double)(g_pg_pace - pace0) * 1000.0 / (double)freq.QuadPart / nfr;
+            fprintf(ste_statf(), "[PERFG] n=%u scale=%.2f opt_off=%x wall=%.2f throttle_wait=%.2f pacer=%.2f game_work=%.2f ms/frame\n", nfr, (double)g_qv_scale_cur, (unsigned)g_ste_opt_off, wf, tf, pf, wf - tf - pf);
+            thr0 = g_pg_thr; pace0 = g_pg_pace;
+        }
         sum_wall = sum_cpu = sum_hw = sum_hc = 0; nfr = 0; memcpy(pk0, g_kelvin_perf, sizeof(pk0)); win_start = q1; v0 = vtot_now(); tk0 = g_t_km; te0 = g_t_ef; tp0 = g_t_pf;
     }
 }

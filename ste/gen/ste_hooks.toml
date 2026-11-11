@@ -143,3 +143,8 @@ addr = 0x0013E198
 fn   = "ste_hook_qvol_post"
 mode = "before"
 
+# c316: D3DDevice_Swap entry: the frame hook that feeds the Kelvin pushbuffer replay (was patched into recomp_0013.c by a script, so a toml-only regeneration did not render)
+[[hook]]
+addr = 0x00222630
+fn   = "ste_hook_swap"
+mode = "before"

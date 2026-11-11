@@ -726,6 +726,8 @@ static float ste_dd_parse(void); static float ste_dd_val(const char *s);   /* c2
 static float g_ste_draw_dist = 1.0f, g_ste_fov_scale = 1.0f, g_ste_fov_min = 0.0f; static int g_ste_cam_cfg;
 static float g_ste_cull_margin = 1.0f; static int g_ste_tune_on; static unsigned g_ste_cull_offs[8]; static int g_ste_cull_noffs;   /* c113: cull_fields is live-tunable too */
 /* c107: STE_TUNE_FILE=<ini>: [tune] draw_distance / cull_margin re-read every 500 ms while the game runs (live A/B comparisons of one frozen frame, e.g. the pause screen). Off unless set. */
+/* c308: ship clamp 4 (x8 crashed once after ~7 min, open issue); STE_QV_MAX=<n> (<= 8) raises it for the stability test only */
+static float ste_qv_max(void) { static float m = 0.0f; if (m <= 0.0f) { const char *e = getenv("STE_QV_MAX"); m = 4.0f; if (e && atof(e) >= 1.0 && atof(e) <= 8.0) m = (float)atof(e); } return m; }
 static float g_qv_scale_live = -1.0f;   /* c305: STE_TUNE_FILE query_scale= (render-list query volume widening, see ste_hook_qvol_pre) */
 static void ste_tune_poll(void)
 {
@@ -743,7 +745,8 @@ static void ste_tune_poll(void)
         b[0] = 0; p = strstr(fb, "fog_scale="); if (p) { p += 10; { int n = 0; while (n < 30 && p[n] > 0x20) { b[n] = p[n]; n++; } b[n] = 0; } }   /* c270: fog A/B on one frozen frame, independent of the draw-distance gates */
         if (b[0]) { extern void kelvin_fog_scale_default(float); kelvin_fog_scale_default((float)atof(b)); }
         b[0] = 0; p = strstr(fb, "query_scale="); if (p) { p += 12; { int n = 0; while (n < 30 && p[n] > 0x20) { b[n] = p[n]; n++; } b[n] = 0; } }
-        if (b[0]) { g_qv_scale_live = (float)atof(b); if (g_qv_scale_live < 1.0f) g_qv_scale_live = 1.0f; if (g_qv_scale_live > 6.0f) g_qv_scale_live = 6.0f; }
+        if (b[0]) { g_qv_scale_live = (float)atof(b); if (g_qv_scale_live < 1.0f) g_qv_scale_live = 1.0f; if (g_qv_scale_live > ste_qv_max()) g_qv_scale_live = ste_qv_max(); }
+        b[0] = 0; p = strstr(fb, "opt_off="); if (p) { extern volatile uint32_t g_ste_opt_off; p += 8; { int n = 0; while (n < 30 && p[n] > 0x20) { b[n] = p[n]; n++; } b[n] = 0; } if (b[0]) g_ste_opt_off = (uint32_t)strtoul(b, NULL, 16); }   /* c311: bit mask of optimisations switched back to the original code for A/B (nv2a_kelvin.c STE_OPT_*) */
         p = strstr(fb, "cull_fields=");
         if (p) { unsigned o2[8]; int n2 = 0; p += 12; while (*p && *p > 0x20 && n2 < 8) { o2[n2++] = (unsigned)strtoul(p, (char **)&p, 16); if (*p == 0x2C) p++; }
             if (n2 != g_ste_cull_noffs || memcmp(o2, g_ste_cull_offs, sizeof(unsigned) * (size_t)n2)) { memcpy(g_ste_cull_offs, o2, sizeof(unsigned) * (size_t)n2); g_ste_cull_noffs = n2; fprintf(stderr, "[TUNE] tick=%lu cull_fields=%d first=+0x%X\n", (unsigned long)now, n2, n2 ? o2[0] : 0u); fflush(stderr); } }
@@ -1274,6 +1277,7 @@ int ste_hook_dd_sphere(void)
  * no per-object test can bring them back: that is the pop-in at ~1360 that the cull overrides above do not remove. The list is only read by those draw loops (sub_0013D590 calls a no-op slot).
  * Hook pair: entry of sub_0013DF10 widens d1 and the box about its centre by STE_VIDEO_QUERY_SCALE / [video] query_scale (default 1.5, 1 = off; measured fight cost on the dev PC at 1765x993: 1.5 -2 fps, 2 -8 fps, 4 -30 fps, see docs); the ret of sub_0013DF10 puts the original floats back, so nothing else sees the change.
  * Only while the draw-distance override is active (unlimited); original and numeric draw distances run the game's own query. */
+float g_qv_scale_cur = 1.0f;
 static struct { unsigned applied, widened, d1, box[6]; } g_qv_s[64]; static unsigned g_qv_last; static unsigned long long g_qv_n;
 static void qv_restore(unsigned idx)
 {
@@ -1287,18 +1291,30 @@ int ste_hook_qvol_pre(void)
 {
     static float scale = -1.0f;
     unsigned self = g_ecx, idx, tb, i; union { uint32_t u; float f; } d0, d1, v[6]; float c, h;
-    if (scale < 0.0f) { scale = ste_ini_float("query_scale", "STE_VIDEO_QUERY_SCALE", 1.5f); if (scale < 1.0f) scale = 1.0f; if (scale > 6.0f) scale = 6.0f; fprintf(stderr, "[QVOL] query_scale=%g (applies with draw_distance=unlimited)\n", scale); fflush(stderr); }
-    if (self < 0x10000u || self > 0x07F00000u) return 0;
+    if (scale < 0.0f) { scale = ste_ini_float("query_scale", "STE_VIDEO_QUERY_SCALE", 1.5f); if (scale < 1.0f) scale = 1.0f; if (scale > ste_qv_max()) scale = ste_qv_max(); fprintf(stderr, "[QVOL] query_scale=%g (applies with draw_distance=unlimited)\n", scale); fflush(stderr); }
+    {   /* c318: query guard + optional load governor (ste_pb_hook.c ste_qv_governor). query_scale is the MAXIMUM: while one frame's pushbuffer fills more than ~40% of the 2 MB ring (two frames are in flight and the
+         * writer can overwrite what the render thread has not consumed yet) the scale is pulled down, and (query_scale_auto, default 1; 0 = off) also while the frame load exceeds query_budget_ms (default 14: render-thread busy time or game-thread CPU per frame, smoothed). It creeps back up when calm. */
+        static int auto_init; static float last_want; extern volatile int g_ste_qv_auto_on, g_ste_qv_guard_on; extern volatile float g_ste_qv_auto_cap, g_ste_qv_budget_ms, g_ste_qv_max;
+        float want = g_qv_scale_live >= 1.0f ? g_qv_scale_live : scale;
+        if (!auto_init) { auto_init = 1; if (ste_ini_float("query_scale_auto", "STE_VIDEO_QUERY_AUTO", 1.0f) > 0.5f) { float b = ste_ini_float("query_budget_ms", "STE_VIDEO_QUERY_BUDGET_MS", 14.0f); if (b < 6.0f) b = 6.0f; if (b > 30.0f) b = 30.0f; g_ste_qv_budget_ms = b; g_ste_qv_auto_on = 1; } if (getenv("STE_QV_NOGUARD")) auto_init = 2; }
+        if (auto_init == 1) { if (want != last_want) { if (want > last_want || g_ste_qv_auto_cap > want) g_ste_qv_auto_cap = want; g_ste_qv_max = want; last_want = want; g_ste_qv_guard_on = want > 1.02f; } }
+    }    if (self < 0x10000u || self > 0x07F00000u) return 0;
     idx = G32(self + 0x10); if (idx >= 64u) return 0;
     qv_restore(idx); g_qv_last = idx;
-    if ((g_qv_scale_live >= 1.0f ? g_qv_scale_live : scale) <= 1.0f || !g_dd_unl || !dd_active()) return 0;
+    g_qv_scale_cur = (g_dd_unl && dd_active()) ? (g_qv_scale_live >= 1.0f ? g_qv_scale_live : scale) : 1.0f;   /* c308: read by the STE_PERF reports */
+    {   extern volatile int g_ste_qv_guard_on; extern volatile float g_ste_qv_auto_cap; if (g_ste_qv_guard_on && g_qv_scale_cur > g_ste_qv_auto_cap) g_qv_scale_cur = g_ste_qv_auto_cap; }   /* c318 pushbuffer guard / governor cap */
+    if (g_qv_scale_cur <= 1.02f) return 0;
     tb = 0x3F1150u + idx * 0xCCu; d0.u = G32(tb + 0x5C); d1.u = G32(tb + 0x60);
     if (!(d1.f - d0.f > 1000.0f && d1.f - d0.f < 1500.0f)) return 0;   /* only the record shape seen in the fights (near 20, far 1250) */
     g_qv_s[idx].d1 = d1.u; for (i = 0; i < 6; ++i) { v[i].u = G32(tb + 0x64 + i * 4); g_qv_s[idx].box[i] = v[i].u; }
-    if (g_qv_scale_live >= 1.0f) scale = g_qv_scale_live; d1.f = d0.f + (d1.f - d0.f) * scale; G32(tb + 0x60) = d1.u; g_qv_s[idx].widened = d1.u;
-    for (i = 0; i < 3; ++i) { c = 0.5f * (v[i].f + v[i + 3].f); h = 0.5f * (v[i + 3].f - v[i].f) * scale; v[i].f = c - h; v[i + 3].f = c + h; G32(tb + 0x64 + i * 4) = v[i].u; G32(tb + 0x70 + i * 4) = v[i + 3].u; }
+    d1.f = d0.f + (d1.f - d0.f) * g_qv_scale_cur; G32(tb + 0x60) = d1.u; g_qv_s[idx].widened = d1.u;
+    for (i = 0; i < 3; ++i) { c = 0.5f * (v[i].f + v[i + 3].f); h = 0.5f * (v[i + 3].f - v[i].f) * g_qv_scale_cur; v[i].f = c - h; v[i + 3].f = c + h; G32(tb + 0x64 + i * 4) = v[i].u; G32(tb + 0x70 + i * 4) = v[i + 3].u; }
     g_qv_s[idx].applied = 1;
-    if (!g_qv_n++) { fprintf(stderr, "[QVOL] first widened query: list %u far bound %.0f -> %.0f\n", idx, (double)(d1.f - (d1.f - d0.f) * (scale - 1.0f) / scale - d0.f), (double)(d1.f - d0.f)); fflush(stderr); }
+    if (!g_qv_n++) { fprintf(stderr, "[QVOL] first widened query: list %u far bound %.0f -> %.0f\n", idx, (double)(d1.f - (d1.f - d0.f) * (g_qv_scale_cur - 1.0f) / g_qv_scale_cur - d0.f), (double)(d1.f - d0.f)); fflush(stderr); }
     return 0;
 }
 int ste_hook_qvol_post(void) { qv_restore(g_qv_last); return 0; }
+
+/* c316: D3DDevice_Swap entry (guest 0x00222630, XbSymbolDatabase). The frame hook that drives the Kelvin pushbuffer replay used to be patched into the generated C by a script; it is a normal ste_hooks.toml hook now, so a build from the published recipe renders. */
+extern void ste_pb_frame_hook(void);
+int ste_hook_swap(void) { ste_pb_frame_hook(); return 0; }
