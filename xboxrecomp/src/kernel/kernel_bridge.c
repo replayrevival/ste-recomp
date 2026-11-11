@@ -2742,6 +2742,7 @@ uint32_t xbox_VblankCount(void)
     return (uint32_t)g_vblank_total;
 }
 
+static volatile LONGLONG g_vb_next_qpc;   /* c322: QPC time of the next emulated vblank (0 until the first one), read by kernel_vblank_sleep */
 static void kernel_vblank_tick(void)
 {
     static int enabled = -1;
@@ -2760,12 +2761,13 @@ static void kernel_vblank_tick(void)
             const char *e = getenv("RECOMP_VBLANK_HZ"); hz = (e && atoi(e) >= 30 && atoi(e) <= 360) ? atoi(e) : 60;
             if (hz != 60) { fprintf(stderr, "  [NV2A] EXPERIMENT: emulated vblank rate %d Hz (RECOMP_VBLANK_HZ)\n", hz); fflush(stderr); }
         }
-        if (!next_qpc) next_qpc = q.QuadPart;
+        if (!next_qpc) { next_qpc = q.QuadPart; g_vb_next_qpc = next_qpc; }
         if (q.QuadPart < next_qpc)
             return;
         next_qpc += f.QuadPart / hz;
         if (q.QuadPart - next_qpc > f.QuadPart / 10)   /* far behind (a stall): resynchronise, do not burst */
             next_qpc = q.QuadPart + f.QuadPart / hz;
+        g_vb_next_qpc = next_qpc;
     }
     (void)now; (void)next_ms;
     InterlockedIncrement(&g_vblank_total);
@@ -3100,6 +3102,29 @@ static DWORD g_vblank_period_sleep(void)
     return on ? 1 : 10;
 }
 
+/* c322: the timer thread used to Sleep(1) and then test the vblank clock, so every emulated vblank (and with it every game frame) could come up to 1-2 ms late: p99 frame time ~19.5 ms at a steady
+ * 60 Hz. When the next vblank falls inside this 1 ms slice, wake a quarter of a millisecond early on a high-resolution waitable timer and spin the rest on the QPC, so the tick that follows fires on time.
+ * The thread keeps its 1 ms cadence for the other timers and DPCs. RECOMP_VBLANK_PRECISE=0 restores the plain Sleep. */
+static void kernel_vblank_sleep(void)
+{
+    static int mode = -1; static HANDLE ht; LARGE_INTEGER q, f;
+    if (mode < 0) {
+        const char *e = getenv("RECOMP_VBLANK_PRECISE");
+        mode = !(e && e[0] == '0') && getenv("RECOMP_VBLANK") != NULL;
+        if (mode) { ht = CreateWaitableTimerExW(NULL, NULL, 0x2 /* CREATE_WAITABLE_TIMER_HIGH_RESOLUTION */, TIMER_ALL_ACCESS); if (!ht) mode = 0; }
+    }
+    if (!mode || !g_vb_next_qpc) { Sleep(g_vblank_period_sleep()); return; }
+    QueryPerformanceFrequency(&f); QueryPerformanceCounter(&q);
+    {
+        LONGLONG next = g_vb_next_qpc, rem = next - q.QuadPart, ms1 = f.QuadPart / 1000, lead = f.QuadPart / 4000, w = rem < ms1 ? rem : ms1;
+        if (w > lead + f.QuadPart / 20000) {   /* more than ~0.3 ms to wait: sleep until a quarter millisecond before the end of this slice */
+            LARGE_INTEGER due; due.QuadPart = -(LONGLONG)((w - lead) * 10000000LL / f.QuadPart);
+            if (SetWaitableTimer(ht, &due, 0, NULL, NULL, FALSE)) WaitForSingleObject(ht, 4); else Sleep(1);
+        }
+        if (rem <= ms1 + lead) { do { YieldProcessor(); QueryPerformanceCounter(&q); } while (q.QuadPart < next); }   /* the vblank is due inside this slice: spin to it */
+    }
+}
+
 /* STE: stderr is unbuffered by default, one WriteFile per character; any thread that logs holds the stdio lock and
  * the 60 Hz timer thread stalled behind it. Give stderr a 4 KB buffer before main() (MSVC treats _IOLBF as full
  * buffering). The vblank tick fflush()es every ~16 ms, so a crash loses at most that much log.
@@ -3148,7 +3173,7 @@ static DWORD WINAPI kernel_timer_thread(LPVOID unused)
         int i;
 
         TD_BEGIN(0);
-        Sleep(g_vblank_period_sleep());   /* 10 ms, or 1-2 ms while the vblank clock runs */
+        kernel_vblank_sleep();   /* 10 ms, or 1-2 ms while the vblank clock runs (c322: precise to the vblank deadline) */
         TD_END(0);
         TD_BEGIN(1);
         kernel_vblank_tick();  /* the GPU's frame clock */
