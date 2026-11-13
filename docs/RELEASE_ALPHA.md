@@ -19,6 +19,9 @@ Draft prepared 2026-11-10. Nothing here is published; the owner publishes.
 | No console window | the exe is a Windows-subsystem program: no black console behind the game. The log goes to `<logs>\ste_<date-time>.log` (next to the settings folder, else `data\logs`); `--console` or `STE_CONSOLE=1` opens a console that mirrors it; a launcher that redirects stdout/stderr keeps working as before. Exit codes and the `[CRASH]` dump are unchanged | in |
 | Out-of-RAM guard | texture reads that would run past the 64 MB of Xbox RAM are refused (vertex reads already were) | in |
 | Version | exe resource and `--version` say 0.1.3 | in |
+| Point sprites | point-list draws (the title's missile bodies and smoke trails) are drawn as screen-space quads instead of one pixel (`STE_POINT_SPRITES=0` restores the old behaviour). Missiles are still not fully visible, see Known issues | in |
+| Governor | the query-distance governor now moves its applied value slowly (`query_ramp_pct`, default 5 % per second) so the distance does not pump | in |
+| Debug options | `STE_RING_AUTO_GAP_MS`, `STE_RING_FIGHT_FROM`, draw-log windows and the OOB report are opt-in test switches, off by default | in, opt-in |
 
 ## Known issues
 - Mechagodzilla 3's back missiles are invisible in flight (launch fireball and impacts show). Cause not found after probes through c366 (docs\ITEM_D_MISSILES.md): the particle step is a constant 1/60, so it is not frame-rate dependent; the head/trail art is not in the scene list. Investigation continues in 0.1.4. Mechagodzilla 2's finger rockets are untested.
