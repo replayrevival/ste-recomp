@@ -211,6 +211,7 @@ static void ste_inp_cfg(void)
     e = getenv("STE_NO_HOST_PAD"); g_nohost = e && *e && *e != 0x30;
     e = getenv("STE_VIRTUAL_PAD"); g_vpad0 = e && *e && *e != 0x30; if (g_vpad0) { g_nohost = 1; g_vpad_mask |= 1u; }
     if (!g_nohost) g_sdl = ste_sdl_init();   /* c248: SDL3 gamepads (Xbox / PlayStation / Switch / generic), XInput as the fallback */
+    if (g_nohost) ste_buttons_resolve(0);   /* c355: no SDL host pad: auto stays xbox_original */
     e = getenv("STE_VIRTUAL_PADS"); if (e && *e) g_vpad_mask |= (uint32_t)strtoul(e, NULL, 0) & 0xFu;
     e = getenv("STE_VPAD_WINDOWS");
     if (e && *e) { const char *q = e; while (*q) { int pn; double a, b; if (sscanf(q, "%d:%lf-%lf", &pn, &a, &b) == 3 && pn >= 1 && pn <= 4 && g_vwin_on[pn - 1] < 4) { int k = g_vwin_on[pn - 1]++; g_vwin[pn - 1][k][0] = a; g_vwin[pn - 1][k][1] = b; } while (*q && *q != 0x3B) q++; if (*q) q++; } }
@@ -1296,7 +1297,7 @@ int ste_hook_qvol_pre(void)
          * writer can overwrite what the render thread has not consumed yet) the scale is pulled down, and (query_scale_auto, default 1; 0 = off) also while the frame load exceeds query_budget_ms (default 14: render-thread busy time or game-thread CPU per frame, smoothed). It creeps back up when calm. */
         static int auto_init; static float last_want; extern volatile int g_ste_qv_auto_on, g_ste_qv_guard_on; extern volatile float g_ste_qv_auto_cap, g_ste_qv_budget_ms, g_ste_qv_max;
         float want = g_qv_scale_live >= 1.0f ? g_qv_scale_live : scale;
-        if (!auto_init) { auto_init = 1; if (ste_ini_float("query_scale_auto", "STE_VIDEO_QUERY_AUTO", 1.0f) > 0.5f) { float b = ste_ini_float("query_budget_ms", "STE_VIDEO_QUERY_BUDGET_MS", 14.0f); if (b < 6.0f) b = 6.0f; if (b > 30.0f) b = 30.0f; g_ste_qv_budget_ms = b; g_ste_qv_auto_on = 1; } if (getenv("STE_QV_NOGUARD")) auto_init = 2; }
+        if (!auto_init) { extern volatile float g_ste_qv_ramp; auto_init = 1; g_ste_qv_ramp = ste_ini_float("query_ramp_pct", "STE_VIDEO_QUERY_RAMP", 5.0f); if (g_ste_qv_ramp < 0.0f) g_ste_qv_ramp = 0.0f; if (g_ste_qv_ramp > 100.0f) g_ste_qv_ramp = 100.0f; if (ste_ini_float("query_scale_auto", "STE_VIDEO_QUERY_AUTO", 1.0f) > 0.5f) { float b = ste_ini_float("query_budget_ms", "STE_VIDEO_QUERY_BUDGET_MS", 14.0f); if (b < 6.0f) b = 6.0f; if (b > 30.0f) b = 30.0f; g_ste_qv_budget_ms = b; g_ste_qv_auto_on = 1; } if (getenv("STE_QV_NOGUARD")) auto_init = 2; }
         if (auto_init == 1) { if (want != last_want) { if (want > last_want || g_ste_qv_auto_cap > want) g_ste_qv_auto_cap = want; g_ste_qv_max = want; last_want = want; g_ste_qv_guard_on = want > 1.02f; } }
     }    if (self < 0x10000u || self > 0x07F00000u) return 0;
     idx = G32(self + 0x10); if (idx >= 64u) return 0;

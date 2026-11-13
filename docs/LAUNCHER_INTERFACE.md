@@ -14,7 +14,7 @@ This closes the mismatches M1-M6 in `E:\GodzillaSTE\launcher\docs\INTERFACE_ASSU
 | Version | Windows VERSIONINFO resource: `FileVersion` = `x.y.z.<build>` (c247 = `0.1.0.247`), `ProductVersion` = `x.y.z+c<build>` (`0.1.0+c247`), `InternalName` = `ste-recomp`, `OriginalFilename` = `ste-recomp.exe`. Builds before c246 have no version resource. |
 | `--version` | prints `ste-recomp 0.1.0 (STE_CANDIDATE_ID=247;)` on stdout and exits 0 before anything else starts. |
 | `--help`, `-h` | prints usage and the exit codes, exits 0. |
-| Subsystem | console exe. stdout and stderr are unbuffered; the caller redirects them. |
+| Subsystem | **Windows subsystem (c367, 0.1.3): no console window.** If the caller redirects stdout/stderr (pipe or file) the game uses those handles as before. If not, the log goes to `<logs>\ste_<yyyymmdd-hhmmss>.log` (`<logs>` = the `logs` folder beside the settings folder of `STE_VIDEO_INI`, else `<exe>\data\logs`, else `<exe>\logs`; `STE_LOG_DIR` overrides). `--console` or env `STE_CONSOLE=1` opens a console (the parent's when started from one, else a new window) that mirrors the same text, and also mirrors into a caller's redirect. `--version` / `--help` attach to the parent console. Exit codes and `[CRASH]` are unchanged. |
 
 ## 2. Command line
 | Argument | Meaning |
@@ -42,6 +42,7 @@ Settings in the ini files are the normal route; environment variables override t
 | `STE_VIDEO_INI` | absolute path of the video ini. Else `ste_video.ini` next to the exe (optional; absent = built-in defaults). Logged as `[VIDEO] ini=`. |
 | `STE_ENHANCE_INI` | absolute path of the enhancement/cheat/input-port ini. Else `ste_enhance.ini` next to the exe. Honoured by every reader (since c243, including `[saves]`). Logged once as `[CONFIG] ste_enhance.ini=<path> (env STE_ENHANCE_INI \| exe dir) exists=0\|1`. |
 | `STE_INPUT_MAP` | absolute path of the launcher's `input_mapping.json` (format 1, `launcher\docs\INPUT_MAPPING.md`); read once at start; missing/damaged = built-in defaults. See section 8. |
+| `STE_BUTTON_PROMPTS` | `auto` \| `xbox` \| `xbox_original` \| `playstation`: which button glyphs and names the game's own screens show. **Planned**, see section 10. |
 | `STE_INPUT_BACKEND` | `sdl` \| `xinput` \| `auto` (default): overrides `[input] backend`. `auto` = SDL3 gamepads, XInput if SDL cannot start. |
 | `STE_NO_DIALOG` | `1`: startup errors go to stderr and the exit code only; no message box. The launcher should set it. |
 | `STE_VIDEO_<KEY>` | overrides the `[video]` key of that name (verified names: `STE_VIDEO_SCALE`, `_WIDTH`, `_HEIGHT`, `_MODE`, `_ASPECT`, `_DRAW_DISTANCE`, `_FOV_SCALE`, `_FOV_MIN_ZOOM`, `_QUERY_SCALE`, `_CULL_MARGIN`, `_ANISOTROPY`, `_MIP_BIAS`, `_PILLAR_CAMFIX`; other keys: see the .sample). |
@@ -99,6 +100,7 @@ Writer rules for the launcher: preserve comments and unknown keys, change only m
 `stem_rule_rage_meter` - 0..5 (0 off, 1 damage received, 2 dealt, 3 both, 4 over time, 5 all).
 `[saves] seed_from_game_dir` - 0/1 (default 0: a new save folder starts empty). Env `RECOMP_SAVE_SEED`.
 `[input] port1..port4` - `auto` \| `xinput0`..`xinput3` \| `keyboard` \| `none` (default `auto`); env `STE_INPUT_PORT1..4`. With the SDL3 backend `xinputN` means "the N-th connected pad" and a mapping file's per-port `device` wins over these keys.
+`[input] button_prompts` - `auto` \| `xbox` \| `xbox_original` \| `playstation` (default `auto`); env `STE_BUTTON_PROMPTS` wins over the ini. **Implemented for the face buttons A/B/X/Y from c356** (texture packs, see docsBUTTON_PROMPTS_INVENTORY.md; words such as START/Black are step 2); an exe that does not know the key ignores it.
 `[input] backend` - `auto` \| `sdl` \| `xinput` (default `auto`). `overlay_key` - key name that opens the overlay (default `F1`, `none` = off). `overlay_guide` - 0/1 (default 1): Guide/Home/PS button. `overlay_chord` - 0/1 (default 1): hold Back+Start. `overlay_chord_ms` - hold time (default 1000).
 
 ## 6. Presets
@@ -127,7 +129,7 @@ Folders next to the exe: `fsr1\` (FSR shaders), `texturepacks\` (packs, all disa
 (data segments + referenced memory, a few MB; `STE_DUMP_FULL=1` = full memory) goes to, in this order: `STE_DUMP_DIR` (**the launcher should set it to `<data>\logs\dumps`**) -> `<data>\logs\dumps` derived from `STE_VIDEO_INI` (`<data>\<settings folder>\ste_video.ini`, when `<data>\logs` exists) -> `<exe dir>\data\logs\dumps` (portable layout) -> `..\logs\dumps` -> `.\dumps`. `STE_NO_CRASHDUMP=1` turns the handler off; `STE_CRASH_CONTINUE=1` hands the crash to Windows error reporting / a debugger instead of exiting.
 The game never writes `ste_video.ini`, `ste_enhance.ini` or the input mapping file (checked in the source and by file hash and timestamp after a full run, c257); it only reads them.
 
-Logs: the game writes to stdout/stderr only; the caller redirects them (the .bat launchers use `mission-l6\logs\play_<yyyyMMdd-HHmmss>.out/.err`). Useful lines: `[CONFIG] game=`, `[CONFIG] ste_enhance.ini=`, `[VIDEO] ini=`, `[SESSION]` (desktop size, DPI, RDP), `[DRAWDIST]`, `[ENHANCE]`, `[GAME-OWNED-WRITE-BLOCKED]` (must stay absent), `[XA2] underrun`, `[ICALL FAIL]` / `[STUB HIT]` (fatal). `mods\last_report.txt` is rewritten at each start.
+Logs (c367: see the Subsystem row of section 1 for the no-redirect case): the game writes to stdout/stderr; the caller may redirect them (the .bat launchers use `mission-l6\logs\play_<yyyyMMdd-HHmmss>.out/.err`). Useful lines: `[CONFIG] game=`, `[CONFIG] ste_enhance.ini=`, `[VIDEO] ini=`, `[SESSION]` (desktop size, DPI, RDP), `[DRAWDIST]`, `[ENHANCE]`, `[GAME-OWNED-WRITE-BLOCKED]` (must stay absent), `[XA2] underrun`, `[ICALL FAIL]` / `[STUB HIT]` (fatal). `mods\last_report.txt` is rewritten at each start.
 
 ## 7b. Video start-up log and present rules (c251-c257)
 Every start logs, in this order: `[VIDEO] DPI awareness: per-monitor`, `[VIDEO] display request=N -> monitor \\.\DISPLAYk at x,y size WxH (SDL3 order|primary)`, `[VIDEO] ini=... out=WxH render=WxH mode=0|1|2 aspect=0|2 ... vsync=0|1`, `[VIDEO] vrr=...`, and
@@ -162,3 +164,33 @@ A release run writes only: saves\ (the Xbox partition images and caches, under R
 | STE_STARTUP_TRACE=<path> | enter/exit trace of one start-up function. |
 | STE_WATCHDOG_GUEST=1 | the stall watchdog also writes the 128 MB guest-RAM images next to its minidump (default: minidump and log lines only). |
 | STE_SHOT_SEC=<n>, STE_SHOT_FIGHT, STE_SHOT_DIR=<dir> | periodic / fight screenshots (default off; default directory <data>\logs\dumps\shots). |
+
+## 10. Button prompts (planned; launcher side already passes it) and reconciliation with the launcher's assumptions (2026-11-12)
+Merged from `launcher\docs\INTERFACE_ASSUMPTIONS.md` (the launcher's own notes stay there as history; this file is the contract).
+
+**Button prompts.** `[input] button_prompts` in `ste_enhance.ini` and env `STE_BUTTON_PROMPTS` (env wins, as for every other override). Values:
+| value | what the game's screens show |
+|---|---|
+| `xbox_original` | exactly what the retail game draws today (A/B/X/Y plus the words Black/White/Back/Start). Output is byte-identical to a build without the feature. |
+| `xbox` | modern Xbox naming: Black -> LB, White -> RB, Back -> View, Start -> Menu; A/B/X/Y and the triggers unchanged. |
+| `playstation` | Cross/Circle/Square/Triangle, L1/R1/L2/R2, Select/Start (no Sony logos). |
+| `auto` (default) | `playstation` when the active pad's SDL3 gamepad type is PS3/PS4/PS5, otherwise `xbox`; follows the pad that was used last. |
+Default when the key is absent: `auto`. The launcher's choice of word "xbox_original" = "Black and White buttons" is the same thing. With `STE_INPUT_MAP` the prompts name the control the player has to press for each Xbox action (the remap target), where the screen draws the action as a glyph; text that is baked into game textures or strings that name a button inside a longer sentence follow the mode only where the patch list says so (docs\BUTTON_PROMPTS_INVENTORY.md). Art: Kenney Input Prompts (CC0), supplied by the launcher in `assets\glyphs\`; the game reads it from `STE_GLYPH_DIR` (**planned**, default `glyphs\` next to the exe), never ships it, and falls back to `xbox_original` if the files are missing (logged `[PROMPTS]`). **Status: not implemented in the exe; the exe ignores the key today.**
+
+**Mods.** `STE_MODS_DIR` (section 4), `mods\order.json` and `manifest.json`: `docs\formats\mod_manifest.md`. Order: ids listed in `order.json` first, then `priority`, then id; later mods win; every overlap is in `mods\last_report.txt`. Mods that carry binary patches instead of files: `docs\formats\mod_patch.md` (planned, api 2 fields).
+
+**Where this file disagrees with INTERFACE_ASSUMPTIONS.md (the launcher should follow this file):**
+1. `aspect` values are `original` and `native`; `wide`, `stretch`, `pillar`, `4:3-pillar` are aliases read as `native` / `original` (section 5.1). The launcher writing `wide` / `4:3-pillar` keeps working, but `original` / `native` are the documented values.
+2. `menu_aspect` stays a hidden debug key; writing `pillar` is harmless and equals the default.
+3. `display`: confirmed (section 5.1, SDL3 order). The assumption file still calls it "requested".
+4. The assumption file says `STE_ENHANCE_INI` is not logged: it is, as `[CONFIG] ste_enhance.ini=<path> ... exists=0|1` (since c243).
+5. The game path env is `STE_GAME_PATH` and `--game`; there is no `STE_GAME_DIR`.
+6. Presets: Original = no ini; the Max/Low values in the assumption file are the launcher's data (section 6 here is only a description of the shipped samples).
+7. `query_scale` / `query_scale_auto` / `query_budget_ms` exist since c307 / c318 and are not in the assumption file; they only act with `draw_distance=unlimited`, and the launcher should not expose more than `query_scale` 1..4 (values up to 8 need `STE_QV_MAX`, test only).
+8. Build id: `FileVersion`/`ProductVersion` from the VERSIONINFO of releases; development candidates that do not have one show `build unknown`, which is expected.
+
+## 11. capabilities.json and button prompts status (c367)
+- `capabilities.json` sits next to `ste-recomp.exe`: `{"features":["button_prompts","texture_packs","query_scale_auto","sdl_gamepads"]}`. `hd_art` is added only when HD art ships. The launcher treats a missing file as no extra features.
+- HD art keys confirmed: `[video] hd_art` (master, default 0), `hd_art_sky`, `hd_art_ground`, `hd_art_roofs`, `hd_art_billboards` (categories, default 1, used only while `hd_art=1`).
+- `[input] button_prompts` / env `STE_BUTTON_PROMPTS` are implemented from c356 (face-button art only; Auto = PlayStation pad -> playstation, other pad -> xbox, none -> xbox_original).
+- Planned, not in the exe yet: patch mods read from `mods\<id>\_built\` (0.1.4, see docsormats\mod_patch.md).

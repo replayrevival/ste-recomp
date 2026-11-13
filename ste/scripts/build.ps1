@@ -162,6 +162,6 @@ $libs = @("apu\Release\xbox_apu.lib", "audio\Release\xbox_dsound.lib", "d3d\Rele
           "nv2a\Release\xbox_nv2a.lib", "usb\Release\xbox_usb.lib", "video\Release\xbox_video.lib", "platform\Release\recomp_exit_hook.lib") | ForEach-Object { "`"$L\$_`"" }
 $objs = (Get-ChildItem "$Obj\*.obj" | ForEach-Object { "`"$($_.FullName)`"" }) -join " "
 $sys = "setupapi.lib imm32.lib version.lib oleaut32.lib advapi32.lib cfgmgr32.lib psapi.lib d3d11.lib dxgi.lib dxguid.lib xinput.lib winmm.lib dbghelp.lib user32.lib gdi32.lib kernel32.lib shell32.lib ole32.lib d3dcompiler.lib"
-Invoke-VS "link /nologo /DEBUG /LARGEADDRESSAWARE /PDBALTPATH:ste-recomp.pdb /OUT:`"$Out\ste-recomp.exe`" $objs `"$Obj\ste_version.res`" $($libs -join ' ') `"$SdlLib`" $sys"
+Invoke-VS "link /nologo /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup /DEBUG /LARGEADDRESSAWARE /PDBALTPATH:ste-recomp.pdb /OUT:`"$Out\ste-recomp.exe`" $objs `"$Obj\ste_version.res`" $($libs -join ' ') `"$SdlLib`" $sys"
 $h = (Get-FileHash "$Out\ste-recomp.exe" -Algorithm SHA256).Hash
 Write-Host "built $Out\ste-recomp.exe  SHA-256 $h"

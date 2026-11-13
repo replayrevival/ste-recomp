@@ -575,15 +575,15 @@ static void ring_frame(D3D8DeviceState *s, ID3D11Texture2D *bb, LONG gen)
     }
     /* c290: STE_RING_AUTO=1 (burst) or =<n> (absolute): saves the ring by itself on a heavy-fire frame, i.e. a frame with many in-game additive draws (burst = at least 2x the running mean of the last 600
      * frames and >= 20). At most STE_RING_AUTO_MAX saves (default 3), >= 10 s apart; the first 300 frames and front-end screens never trigger. Every trigger and a 5 s summary are logged ([RINGAUTO]). */
-    {   static int mode = -2, maxsave = 3, nsave, flashmode = -1; static unsigned last_total, last_flash, hist[600], hn, hpos, frames, peak5; static ULONGLONG t_last_save, t_sum; static double sum;
-        if (mode == -2) { const char *a = getenv("STE_RING_AUTO"), *m = getenv("STE_RING_AUTO_MAX"); mode = a ? atoi(a) : 0; if (m) maxsave = atoi(m); }
+    {   static int mode = -2, maxsave = 3, nsave, flashmode = -1; static ULONGLONG gap_ms = 10000; static unsigned last_total, last_flash, hist[600], hn, hpos, frames, peak5; static ULONGLONG t_last_save, t_sum; static double sum;
+        if (mode == -2) { const char *a = getenv("STE_RING_AUTO"), *m = getenv("STE_RING_AUTO_MAX"); mode = a ? atoi(a) : 0; if (m) maxsave = atoi(m); { const char *g = getenv("STE_RING_AUTO_GAP_MS"); if (g && atoi(g) > 0) gap_ms = (ULONGLONG)atoi(g); } }   /* c327: spacing of the automatic saves, default 10000 ms */
         if (flashmode < 0) { const char *fm = getenv("STE_RING_FLASH"); flashmode = fm && fm[0] == '1'; }
         if ((mode > 0 || flashmode) && gen != g_ring.last_gen_auto) {
             extern unsigned g_kelvin_add_draws, g_kelvin_flash_hits; unsigned d = g_kelvin_add_draws - last_total, fd = g_kelvin_flash_hits - last_flash; ULONGLONG now = GetTickCount64(); double mean;
             last_flash = g_kelvin_flash_hits;
             g_ring.last_gen_auto = gen; last_total = g_kelvin_add_draws; frames++;
             mean = hn ? sum / hn : 0.0; if (d > peak5) peak5 = d;
-            if (frames > 300 && nsave < maxsave && now - t_last_save >= 10000 && g_ring.count >= 8 && (flashmode ? fd > 0 : mode == 1 ? (d >= 20 && d >= 2.0 * mean) : (int)d >= mode)) {
+            if (frames > 300 && nsave < maxsave && now - t_last_save >= gap_ms && g_ring.count >= 8 && (flashmode ? fd > 0 : mode == 1 ? (d >= 20 && d >= 2.0 * mean) : (int)d >= mode)) {
                 fprintf(stderr, "[RINGAUTO] trigger frame=%u additive_draws=%u flash_quads=%u running_mean=%.1f (save %d of %d)\n", frames, d, fd, mean, nsave + 1, maxsave); ring_save(s); nsave++; t_last_save = now;
             }
             if (hn == 600) sum -= hist[hpos]; else hn++;

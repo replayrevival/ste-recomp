@@ -237,7 +237,7 @@ static void ste_walk(uint32_t from, uint32_t cur, uint32_t ring_lo, uint32_t rin
                 if (m == 0x1D6C) { if (g_sem_off != param && g_sem_writes < 12) fprintf(stderr, "[PB-SEM] SET_SEMAPHORE_OFFSET %08X\n", param); g_sem_off = param; }
                 else if (m == 0x1D70) ste_sem_release(param);
                 else if (m == M_FLIP_STALL) { (*flips)++; { long long _t = ste_q(); kelvin_end_frame(); g_t_ef += ste_q() - _t; } }
-    else { long long _t = ste_q(); int _r = kelvin_method(subch, m, param); g_t_km += ste_q() - _t; if (!_r) { (*unhandled)++; if (m < 0x2000) g_unh[subch][m / 4]++; } }
+    else { long long _t = ste_q(); int _r = kelvin_method(subch, m, param); g_t_km += ste_q() - _t; if (!_r) { (*unhandled)++; if (m < 0x2000) { if (g_unh[subch][m / 4]++ == 0 && g_frame > 100) { static int nu_on = -1; if (nu_on < 0) { const char *e = getenv("STE_NEWUNH_LOG"); nu_on = e && *e && *e != 0x30; } if (nu_on) fprintf(stderr, "[NEWUNH] frame=%u subch=%u method=%04X param=%08X (first time seen)\n", g_frame, subch, m, param); } }   /* c326 probe */ } }
                 pos += 4;
                 if (!in_call && pos >= ring_hi) pos = ring_lo;
             }
@@ -312,6 +312,11 @@ static void ste_process_range(uint32_t from, uint32_t cur, uint32_t lo, uint32_t
             fprintf(stderr, "[PB-REPLAY] #%u frame=%u seg %08X..%08X ring %08X..%08X dwords=%u methods=%u jumps=%u calls=%u malformed=%u | game write pointer now %08X\n", rp, g_frame + 1, from, cur, lo, hi, dw, methods, jumps, calls, malformed, put_now); fflush(stderr); } }
     kelvin_get_stats(&b);
     g_frame++;
+    {   /* c327: STE_RING_FIGHT_FROM=<n>[,<len>]: from n Kelvin frames after the in-game state word turned 4 (fight) for len frames (default 700), raise the flash counter every 45 frames so the frame ring (STE_RING_FLASH=1) saves through a scripted moment such as a missile launch */
+        static int init; static unsigned from, len = 700, first4, last; extern unsigned g_kelvin_flash_hits;
+        if (!init) { const char *e = getenv("STE_RING_FIGHT_FROM"); init = 1; if (e) { from = (unsigned)atoi(e); const char *c = strchr(e, 0x2C); if (c && atoi(c + 1) > 0) len = (unsigned)atoi(c + 1); } }
+        if (from && rd(0x003562B4u) == 4u) { if (!first4) first4 = g_frame; if (g_frame - first4 >= from && g_frame - first4 < from + len && g_frame - last >= 45u) { last = g_frame; g_kelvin_flash_hits++; } }
+    }
     if (g_frame <= 20 || (g_frame % g_log_every) == 0)
         fprintf(stderr, "[PB-FRAME] sem_writes=%u refused=%u\n", g_sem_writes, g_sem_rejected), fprintf(stderr, "[PB-FRAME] #%u seg %08X..%08X methods=%u draws=%u (prog=%u ff=%u) verts=%u clears=%u flips=%u jumps=%u calls=%u unhandled=%u malformed=%u texdec=%u badtexfmt=%u\n",
                 g_frame, from, cur, methods, b.draws - a.draws, b.program_draws - a.program_draws, b.ff_draws - a.ff_draws,
@@ -648,6 +653,7 @@ static LONG WINAPI ste_crash_filter(EXCEPTION_POINTERS *ep)
     } else fprintf(stderr, "[CRASHDUMP] could not create %s (error %lu)\n", path, GetLastError());
     fprintf(stderr, "[CRASH] exiting with code 0x%08lX (the Windows exception code; see docs\\LAUNCHER_INTERFACE.md)\n", (unsigned long)code); fflush(stderr);
     if (getenv("STE_CRASH_CONTINUE")) return EXCEPTION_CONTINUE_SEARCH;   /* debugging: hand over to WER / the debugger */
+    { extern void ste_tee_drain(void); ste_tee_drain(); }   /* c367: flush the --console mirror before the process ends */
     TerminateProcess(GetCurrentProcess(), code);   /* exit code = exception code, no Windows error-report dialog that could keep the process (and the launcher's "game stopped" box) waiting */
     return EXCEPTION_EXECUTE_HANDLER;
 }
@@ -799,7 +805,7 @@ static unsigned long long ste_cyc(void) { ULONG64 c = 0; QueryThreadCycleTime(Ge
  * buffer writing) and the render thread (Kelvin translation). Every frame the game thread's CPU time (thread cycles, calibrated once against the QPC) and the render thread's busy time (g_ste_render_busy_ms,
  * set in ste_rft) are smoothed; if the larger of the two exceeds the budget (query_budget_ms, default 14 ms of the 16.7 ms frame) the cap g_ste_qv_auto_cap that ste_hook_qvol_pre applies to the scale is lowered
  * quickly, and it creeps back up (about +0.4% per frame) while the load stays below 90% of the budget. Heavy moments therefore shorten the draw distance for a while instead of dropping frames. */
-volatile int g_ste_qv_auto_on, g_ste_qv_guard_on; volatile float g_ste_qv_auto_cap = 16.0f, g_ste_qv_budget_ms = 14.0f, g_ste_qv_max = 4.0f; volatile float g_ste_render_busy_ms, g_ste_pb_fill, g_ste_pb_outst;
+volatile int g_ste_qv_auto_on, g_ste_qv_guard_on; volatile float g_ste_qv_auto_cap = 16.0f, g_ste_qv_budget_ms = 14.0f, g_ste_qv_max = 4.0f; volatile float g_ste_render_busy_ms, g_ste_pb_fill, g_ste_pb_outst, g_ste_qv_ramp = 5.0f;   /* g_ste_qv_ramp: largest change of the effective scale, percent per second (both directions) */
 #define QV_FILL_HI 0.80   /* c322: pushbuffer data in flight (this frame + the unconsumed rest of the previous one) above this share of the ring: the writer is about to lap the reader */
 #define QV_FILL_AIM 0.68
 static void ste_qv_governor(unsigned long long dcyc)
@@ -824,8 +830,16 @@ static void ste_qv_governor(unsigned long long dcyc)
     if (fill > QV_FILL_HI && g_ste_pb_snap_on <= 0) { double f = pow(QV_FILL_AIM / fill, 0.6); if (f < 0.97) f = 0.97; cap *= f; over = 1; }   /* only without the private frame copies */   /* pushbuffer guard: always while the query is widened; at most 3% per frame */
     if (fill > 0.68 && g_ste_pb_snap_on <= 0) calm = 0;   /* hold between 68% and 80%: no creep up, no push down */
     if (cap < 1.0) cap = 1.0;
-    if (!over && calm) { cap *= 1.005; }
+    if (!over && calm) { cap *= 1.01; }   /* the targets above are fast; the applied value below follows them slowly */
     if (cap > mx) cap = mx;
+    {   /* c326: slow ramp. `cap` is the target kept in g_ste_qv_target; the applied value g_ste_qv_auto_cap moves toward it by at most g_ste_qv_ramp percent per second, so the distance never jumps (no visible pop-in) */
+        static double applied = 0.0, last_logged = 0.0; static unsigned steps; static double tgt = 0.0; double step, rate = (double)g_ste_qv_ramp / 100.0 / 60.0;
+        if (applied == 0.0 || mx < applied - 1e-6 && g_ste_qv_ramp <= 0.0f) applied = cap; if (applied == 0.0) applied = cap;
+        tgt = cap; if (applied > mx) applied = mx;
+        if (g_ste_qv_ramp <= 0.0f) applied = tgt; else { step = applied * rate; if (tgt > applied + step) applied += step; else if (tgt < applied - step) applied -= step; else applied = tgt; }
+        if (fabs(applied - last_logged) >= 0.1 || last_logged == 0.0) { steps++; fprintf(stderr, "[QGOV] frame=%u scale %.2f -> %.2f (target %.2f, %s) steps=%u\n", g_frame, last_logged, applied, tgt, over ? "load/fill above budget" : (calm ? "headroom" : "hold"), steps); fflush(stderr); last_logged = applied; }
+        cap = applied;
+    }
     g_ste_qv_auto_cap = (float)cap;
     { LARGE_INTEGER n; QueryPerformanceCounter(&n); if ((double)(n.QuadPart - (long long)last_log) / (double)qf.QuadPart >= 5.0) { last_log = (double)n.QuadPart; if (cap < mx - 0.01) { fprintf(stderr, "[QGUARD] cap=%.2f (max %.2f) pushbuffer fill=%.0f%% game_cpu=%.2f ms render_busy=%.2f ms\n", cap, mx, fill * 100.0, game_ms, (double)g_ste_render_busy_ms); fflush(stderr); } } }
 }

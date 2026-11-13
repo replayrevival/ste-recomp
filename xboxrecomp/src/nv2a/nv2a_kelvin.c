@@ -1,4 +1,4 @@
-﻿/*
+/*
  * NV2A Kelvin (NV097) pushbuffer -> D3D8 layer translator.
  *
  * Method numbers, vertex-program microcode fields and texture formats follow
@@ -60,6 +60,7 @@ extern void xbox_AsyncUafCheck(uint32_t phys, uint32_t len, const char *what);
 #define KELVIN_RAM_BYTES 0x04000000u
 static const uint8_t g_guest_zero[64] = { 0 };
 static volatile long g_guest_oob;
+static void kelvin_oob_note(uint32_t phys);   /* c326: counts frames / draws / distinct vertex buffers and reports where the pointers come from (defined after K) */
 static const uint8_t *guest_ptr(uint32_t phys)
 {
     uint32_t p = phys & 0x07FFFFFFu;
@@ -67,6 +68,7 @@ static const uint8_t *guest_ptr(uint32_t phys)
     if (p > KELVIN_RAM_BYTES - 16u) {
         long n = ++g_guest_oob;
         if (n <= 12 || (n % 100000) == 0) { fprintf(stderr, "[KELVIN-OOB] guest read beyond RAM, address 0x%08X (read #%ld): zeros used\n", phys, n); fflush(stderr); }
+        kelvin_oob_note(phys);
         return g_guest_zero;
     }
     return (const uint8_t *)((uintptr_t)p + (g_kelvin_mem_base ? g_kelvin_mem_base : (uintptr_t)g_xbox_mem_offset));
@@ -1240,6 +1242,7 @@ static void bind_cube(int stage)
     }
     face = (face + 127) & ~(size_t)127;
     {
+        if ((uint64_t)(t->offset & 0x07FFFFFFu) + (uint64_t)face * 6 > (uint64_t)KELVIN_RAM_BYTES) { d3d8_nv2a_psh_set_cube(stage, NULL, 0, 0); return; }   /* c367: cube data would run past the 64 MB of RAM */
         const uint8_t *src = guest_ptr(t->offset);
         uint32_t palette_addr = color == 0x0B ? (t->palette & ~0x3Fu) : 0;
         uint32_t palette[256];
@@ -1426,7 +1429,8 @@ static IDirect3DTexture8 *get_texture_impl(int stage)
                     t->image_rect, t->filter, t->address, w, h, pitch, bytes);
         }
     }
-    if (!w || !h || w > 4096 || h > 4096 || bytes > 64u * 1024 * 1024) {
+    if (!w || !h || w > 4096 || h > 4096 || bytes > 64u * 1024 * 1024 ||
+        (uint64_t)(t->offset & 0x07FFFFFFu) + (uint64_t)bytes > (uint64_t)KELVIN_RAM_BYTES) {   /* c367: also refuse a texture whose data would run past the 64 MB of RAM (guest_ptr only checks the start address) */
         texlog_null("size", stage, t->offset, t->format);
         return NULL;
     }
@@ -1741,6 +1745,8 @@ static void apply_state(IDirect3DDevice8 *dev, int textured[4])
 /* ------------------------------------------------------------------ */
 /* Set by the title for frames it wants every draw logged ([DRAW] lines). */
 int g_kelvin_log_draws;
+volatile uint32_t g_kelvin_logwin;   /* c340: Kelvin frames left in the [DRAWW] draw-log window (set by the exe) */
+volatile uint32_t g_kelvin_logwin_id;   /* c342: number of the current window (the exe: odd = launch window A, even = baseline window B) */
 
 static uint32_t pack_color(const float c[4])
 {
@@ -2652,6 +2658,34 @@ static void preflash_dump(void)
     fflush(stderr);
 }
 
+/* c327: point sprites. The title draws point lists (NV097 begin mode 1) with NV097_SET_POINT_PARAMS (0x0A30, 8 floats; the first three are the distance-attenuation coefficients A, B, C of the D3D8
+ * point-scale formula): the missile bodies and smoke trails of Mechagodzilla 3's back missiles, textured and blended. D3D11 draws a point as one pixel, so they were invisible. A point list is now
+ * drawn on the CPU path as screen-space quads (no geometry shader: GS are banned in the portable render path), size = vp_h * sqrt(1 / (A + B*w + C*w*w)) in the 640x480 space, clamped to
+ * [1, 62], texture coordinates 0..1 across the sprite. STE_POINT_SPRITES=0 restores the old 1-pixel points; STE_POINT_SIZE_MUL scales the size. */
+static float g_pt_par[8]; static int g_ps_on = -1; static float g_ps_mul = 1.0f; static unsigned g_ps_logged;
+static int kelvin_point_sprites(void)
+{
+    if (g_ste_opt_off & 0x20u) return 0;   /* STE_OPT_OFF bit 5: point sprites off (A/B) */
+    if (g_ps_on < 0) { const char *e = getenv("STE_POINT_SPRITES"), *m = getenv("STE_POINT_SIZE_MUL"); g_ps_on = !(e && e[0] == '0'); if (m && atof(m) > 0.0) g_ps_mul = (float)atof(m); }
+    return g_ps_on;
+}
+
+static void kelvin_oob_note(uint32_t phys)
+{
+    static uint32_t last_f = ~0u, last_draw = ~0u; static unsigned frames, events, draws, nobj, detail; static uint32_t seen[512]; unsigned i; uint32_t base = K.attr_offset[0] ^ (K.attr_offset[1] * 31u) ^ (K.tex[0].offset * 131u);
+    events++; if (K.frame != last_f) { last_f = K.frame; frames++; } if ((uint32_t)K.stats.draws != last_draw) { last_draw = (uint32_t)K.stats.draws; draws++; }
+    for (i = 0; i < nobj && i < 512; ++i) if (seen[i] == base) break;
+    if (i == nobj && nobj < 512) seen[nobj++] = base;
+    if (detail < 24 && (i == nobj - 1 || detail < 6)) {   /* where do the pointers come from? list the active attribute arrays and the index range of this draw */
+        uint32_t lo = ~0u, hi = 0, k; int a; detail++;
+        for (k = 0; k < K.index_count && k < 100000; ++k) { if (K.indices[k] < lo) lo = K.indices[k]; if (K.indices[k] > hi) hi = K.indices[k]; }
+        fprintf(stderr, "[OOBWHY] f=%u read=%08X prim=%u indices=%u range=[%u..%u] array_start=%u array_count=%u inline=%u tex0=%08X attrs:", K.frame, phys, K.prim, K.index_count, K.index_count ? lo : 0, hi, K.array_start, K.array_count, K.inline_count, K.tex[0].offset);
+        for (a = 0; a < 16; ++a) if (K.attr_format[a] & 0xF0u) fprintf(stderr, " a%d(off=%08X stride=%u size=%u type=%u)", a, K.attr_offset[a], K.attr_format[a] >> 8, (K.attr_format[a] >> 4) & 0xF, K.attr_format[a] & 0xF);
+        fprintf(stderr, "\n"); fflush(stderr);
+    }
+    if ((events & 0x3FFu) == 1 || events == 100000u) { fprintf(stderr, "[OOBSTAT] events=%u frames=%u draws=%u distinct_vertex_buffers=%u (frame %u)\n", events, frames, draws, nobj, K.frame); fflush(stderr); }
+}
+
 static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
 {
     long long _t0, _t1;
@@ -2694,7 +2728,7 @@ static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
     uint32_t prim = K.prim, out_count = count;
     D3DPRIMITIVETYPE d3dprim;
     switch (prim) {
-    case 1: d3dprim = D3DPT_POINTLIST; break;
+    case 1: if (kelvin_point_sprites()) { d3dprim = D3DPT_TRIANGLELIST; out_count = count * 6; } else d3dprim = D3DPT_POINTLIST; break;
     case 2: d3dprim = D3DPT_LINELIST; break;
     case 3: case 4: d3dprim = D3DPT_LINESTRIP; break;
     case 5: d3dprim = D3DPT_TRIANGLELIST; break;
@@ -2791,6 +2825,8 @@ static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
             }
         }
     }
+    {   static int rf_init; static uint32_t rf_from, rf_last; if (!rf_init) { const char *e = getenv("STE_RING_FROM_FRAME"); rf_init = 1; rf_from = e ? (uint32_t)atoi(e) : 0; }   /* c327: STE_RING_FROM_FRAME=<n>: from Kelvin frame n on, trigger the frame-ring auto-save (STE_RING_FLASH=1) every 90 frames */
+        if (rf_from && K.frame >= rf_from && (rf_last == 0 || K.frame - rf_last >= 90u)) { rf_last = K.frame; g_kelvin_flash_hits++; } }
     {   if (g_pf_on < 0) { const char *e = getenv("STE_PREFLASH_LOG"); g_pf_on = e && *e && *e != '0'; }
         if (g_pf_on > 0 && count <= 400 && K.frame > 100) {
             Vec4 v[16]; OutVertex o; PfRec *r = &g_pf[g_pf_w++ % 32768u]; float x0 = 1e30f, x1 = -1e30f, y0 = 1e30f, y1 = -1e30f, z0 = 1e30f; uint32_t nv = count < 24 ? count : 24, i;
@@ -2812,6 +2848,23 @@ static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
                 for (i = 0; i < nv; ++i) { if (!fetch(i, v)) continue; transform_vertex(v, &o, tex_scale); if (o.x < x0) x0 = o.x; if (o.x > x1) x1 = o.x; if (o.y < y0) y0 = o.y; if (o.y > y1) y1 = o.y; if (o.z < z0) z0 = o.z; if (o.z > z1) z1 = o.z; }
                 fprintf(stderr, "[NEWKEY] #%u f=%u n=%u prim=%u prog=%d/%u tex0=%08X/%08X blend=%u %X/%X depth=%u/%X zmask=%u atest=%u cull=%u psh=%08X bbox=[%.0f..%.0f]x[%.0f..%.0f] z=[%.3f..%.3f]\n", nk_n, K.frame, count, prim, (int)K.program_mode, K.program_start, K.tex[0].offset, K.tex[0].format, K.blend_enable, K.sfactor, K.dfactor, K.depth_test, K.depth_func, K.depth_mask, K.alpha_test, K.cull_enable, K.psh.shader_stage_program, x0, x1, y0, y1, z0, z1);
             }
+        }
+    }
+    if (g_kelvin_logwin) {   /* c340 probe: the exe (STE_DRAWLOG_TAP) opens a window of g_kelvin_logwin Kelvin frames (window number g_kelvin_logwin_id) in which every NEW draw key (c342: first occurrence per window; GPU and CPU vertex path) is logged: state, screen box of the first 64 vertices, texture content hash, point-sprite flag. Logging only. */
+        static uint32_t lw_id; static uint64_t lw_seen[16384]; static unsigned lw_n; uint64_t lh = 1469598103934665603ull; uint32_t lk[11], lq; int ldup = 0;
+        if (lw_id != g_kelvin_logwin_id) { lw_id = g_kelvin_logwin_id; lw_n = 0; }
+        lk[0] = count; lk[1] = prim; lk[2] = (uint32_t)K.program_mode * 65536u + K.program_start; lk[3] = K.tex[0].offset; lk[4] = K.tex[0].format; lk[5] = K.blend_enable * 4096u + K.sfactor * 16u + K.dfactor; lk[6] = K.depth_test * 4096u + K.depth_func * 2u + K.depth_mask; lk[7] = K.psh.shader_stage_program; lk[8] = K.cull_enable; lk[9] = K.alpha_test; lk[10] = textured[0];
+        for (lq = 0; lq < 11; ++lq) { lh ^= lk[lq]; lh *= 1099511628211ull; }
+        if (g_kelvin_logwin_id < 100u) for (lq = 0; lq < lw_n; ++lq) if (lw_seen[lq] == lh) { ldup = 1; break; }   /* ids >= 100: log every draw */
+        if (!ldup && (g_kelvin_logwin_id >= 100u || lw_n < 16384)) { if (lw_n < 16384) lw_seen[lw_n++] = lh;
+        uint32_t tw = 0, th = 0, tp = 0, i, nv = count < 64 ? count : 64; size_t tb = 0; const uint8_t *tp8 = textured[0] ? guest_ptr(K.tex[0].offset) : NULL;
+        Vec4 v[16]; OutVertex o; float x0 = 1e30f, x1 = -1e30f, y0 = 1e30f, y1 = -1e30f, z0 = 1e30f, z1 = -1e30f;
+        for (i = 0; i < nv; ++i) { if (!fetch(i, v)) continue; transform_vertex(v, &o, tex_scale); if (o.x < x0) x0 = o.x; if (o.x > x1) x1 = o.x; if (o.y < y0) y0 = o.y; if (o.y > y1) y1 = o.y; if (o.z < z0) z0 = o.z; if (o.z > z1) z1 = o.z; }
+        if (textured[0]) tex_geometry(&K.tex[0], &tw, &th, &tp, &tb);
+        fprintf(stderr, "[DRAWW] win=%u kf=%u prim=%u n=%u %s vp=%u tex0=%08X/%08X %ux%u h=%016llX blend=%u %X/%X atest=%u depth=%u/%u cull=%u psh=%08X box=(%.0f..%.0f,%.0f..%.0f) z=%.3f..%.3f c0=%08X psp=%d\n",
+                g_kelvin_logwin_id, K.frame, prim, count, K.program_mode ? "P" : "F", K.program_start, textured[0] ? K.tex[0].offset : 0, textured[0] ? K.tex[0].format : 0, tw, th,
+                (unsigned long long)((tp8 && tb && tb < (1u << 20)) ? hash_bytes(tp8, tb) : 0), K.blend_enable, K.sfactor, K.dfactor, K.alpha_test, K.depth_test, K.depth_mask, K.cull_enable,
+                K.psh.shader_stage_program, x0, x1, y0, y1, z0, z1, 0u, (K.prim == 1) ? kelvin_point_sprites() : -1);
         }
     }
     {   /* c207: STE_POPLOG=<file> (binary, 48-byte records, one per depth-tested draw): frame, mesh key (FNV of count/prim/tex0/program + object-space position of 3 vertices),
@@ -2916,6 +2969,7 @@ static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
         else if (count < gmin) why = 3;                                   /* below KELVIN_GPU_VP_MIN (default 48 vertices) */
         else if (g_rhw_legacy || g_kelvin_log_draws || kenv("KELVIN_DUMP_VP") || kenv("KELVIN_LOG_FRAME")) why = 4;   /* debug / legacy */
         else if (!textured[0] && count <= 16) why = 5;                    /* tiny untextured draw */
+        else if (K.prim == 1 && kelvin_point_sprites()) why = 7;          /* c327: point sprites are expanded to quads on the CPU path */
         if (!why) {
             if (gpu_vp_draw(dev, count, fetch, prim, textured, tex, tex_scale)) { kpath_note(0, count); return; }
             why = 6;                                                      /* gpu_vp_draw declined (program still compiling / failed / unsupported prim or fetch) */
@@ -3035,6 +3089,22 @@ static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
         for (uint32_t i = 0; i + 3 < count; i += 2) {
             dst[n++] = src[i]; dst[n++] = src[i + 1]; dst[n++] = src[i + 3];
             dst[n++] = src[i]; dst[n++] = src[i + 3]; dst[n++] = src[i + 2];
+        }
+        draw = dst;
+    } else if (prim == 1 && d3dprim == D3DPT_TRIANGLELIST) {   /* c327: point sprites -> quads */
+        uint32_t n = 0;
+        for (uint32_t i = 0; i < count; ++i) {
+            OutVertex c = src[i]; float w = c.rhw != 0.0f ? 1.0f / c.rhw : 1.0f, s, a = g_pt_par[0], b = g_pt_par[1], k = g_pt_par[2], den;
+            if (w < 0.0f) w = -w;
+            den = a + b * w + k * w * w;
+            s = den > 1e-9f ? 480.0f / sqrtf(den) : 8.0f;
+            s *= g_ps_mul; if (s < 1.0f) s = 1.0f; if (s > 62.0f * g_ps_mul) s = 62.0f * g_ps_mul;
+            { float h = 0.5f * s; OutVertex v[4]; int q; static const float u[4] = { 0, 1, 0, 1 }, vv[4] = { 0, 0, 1, 1 }, dx[4] = { -1, 1, -1, 1 }, dy[4] = { -1, -1, 1, 1 };
+              for (q = 0; q < 4; ++q) { v[q] = c; v[q].x = c.x + dx[q] * h; v[q].y = c.y + dy[q] * h; v[q].tex[0][0] = u[q]; v[q].tex[0][1] = vv[q]; }
+              dst[n++] = v[0]; dst[n++] = v[1]; dst[n++] = v[2]; dst[n++] = v[1]; dst[n++] = v[3]; dst[n++] = v[2]; }
+            if (i == 0 && count >= 8) { static uint32_t first_ps, last_ring; if (!first_ps) first_ps = K.frame; if (K.frame - first_ps > 2150u && K.frame - first_ps < 3300u && (last_ring == 0 || K.frame - last_ring > 150u)) { last_ring = K.frame; g_kelvin_flash_hits++; } }   /* a long point trail (a missile launch) also triggers the frame-ring auto-save (STE_RING_FLASH=1) */
+            if (i == 0 && count >= 6) { static uint32_t big_n, big_last; if (big_n < 80) { big_n++; fprintf(stderr, "[PSBIG] frame=%u points=%u w0=%.1f size0=%.1f\n", K.frame, count, (double)w, (double)s); } if (big_last == 0 || K.frame - big_last > 150u) { big_last = K.frame; g_kelvin_flash_hits++; } }
+            if (g_ps_logged < 6 && i == 0) { g_ps_logged++; fprintf(stderr, "[POINTSPRITE] frame=%u points=%u first: w=%.1f size=%.1f px (A=%g B=%g C=%g)\n", K.frame, count, (double)w, (double)s, (double)a, (double)b, (double)k); }
         }
         draw = dst;
     }
@@ -3328,6 +3398,7 @@ int kelvin_method(uint32_t subchannel, uint32_t method, uint32_t param)
     if (method >= 0x0AA0 && method < 0x0AC0) { K.psh.alpha_out[(method - 0x0AA0) / 4] = param; return 1; }
     if (method >= 0x0AC0 && method < 0x0AE0) { K.psh.rgb_in[(method - 0x0AC0) / 4] = param; return 1; }
     if (method >= 0x1E40 && method < 0x1E60) { K.psh.rgb_out[(method - 0x1E40) / 4] = param; return 1; }
+    if (method >= 0x0A30 && method < 0x0A50) { g_pt_par[(method - 0x0A30) / 4] = u2f(param); return 1; }   /* c327: NV097_SET_POINT_PARAMS */
     if (method == 0x029C) g_fog_mode = param; else if (method == 0x02A4) g_fog_en = param;
     else if (method >= 0x09C0 && method <= 0x09C8) { float fv; memcpy(&fv, &param, 4); if (method == 0x09C4) { static int nlog; if (nlog++ < 8) fprintf(stderr, "[FOG] mode=0x%X en=%u p1(raw)=%g\n", g_fog_mode, g_fog_en, (double)fv); g_fog_p1_raw = fv; if (g_fog_scale != 1.0f) fv /= g_fog_scale; } g_fog_p[(method - 0x09C0) / 4] = fv; }
     switch (method) {
@@ -3533,6 +3604,7 @@ void kelvin_end_frame(void)
         g_target_dirty = 0;
     }
     K.frame++;
+    if (g_kelvin_logwin) g_kelvin_logwin--;
     kelvin_apply_rt_invalidations();
     {   static int every = -1; if (every < 0) { const char *e = getenv("STE_CULLSTAT"); every = (e && *e && *e != '0') ? (atoi(e) > 1 ? atoi(e) : 600) : 0; }
         if (every && (K.frame % (uint32_t)every) == 0) g_cullstat_dump_request = 1; }

@@ -170,6 +170,12 @@ void texpack_init(void)
                 { const char *p = find_key(j, "enabled"); pi->enabled = p && !strncmp(p, "true", 4); }
                 { const char *p = find_key(j, "priority"); pi->prio = p ? atoi(p) : 100; }
                 if (en && en[0]) pi->enabled = id_listed(en, pi->id);
+                {   /* c355: button-prompt packs ("button_style": "xbox" | "playstation" in the manifest) follow STE_BUTTON_PROMPTS_RESOLVED (set by the exe from [input] button_prompts / the connected pad), never the enabled flag or the enable list;
+                       xbox_original (or nothing set) activates none, so the game art stays byte-identical. */
+                    char bs[32]; const char *rs = getenv("STE_BUTTON_PROMPTS_RESOLVED");
+                    get_str(j, "button_style", bs, sizeof bs);
+                    if (bs[0]) pi->enabled = (rs && !strcmp(rs, bs)) ? 1 : 0;
+                }
                 free(j); np++;
             } while (FindNextFileA(h, &fd));
             FindClose(h);

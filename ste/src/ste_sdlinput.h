@@ -7,6 +7,7 @@
 extern "C" {
 #endif
 int         ste_sdl_init(void);                 /* 1 = SDL3 backend active, 0 = use XInput */
+void        ste_buttons_resolve(int sdl_ok);    /* c355: [input] button_prompts -> STE_BUTTON_PROMPTS_RESOLVED (0 = no SDL: auto stays xbox_original) */
 int         ste_sdl_active(void);
 void        ste_sdl_update(void);               /* poll SDL, refresh the pad list (cheap) */
 int         ste_sdl_pad_count(void);

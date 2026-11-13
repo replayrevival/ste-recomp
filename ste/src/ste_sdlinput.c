@@ -222,6 +222,27 @@ static void apply_dz(float *x, float *y, float dz)
 static SHORT sh(float v) { return (SHORT)(v >= 1.0f ? 32767 : v <= -1.0f ? -32768 : v * 32767.0f); }
 
 /* ---------- public ---------- */
+/* c355: [input] button_prompts / STE_BUTTON_PROMPTS = auto | xbox | xbox_original | playstation -> STE_BUTTON_PROMPTS_RESOLVED = xbox | playstation | xbox_original, read by the texture-pack loader (kelvin_texpack.c, packs with "button_style").
+ * auto: PlayStation pad -> playstation, any other pad -> xbox, no pad -> xbox_original (c357). */
+void ste_buttons_resolve(int sdl_ok)
+{
+    char m[32] = "auto", ini[MAX_PATH], *p; const char *e = getenv("STE_BUTTON_PROMPTS"), *iv = getenv("STE_ENHANCE_INI"), *r = "xbox_original";
+    if (e && *e) { strncpy(m, e, sizeof m - 1); m[sizeof m - 1] = 0; }
+    else {
+        if (iv && *iv) { strncpy(ini, iv, MAX_PATH - 1); ini[MAX_PATH - 1] = 0; } else { GetModuleFileNameA(NULL, ini, MAX_PATH); p = strrchr(ini, 0x5C); if (p) strcpy(p + 1, "ste_enhance.ini"); }
+        GetPrivateProfileStringA("input", "button_prompts", "auto", m, sizeof m, ini);
+    }
+    if (!_stricmp(m, "xbox")) r = "xbox";
+    else if (!_stricmp(m, "playstation")) r = "playstation";
+    else if (!_stricmp(m, "auto") && sdl_ok) {
+        int n = 0, i; SDL_JoystickID *ids = SDL_GetGamepads(&n);
+        if (ids && n > 0) r = "xbox";   /* c357: any other pad -> modern Xbox art (matches the launcher) */
+        for (i = 0; ids && i < n; ++i) { SDL_GamepadType t = SDL_GetGamepadTypeForID(ids[i]); if (t == SDL_GAMEPAD_TYPE_PS3 || t == SDL_GAMEPAD_TYPE_PS4 || t == SDL_GAMEPAD_TYPE_PS5) { r = "playstation"; break; } }
+        if (ids) SDL_free(ids);
+    }
+    _putenv_s("STE_BUTTON_PROMPTS_RESOLVED", r);
+    fprintf(stderr, "[INPUT] button prompts: setting=%s resolved=%s\n", m, r); fflush(stderr);
+}
 int ste_sdl_init(void)
 {
     const char *be = getenv("STE_INPUT_BACKEND"), *mp = getenv("STE_INPUT_MAP"); char ini[MAX_PATH], v[32] = "auto", *p; const char *iv = getenv("STE_ENHANCE_INI");
@@ -235,7 +256,7 @@ int ste_sdl_init(void)
         { char kn[32] = "F1"; GetPrivateProfileStringA("input", "overlay_key", "F1", kn, sizeof kn, ini); g_ovl_vk = !_stricmp(kn, "none") ? 0 : vk_from_name(kn); }
         g_chord_ms = (DWORD)GetPrivateProfileIntA("input", "overlay_chord_ms", 1000, ini);
     }
-    if (!_stricmp(be, "xinput")) { fprintf(stderr, "[INPUT] backend=xinput (configured)\n"); return 0; }
+    if (!_stricmp(be, "xinput")) { ste_buttons_resolve(0); fprintf(stderr, "[INPUT] backend=xinput (configured)\n"); return 0; }
     if (mp && *mp) {   /* launcher mapping file */
         FILE *f = fopen(mp, "rb");
         if (!f) fprintf(stderr, "[INPUT] STE_INPUT_MAP=%s: cannot open, using built-in defaults\n", mp);
@@ -254,8 +275,8 @@ int ste_sdl_init(void)
     }
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
     SDL_SetHint(SDL_HINT_JOYSTICK_THREAD, "1");
-    if (!SDL_Init(SDL_INIT_GAMEPAD)) { fprintf(stderr, "[INPUT] SDL_Init failed (%s): falling back to XInput\n", SDL_GetError()); return 0; }
-    g_backend_sdl = 1;
+    if (!SDL_Init(SDL_INIT_GAMEPAD)) { fprintf(stderr, "[INPUT] SDL_Init failed (%s): falling back to XInput\n", SDL_GetError()); ste_buttons_resolve(0); return 0; }
+    g_backend_sdl = 1; ste_buttons_resolve(1);
     fprintf(stderr, "[INPUT] backend=sdl3 %s (SDL %d.%d.%d) overlay: guide=%d key=0x%02X chord=%d(%lu ms)\n", g_map ? "with mapping file" : "built-in defaults", SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_MICRO_VERSION, g_ovl_guide, g_ovl_vk, g_ovl_chord, (unsigned long)g_chord_ms);
     {   /* test pads without hardware: STE_SDL_VIRTUAL=<n> attaches n virtual gamepads (buttons/axes stay neutral; tests\sdl_input_selftest.c drives them) */
         const char *vn = getenv("STE_SDL_VIRTUAL"); int n = vn ? atoi(vn) : 0, i;

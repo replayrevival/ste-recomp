@@ -106,7 +106,8 @@ static int ste_early_args(void)
     for (i = 1; argv && i < argc; ++i) {
         if (!wcscmp(argv[i], L"--version")) { printf("ste-recomp %s (%s)\n", STE_VERSION, ste_candidate_id); rc = 0; break; }
         if (!wcscmp(argv[i], L"--help") || !wcscmp(argv[i], L"-h")) {
-            printf("ste-recomp %s (%s)\nusage: ste-recomp.exe [--game <folder with default.xbe>] [--version] [--help]\n"
+            printf("ste-recomp %s (%s)\nusage: ste-recomp.exe [--game <folder with default.xbe>] [--console] [--version] [--help]\n"
+                   "  --console       open a console that mirrors the log (or env STE_CONSOLE=1); otherwise the log goes to <logs>\\ste_<time>.log.\n"
                    "  --game <path>   game folder (else env STE_GAME_PATH). Exit codes: 0 ok, 1 startup failure, 2 bad command line, 3 game path unusable.\n"
                    "  env: STE_VIDEO_INI STE_ENHANCE_INI STE_GAME_PATH STE_NO_DIALOG (see docs\\LAUNCHER_INTERFACE.md)\n", STE_VERSION, ste_candidate_id);
             rc = 0; break;
@@ -364,6 +365,89 @@ static LONG CALLBACK veh_handler(PEXCEPTION_POINTERS ep)
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
+/* ── c367: console-less (Windows subsystem) stdio ─────────────────────────────
+ * The release exe is linked /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup (no console window). stdout/stderr then are:
+ *   - the caller's redirect (launcher pipe, `> file`) when one was inherited: left alone;
+ *   - else a log file  <logs>\ste_<yyyymmdd-hhmmss>.log  (<logs> = sibling "logs" of the settings folder of STE_VIDEO_INI, else <exe>\data\logs, else <exe>\logs; STE_LOG_DIR overrides);
+ *   - with --console or STE_CONSOLE=1: a console (attached to the parent's when there is one, else a new one) that mirrors the same text, through a pipe + tee thread.
+ * --version / --help attach to the parent console (never create one). ste_tee_drain() is called by the crash filter before it terminates the process so the last lines are not lost. */
+#include <io.h>
+#include <fcntl.h>
+static HANDLE g_tee_rd, g_tee_con, g_tee_file;
+static DWORD WINAPI ste_tee_thread(LPVOID unused)
+{
+    char buf[4096]; DWORD n, w; (void)unused;
+    for (;;) {
+        if (!ReadFile(g_tee_rd, buf, sizeof buf, &n, NULL) || !n) break;
+        if (g_tee_con) WriteFile(g_tee_con, buf, n, &w, NULL);
+        if (g_tee_file && g_tee_file != INVALID_HANDLE_VALUE) WriteFile(g_tee_file, buf, n, &w, NULL);
+    }
+    return 0;
+}
+void ste_tee_drain(void)
+{
+    /* No PeekNamedPipe here: the tee thread sits in a synchronous ReadFile on the same pipe handle and a Peek would block behind it. The thread wakes as soon as data arrives, so a short sleep lets it pass the last lines on. */
+    if (g_tee_rd) Sleep(120);
+}
+static int ste_dir_exists(const char *d) { DWORD a = GetFileAttributesA(d); return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY); }
+static int ste_log_path(char *out, size_t n)
+{
+    const char *e = getenv("STE_LOG_DIR"), *vi = getenv("STE_VIDEO_INI"); char dir[MAX_PATH], tmp[MAX_PATH], *p; SYSTEMTIME st;
+    dir[0] = 0;
+    if (e && e[0]) { strncpy(dir, e, sizeof dir - 1); dir[sizeof dir - 1] = 0; }
+    else {
+        if (vi && vi[0]) { strncpy(tmp, vi, sizeof tmp - 1); tmp[sizeof tmp - 1] = 0; p = strrchr(tmp, '\\'); if (p) { *p = 0; p = strrchr(tmp, '\\'); if (p) { strcpy(p + 1, "logs"); if (ste_dir_exists(tmp)) strcpy(dir, tmp); } } }
+        if (!dir[0]) { GetModuleFileNameA(NULL, tmp, sizeof tmp); p = strrchr(tmp, '\\'); if (p) { strcpy(p + 1, "data\\logs"); if (ste_dir_exists(tmp)) strcpy(dir, tmp); else { strcpy(p + 1, "logs"); strcpy(dir, tmp); } } }
+    }
+    if (!dir[0]) return 0;
+    CreateDirectoryA(dir, NULL);
+    if (!ste_dir_exists(dir)) return 0;
+    GetLocalTime(&st);
+    _snprintf(out, n, "%s\\ste_%04d%02d%02d-%02d%02d%02d.log", dir, st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond); out[n - 1] = 0;
+    return 1;
+}
+/* In a Windows-subsystem process the CRT's stdout/stderr FILEs start with an invalid descriptor (-2), and the FILE structs cannot be re-created by hand (opaque in the UCRT): give them valid descriptors with freopen on NUL, then dup2 the real target over those descriptors. */
+static void ste_rebind_files(void)
+{
+    FILE *fo = NULL, *fe = NULL;
+    freopen_s(&fo, "NUL", "w", stdout); freopen_s(&fe, "NUL", "w", stderr);
+    setvbuf(stdout, NULL, _IONBF, 0); setvbuf(stderr, NULL, _IONBF, 0);
+}
+static void ste_bind_stdio(HANDLE h)
+{
+    int fd = _open_osfhandle((intptr_t)h, _O_BINARY);
+    if (fd < 0) return;
+    ste_rebind_files();
+    _dup2(fd, _fileno(stdout)); _dup2(fd, _fileno(stderr));
+    SetStdHandle(STD_OUTPUT_HANDLE, h); SetStdHandle(STD_ERROR_HANDLE, h);
+}
+static void ste_stdio_setup(void)
+{
+    int argc = 0, i, want_console = 0, attach_only = 0, redirected; WCHAR **argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    HANDLE he = GetStdHandle(STD_ERROR_HANDLE), con = NULL, file = INVALID_HANDLE_VALUE; char lp[MAX_PATH]; const char *ce = getenv("STE_CONSOLE");
+    for (i = 1; argv && i < argc; ++i) {
+        if (!wcscmp(argv[i], L"--console")) want_console = 1;
+        else if (!wcscmp(argv[i], L"--version") || !wcscmp(argv[i], L"--help") || !wcscmp(argv[i], L"-h")) attach_only = 1;
+    }
+    if (argv) LocalFree(argv);
+    if (ce && *ce && *ce != 0x30) want_console = 1;
+    redirected = he && he != INVALID_HANDLE_VALUE && GetFileType(he) != FILE_TYPE_UNKNOWN;
+    if (attach_only && !redirected) { if (AttachConsole(ATTACH_PARENT_PROCESS)) { con = CreateFileA("CONOUT$", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL); if (con != INVALID_HANDLE_VALUE) { ste_bind_stdio(con); return; } } }
+    if (redirected && !want_console) { if (_fileno(stdout) < 0 || GetFileType(GetStdHandle(STD_OUTPUT_HANDLE)) == FILE_TYPE_UNKNOWN) ste_bind_stdio(he); else { setvbuf(stdout, NULL, _IONBF, 0); setvbuf(stderr, NULL, _IONBF, 0); } return; }
+    if (redirected) file = he;   /* --console with a redirect: mirror into the caller's handle */
+    else if (ste_log_path(lp, sizeof lp)) file = CreateFileA(lp, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (!want_console) { if (file != INVALID_HANDLE_VALUE) ste_bind_stdio(file); return; }
+    if (!AttachConsole(ATTACH_PARENT_PROCESS)) AllocConsole();
+    con = CreateFileA("CONOUT$", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+    if (con == INVALID_HANDLE_VALUE) { if (file != INVALID_HANDLE_VALUE) ste_bind_stdio(file); return; }
+    {   HANDLE rd, wr; SECURITY_ATTRIBUTES sa = { sizeof sa, NULL, FALSE };
+        if (!CreatePipe(&rd, &wr, &sa, 1 << 16)) { ste_bind_stdio(con); return; }
+        g_tee_rd = rd; g_tee_con = con; g_tee_file = file;
+        CreateThread(NULL, 0, ste_tee_thread, NULL, 0, NULL); atexit(ste_tee_drain);   /* normal exits flush the mirror too */
+        ste_bind_stdio(wr);
+    }
+}
+
 /* ── WinMain ───────────────────────────────────────────────── */
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
@@ -548,5 +632,6 @@ int main(int argc, char **argv)
 {
     (void)argc;
     (void)argv;
+    ste_stdio_setup();   /* c367: no console window in the release link; see the block above */
     return WinMain(GetModuleHandle(NULL), NULL, GetCommandLineA(), SW_SHOW);
 }

@@ -12,6 +12,7 @@ project). Community handles only. Game data is never distributed; users supply t
 | xemu | https://github.com/xemu-project/xemu | upstream of the above | GPL-2.0 / LGPL-2.1 | origin of the APU, DSP and NV2A code, hardware knowledge |
 | stb_image.h | https://github.com/nothings/stb | v2.28 | public domain / MIT | PNG decoding for texture packs |
 | SDL3 | https://github.com/libsdl-org/SDL | 3.4.18 | zlib | gamepad input (linked statically) |
+| Kenney Input Prompts | https://kenney.nl/assets/input-prompts | as in the downloaded zip (SHA-256 `ac2fcf599080b0f3ba2d174c9474db6df1a0e96ff0662580e2da79a122ab78a1`) | CC0 1.0 | button pictures (Xbox Series, PlayStation Series) for the optional button-prompt texture packs; the packs are built locally by `ste/scripts/build_button_pack.py`, no Kenney files are in this repository |
 | AMD FidelityFX Super Resolution 1.0 | https://github.com/GPUOpen-Effects/FidelityFX-FSR | commit `a21ffb8` | MIT | optional scan-out upscaler (shaders ship with the launcher package, not here) |
 
 ## Referenced only (no code taken)
