@@ -466,6 +466,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     setvbuf(stderr, NULL, _IONBF, 0);
 
     { int rc = ste_early_args(); if (rc >= 0) return rc; rc = ste_resolve_game(); if (rc) return rc; }
+    {   /* c369: resolve the button-prompt style BEFORE anything can initialise the texture-pack loader (it reads STE_BUTTON_PROMPTS_RESOLVED once). Input init used to do it lazily, after the packs had loaded, so every pack stayed disabled. */
+        extern int ste_sdl_init(void); extern void ste_buttons_resolve(int);
+        const char *nh = getenv("STE_NO_HOST_PAD"), *vp = getenv("STE_VIRTUAL_PAD");
+        if ((nh && *nh && *nh != 0x30) || (vp && *vp && *vp != 0x30)) ste_buttons_resolve(0); else ste_sdl_init();
+    }
     printf("=== Godzilla STE - Static Recomp (v0.14 base) ===\n");
     printf("Loading XBE...\n");
 

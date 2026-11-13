@@ -37,7 +37,7 @@ Draft prepared 2026-11-10. Nothing here is published; the owner publishes.
 4. Disclaimer in README, About and the launcher: "Not affiliated with or endorsed by Toho, Atari or Pipeworks. You must own the game."
 5. Hash checks: `ste/gen/xbe.sha256` verifies the user's default.xbe; `expected_generated.sha256` (includes the new `recomp_0013.c`) verifies a local regeneration; record the SHA-256 of every shipped binary.
 6. Clean-directory run: unzip into an empty folder, point at a legitimate copy, play Versus Tokyo + New York for 15 minutes.
-7. Version strings 0.1.3 (exe resource: done in c367; launcher, README: pending); changelog from the table above.
+7. Version strings 0.1.3 (exe resource: done in c369; launcher, README: pending); changelog from the table above.
 8. A build from the **published recipe** (not the dev tree) must show a picture and match the dev build's behaviour.
 
 ## Test plan for 2-3 PCs

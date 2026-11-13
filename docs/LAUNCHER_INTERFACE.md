@@ -189,8 +189,8 @@ Default when the key is absent: `auto`. The launcher's choice of word "xbox_orig
 7. `query_scale` / `query_scale_auto` / `query_budget_ms` exist since c307 / c318 and are not in the assumption file; they only act with `draw_distance=unlimited`, and the launcher should not expose more than `query_scale` 1..4 (values up to 8 need `STE_QV_MAX`, test only).
 8. Build id: `FileVersion`/`ProductVersion` from the VERSIONINFO of releases; development candidates that do not have one show `build unknown`, which is expected.
 
-## 11. capabilities.json and button prompts status (c367)
+## 11. capabilities.json and button prompts status (c369)
 - `capabilities.json` sits next to `ste-recomp.exe`: `{"features":["button_prompts","texture_packs","query_scale_auto","sdl_gamepads"]}`. `hd_art` is added only when HD art ships. The launcher treats a missing file as no extra features.
 - HD art keys confirmed: `[video] hd_art` (master, default 0), `hd_art_sky`, `hd_art_ground`, `hd_art_roofs`, `hd_art_billboards` (categories, default 1, used only while `hd_art=1`).
-- `[input] button_prompts` / env `STE_BUTTON_PROMPTS` are implemented from c356 (face-button art only; Auto = PlayStation pad -> playstation, other pad -> xbox, none -> xbox_original).
+- `[input] button_prompts` / env `STE_BUTTON_PROMPTS` are implemented from c356 (face-button art only; Auto = PlayStation pad -> playstation, other pad -> xbox, none -> xbox_original). c367 resolved the style too late (packs stayed disabled); from c369 it is resolved right after the game path is known, before the texture-pack loader runs: the matching pack is enabled, the other disabled, xbox_original enables none.
 - Planned, not in the exe yet: patch mods read from `mods\<id>\_built\` (0.1.4, see docsormats\mod_patch.md).

@@ -640,6 +640,10 @@ static LONG WINAPI ste_crash_filter(EXCEPTION_POINTERS *ep)
     fprintf(stderr, "[CRASH] code=0x%08lX addr=%p %s thread=%lu%s%s\n", (unsigned long)code, ep->ExceptionRecord->ExceptionAddress, mod, (unsigned long)GetCurrentThreadId(),
             ep->ExceptionRecord->NumberParameters > 1 && (code == EXCEPTION_ACCESS_VIOLATION || code == EXCEPTION_IN_PAGE_ERROR) ? (ep->ExceptionRecord->ExceptionInformation[0] ? " access=write" : " access=read") : "",
             code == EXCEPTION_INT_DIVIDE_BY_ZERO ? " (integer divide by zero)" : code == EXCEPTION_ACCESS_VIOLATION ? " (access violation)" : code == EXCEPTION_STACK_OVERFLOW ? " (stack overflow)" : "");
+    if (code == EXCEPTION_ACCESS_VIOLATION && ep->ExceptionRecord->NumberParameters > 1) {   /* c368: what is the faulting page? */
+        MEMORY_BASIC_INFORMATION q; void *fa = (void *)ep->ExceptionRecord->ExceptionInformation[1];
+        if (VirtualQuery(fa, &q, sizeof q)) fprintf(stderr, "[CRASH] fault page: addr=%p base=%p alloc_base=%p region=0x%llX state=0x%lX protect=0x%lX alloc_protect=0x%lX type=0x%lX\n", fa, q.BaseAddress, q.AllocationBase, (unsigned long long)q.RegionSize, (unsigned long)q.State, (unsigned long)q.Protect, (unsigned long)q.AllocationProtect, (unsigned long)q.Type);
+    }
     fprintf(stderr, "[CRASHDUMP] exception %08lX at %p -> %s\n", (unsigned long)code, ep->ExceptionRecord->ExceptionAddress, path);
     fflush(stderr);
     f = CreateFileA(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
