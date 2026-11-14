@@ -19,7 +19,7 @@
 
 | | |
 |---|---|
-| 🖥️ **Widescreen and ultrawide** | 16:9, 21:9 and even 32:9 screens show more of the city. Nothing is stretched. |
+| 🖥️ **Widescreen and ultrawide** | 16:9, 21:9 ultrawide and wider screens show more of the city. Nothing is stretched. |
 | 🔍 **4K and 60 fps** | Sharp at up to 4K. The game runs at 60 frames per second and at the correct speed. |
 | 🏙️ **Unlimited draw distance** | See whole skylines instead of buildings popping in. |
 | 🎮 **Any controller** | Use almost any gamepad, remap every button, and pick Xbox, PlayStation or original Xbox button pictures. |
@@ -38,7 +38,7 @@
 2. **Run the launcher** (`launcher.exe`) and point it at your own copy of the game: a disc image (.iso) or a folder.
 3. **Press PLAY.**
 
-![The launcher](docs/screenshots/0.1.3_launcher_overview.png)
+![The launcher](docs/screenshots/0.1.3a_launcher_overview.png)
 
 ## What you need
 
@@ -49,20 +49,26 @@
 
 ## What's new in v0.1.3
 
+- **Distant buildings stay visible.** Unlimited draw distance, x4 at 60 fps.
+- **A big performance boost.**
+- **The hit flash now covers ultrawide screens**, edge to edge.
+- **The mouse pointer hides while you play.**
 - No black console window opens any more when you start the game or the launcher.
 - Choose Xbox, PlayStation or original Xbox button pictures. Auto follows your controller.
 - The launcher has a **Mods** tab, a built-in file browser and plainer messages when something goes wrong.
 - If the game stops, **Save crash report** makes a zip you can send us. Nothing is uploaded by itself.
 - The launcher quietly checks once a day for a new version (you can turn it off).
 
-[Read the full release notes](https://github.com/replayrevival/ste-recomp/releases/tag/v0.1.3-alpha).
+**0.1.3a:** fixes a rare freeze.
+
+[Read the full release notes](https://github.com/replayrevival/ste-recomp/releases/tag/v0.1.3a-alpha).
 
 **Coming next:** 0.1.4 (an in-game menu, volume and cursor settings, patch mods loaded by the game), then a beta, then 1.0. Linux and Mac come later.
 
 <table>
 <tr>
-<td><img src="docs/screenshots/0.1.3_launcher_video.png" alt="Video settings"></td>
-<td><img src="docs/screenshots/0.1.3_launcher_controllers_playstation.png" alt="Controller settings with PlayStation button pictures"></td>
+<td><img src="docs/screenshots/0.1.3a_launcher_video.png" alt="Video settings"></td>
+<td><img src="docs/screenshots/0.1.3a_launcher_controllers_playstation.png" alt="Controller settings with PlayStation button pictures"></td>
 </tr>
 </table>
 
@@ -74,7 +80,7 @@
 
 **Is it legal?** The project includes no game code and no game files, and you must own the game. It is an unofficial fan project. Laws differ from country to country, and this is not legal advice.
 
-**Why the Xbox version?** The Xbox release is the one this project was built for. Other versions would need separate work.
+**Why the Xbox version?** The Xbox release has the sharpest textures and effects of the original versions, so it's the best starting point.
 
 **Can I mod it?** Yes. The launcher installs mods from a zip or a folder. See the [modding guide](https://github.com/replayrevival/launcher/blob/main/docs/MODDING.md). Mods must never contain game files.
 
