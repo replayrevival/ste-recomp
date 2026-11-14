@@ -2585,7 +2585,9 @@ static void bridge_KeRemoveQueueDpc(void);   /* defined with the queue */
 extern void xbox_Nv2aVblankRaise(void);
 extern void xbox_Nv2aVblankDpcStarted(void);
 extern void xbox_Nv2aVblankDone(void);
-static volatile LONG g_vblank_isr_active;
+/* c370: per thread. It was one global flag, so a DPC another thread (USB/APU) queued while the timer thread was inside the vblank ISR
+ * replaced g_vblank_dpc_va, the real vblank DPC was then not recognised, its ack loop was never answered and the timer thread spun forever. */
+static __declspec(thread) int g_vblank_isr_active;
 static volatile uint32_t g_vblank_dpc_va;
 #define XBOX_MAX_PENDING_DPC 64
 typedef struct { uint32_t dpc, arg1, arg2; } PendingDpc;

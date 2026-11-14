@@ -1381,7 +1381,9 @@ static void vbl_set_regs(int set)
     }
 }
 
-void xbox_Nv2aVblankRaise(void)       { InterlockedExchange64(&g_vbl_dpc_start_ms, 0); InterlockedExchange(&g_vbl_hold, 1); vbl_set_regs(1); }
+static volatile LONGLONG g_vbl_raise_qpc;   /* c370: when the bits were raised */
+static LONGLONG vbl_qpc_now(void);
+void xbox_Nv2aVblankRaise(void)       { InterlockedExchange64(&g_vbl_dpc_start_ms, 0); InterlockedExchange64(&g_vbl_raise_qpc, vbl_qpc_now()); InterlockedExchange(&g_vbl_hold, 1); vbl_set_regs(1); }
 /* The grace after the vblank DPC starts is measured on the performance counter (0.5 ms): it used GetTickCount64() < 3, a coarse
  * clock (up to 15.6 ms per step), so the DPC's write-1-and-wait ack loop spun for ~10 ms on every vblank (60% of the timer thread). */
 static LONGLONG vbl_qpc_now(void) { LARGE_INTEGER q; QueryPerformanceCounter(&q); return q.QuadPart; }
@@ -1399,7 +1401,11 @@ void xbox_Nv2aAckBusyBits(void)
         LONGLONG st = g_vbl_dpc_start_ms;
         static LONGLONG grace;
         if (!grace) { LARGE_INTEGER f; QueryPerformanceFrequency(&f); grace = f.QuadPart / 2000; }   /* 0.5 ms */
-        if (!st || vbl_qpc_now() - st < grace) {   /* DPC not started, or still inside its grace */
+        if (!st) {   /* DPC not started: hold the bits, but not for ever (c370 safety valve: 100 ms = six vblanks; a DPC that polls them while this still reads "not started" would never return) */
+            static LONGLONG lim;
+            if (!lim) { LARGE_INTEGER f; QueryPerformanceFrequency(&f); lim = f.QuadPart / 10; }
+            if (vbl_qpc_now() - g_vbl_raise_qpc < lim) { keep_pmc = NV2A_VBL_PMC_BIT; keep_pcrtc = NV2A_VBL_PCRTC_BIT; }
+        } else if (vbl_qpc_now() - st < grace) {   /* still inside its grace */
             keep_pmc = NV2A_VBL_PMC_BIT; keep_pcrtc = NV2A_VBL_PCRTC_BIT;
         }
     }
