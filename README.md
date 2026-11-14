@@ -11,9 +11,9 @@
   <img alt="Status: early alpha" src="https://img.shields.io/badge/status-early%20alpha-orange">
 </p>
 
-![A fight in Tokyo at 21:9 ultrawide, with the original HUD](docs/screenshots/ste_3440x1440_21x9_fight_hud.jpg)
+![Godzilla 2000's atomic breath hits Gigan in Tokyo at 21:9 ultrawide](docs/screenshots/0.1.3a_hero_ultrawide_fight_tokyo.png)
 
-*A fight at 3440x1440 ultrawide. Same game, same HUD, nothing stretched.*
+*Godzilla 2000's atomic breath hits Gigan in Tokyo at 21:9 ultrawide, with Unlimited draw distance: the whole street, Mount Fuji and the original HUD in view.*
 
 ## What you get
 
@@ -21,7 +21,7 @@
 |---|---|
 | 🖥️ **Widescreen and ultrawide** | 16:9, 21:9 ultrawide and wider screens show more of the city. Nothing is stretched. |
 | 🔍 **4K and 60 fps** | Sharp at up to 4K. The game runs at 60 frames per second and at the correct speed. |
-| 🏙️ **Unlimited draw distance** | See whole skylines instead of buildings popping in. |
+| 🏙️ **Unlimited draw distance** | See the whole city at a smooth 60 fps. |
 | 🎮 **Any controller** | Use almost any gamepad, remap every button, and pick Xbox, PlayStation or original Xbox button pictures. |
 | 🚀 **A friendly launcher** | Pick a preset, change settings, set up controllers and press Play. No config files. |
 | 🧩 **Mods** | Install and switch mods from the launcher. Your game files are never changed. |
@@ -31,6 +31,10 @@
 ![Original 4:3 next to 21:9](docs/screenshots/compare_original_vs_ultrawide.jpg)
 
 *The same moment: the original 4:3 view on the left, 21:9 on the right.*
+
+![The Tokyo skyline runs all the way to the hills and the harbour](docs/screenshots/0.1.3a_ultrawide_tokyo_skyline_unlimited.png)
+
+*Unlimited draw distance: the Tokyo skyline runs all the way to the hills and the harbour.*
 
 ## Play it in 3 steps
 
@@ -49,7 +53,7 @@
 
 ## What's new in v0.1.3
 
-- **Distant buildings stay visible.** Unlimited draw distance, x4 at 60 fps.
+- **Unlimited draw distance: see the whole city at a smooth 60 fps.**
 - **A big performance boost.**
 - **The hit flash now covers ultrawide screens**, edge to edge.
 - **The mouse pointer hides while you play.**
@@ -69,6 +73,10 @@
 <tr>
 <td><img src="docs/screenshots/0.1.3a_launcher_video.png" alt="Video settings"></td>
 <td><img src="docs/screenshots/0.1.3a_launcher_controllers_playstation.png" alt="Controller settings with PlayStation button pictures"></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/0.1.3a_button_prompts_xbox.png" alt="The character-select screen with Xbox button pictures"></td>
+<td><img src="docs/screenshots/0.1.3a_button_prompts_playstation.png" alt="The character-select screen with PlayStation button pictures"></td>
 </tr>
 </table>
 
