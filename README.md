@@ -11,7 +11,7 @@
   <img alt="Status: early alpha" src="https://img.shields.io/badge/status-early%20alpha-orange">
 </p>
 
-![Godzilla 2000's atomic breath hits Gigan in Tokyo at 21:9 ultrawide](docs/screenshots/0.1.3a_hero_ultrawide_fight_tokyo.png)
+![Godzilla 2000's atomic breath hits Gigan in Tokyo at 21:9 ultrawide](docs/screenshots/0.1.4_hero_ultrawide_fight_tokyo.png)
 
 *Godzilla 2000's atomic breath hits Gigan in Tokyo at 21:9 ultrawide, with Unlimited draw distance: the whole street, Mount Fuji and the original HUD in view.*
 
@@ -32,7 +32,7 @@
 
 *The same moment: the original 4:3 view on the left, 21:9 on the right.*
 
-![The Tokyo skyline runs all the way to the hills and the harbour](docs/screenshots/0.1.3a_ultrawide_tokyo_skyline_unlimited.png)
+![The Tokyo skyline runs all the way to the hills and the harbour](docs/screenshots/0.1.4_ultrawide_tokyo_skyline_unlimited.png)
 
 *Unlimited draw distance: the Tokyo skyline runs all the way to the hills and the harbour.*
 
@@ -70,8 +70,8 @@ Earlier: 0.1.3a fixed a rare freeze. 0.1.3 brought unlimited draw distance at a 
 <td><img src="docs/screenshots/0.1.4_launcher_controllers_playstation.png" alt="Controller settings with PlayStation button pictures"></td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/0.1.3a_button_prompts_xbox.png" alt="The character-select screen with Xbox button pictures"></td>
-<td><img src="docs/screenshots/0.1.3a_button_prompts_playstation.png" alt="The character-select screen with PlayStation button pictures"></td>
+<td><img src="docs/screenshots/0.1.4_button_prompts_xbox.png" alt="The character-select screen with Xbox button pictures"></td>
+<td><img src="docs/screenshots/0.1.4_button_prompts_playstation.png" alt="The character-select screen with PlayStation button pictures"></td>
 </tr>
 </table>
 
