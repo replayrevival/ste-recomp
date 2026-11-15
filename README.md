@@ -24,6 +24,7 @@
 | 🏙️ **Unlimited draw distance** | See the whole city at a smooth 60 fps. |
 | 🎮 **Any controller** | Use almost any gamepad, remap every button, and pick Xbox, PlayStation or original Xbox button pictures. |
 | 🚀 **A friendly launcher** | Pick a preset, change settings, set up controllers and press Play. No config files. |
+| 🎛️ **In-game menu** | Press Back and Start, F1 or the Guide button to change settings or go back to the launcher without leaving the game. |
 | 🧩 **Mods** | Install and switch mods from the launcher, including mods that change the game's own files without sharing them. Your game files are never changed. |
 | 🎯 **Original gameplay by default** | The ORIGINAL preset plays the game as it was. Extras are optional. |
 | 🆓 **Free and open source** | GPL licence. The source is in this repository. |
@@ -42,7 +43,7 @@
 2. **Run the launcher** (`launcher.exe`) and point it at your own copy of the game: a disc image (.iso) or a folder.
 3. **Press PLAY.**
 
-![The launcher](docs/screenshots/0.1.4_launcher_overview.png)
+![The launcher](docs/screenshots/0.1.5_launcher_overview.png)
 
 ## What you need
 
@@ -51,23 +52,22 @@
 - A graphics card that supports **DirectX 11**.
 - A controller is recommended. The keyboard works too.
 
-## What's new in v0.1.4
+## What's new in v0.1.5
 
-- **The game starts about 20 seconds sooner.** It used to wait on every start for a network cable that does not exist.
-- **Mods that change the game's own files now work.** A mod can describe its changes as a small patch, so nobody has to share game files. The launcher builds the changed files from your own copy and the game uses them. Your original files are never touched.
-- **New settings on the Video tab:** the game's volume, and whether the mouse pointer hides itself (after 3 seconds, always, or never).
-- **The launcher now notices small fix releases** such as 0.1.3a, not only new version numbers.
+- **An in-game menu.** Hold Back and Start together for a second (or press F1, or the Guide button) and the game pauses. Change the volume or other settings, set up your controllers, or go back to the launcher, then carry on playing.
+- **The words follow your controller style.** With Xbox or PlayStation button pictures chosen, texts such as "PRESS START" now say "PRESS MENU" (or "PRESS OPTIONS" on PlayStation where it fits) and "Xbox console" says "this computer". Original Xbox keeps the original words.
+- Volume and the mouse pointer change at once from the in-game menu. Button prompts and the enhancements apply from the next match; other video settings the next time you start.
 
-Earlier: 0.1.3a fixed a rare freeze. 0.1.3 brought unlimited draw distance at a smooth 60 fps, a big performance boost, the hit flash covering ultrawide screens, Xbox / PlayStation / original Xbox button pictures, the Mods tab and Save crash report.
+Earlier: 0.1.4 made the game start about 20 seconds sooner and made mods that change the game's own files work. 0.1.3a fixed a rare freeze. 0.1.3 brought unlimited draw distance at a smooth 60 fps, a big performance boost, Xbox / PlayStation / original Xbox button pictures, the Mods tab and Save crash report.
 
-[Read the full release notes](https://github.com/replayrevival/ste-recomp/releases/tag/v0.1.4-alpha).
+[Read the full release notes](https://github.com/replayrevival/ste-recomp/releases/tag/v0.1.5-alpha).
 
-**Coming next:** an in-game menu (pause, change settings, back to the launcher), typing names with a keyboard, the missing Mechagodzilla missile trails, then a beta, then 1.0. Linux and Mac come later.
+**Coming next:** typing names with a keyboard, the missing Mechagodzilla missile trails, then a beta, then 1.0. Linux and Mac come later.
 
 <table>
 <tr>
-<td><img src="docs/screenshots/0.1.4_launcher_video.png" alt="Video settings"></td>
-<td><img src="docs/screenshots/0.1.4_launcher_controllers_playstation.png" alt="Controller settings with PlayStation button pictures"></td>
+<td><img src="docs/screenshots/0.1.5_launcher_video.png" alt="Video settings"></td>
+<td><img src="docs/screenshots/0.1.5_launcher_controllers_playstation.png" alt="Controller settings with PlayStation button pictures"></td>
 </tr>
 <tr>
 <td><img src="docs/screenshots/0.1.4_button_prompts_xbox.png" alt="The character-select screen with Xbox button pictures"></td>
