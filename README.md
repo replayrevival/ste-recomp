@@ -58,6 +58,16 @@
 - **The words follow your controller style.** With Xbox or PlayStation button pictures chosen, texts such as "PRESS START" now say "PRESS MENU" (or "PRESS OPTIONS" on PlayStation where it fits) and "Xbox console" says "this computer". Original Xbox keeps the original words.
 - Volume and the mouse pointer change at once from the in-game menu. Button prompts and the enhancements apply from the next match; other video settings the next time you start.
 
+<table>
+<tr>
+<td><img src="docs/screenshots/0.1.5_overlay_paused.png" alt="The in-game menu over the game: Resume, Video, Enhancements, Controllers, Return to launcher, Quit game"></td>
+<td><img src="docs/screenshots/0.1.5_overlay_video.png" alt="The in-game menu's Video page with the Volume row"></td>
+</tr>
+<tr>
+<td colspan="2"><img src="docs/screenshots/0.1.5_press_menu_wording_playstation.png" alt="With PlayStation button pictures the text says 'Press MENU to add COM'"></td>
+</tr>
+</table>
+
 Earlier: 0.1.4 made the game start about 20 seconds sooner and made mods that change the game's own files work. 0.1.3a fixed a rare freeze. 0.1.3 brought unlimited draw distance at a smooth 60 fps, a big performance boost, Xbox / PlayStation / original Xbox button pictures, the Mods tab and Save crash report.
 
 [Read the full release notes](https://github.com/replayrevival/ste-recomp/releases/tag/v0.1.5-alpha).
