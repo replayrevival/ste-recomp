@@ -2,7 +2,7 @@
  * ste_sdlinput.c - SDL3 gamepad input for the Godzilla STE recomp (a Replay Revival recomp).
  *
  * Replaces the XInput-only host pad source: Xbox, PlayStation, Switch and generic pads through SDL3's gamepad API (zlib licence; docs\CREDITS_AND_SOURCES.md),
- * the launcher's mapping file (STE_INPUT_MAP, format E:\GodzillaSTE\launcher\docs\INPUT_MAPPING.md, version 1), per-port deadzone and rumble scale,
+ * the launcher's mapping file (STE_INPUT_MAP, format: the launcher's INPUT_MAPPING.md, version 1), per-port deadzone and rumble scale,
  * the Guide/Home button (plus F1 and a Back+Start chord) as the overlay request, and keyboard key bindings (key:<SDL name>).
  * XInput stays as the fallback: ste_sdl_init() returns 0 when SDL cannot start or STE_INPUT_BACKEND=xinput (ini [input] backend = auto | sdl | xinput).
  * The host side (recomp_manual.c) owns the Xbox ports; this file only answers "which pad", "its state as an Xbox pad" and "rumble".
@@ -583,7 +583,7 @@ void ste_sdl_chord_check(int port, const XBOX_INPUT_STATE *st)
     static DWORD since[4]; static int fired[4]; DWORD now = GetTickCount();
     if (!g_ovl_chord || port < 0 || port > 3) return;
     if ((st->Gamepad.wButtons & (XBOX_GAMEPAD_BACK | XBOX_GAMEPAD_START)) == (XBOX_GAMEPAD_BACK | XBOX_GAMEPAD_START)) {
-        if (!since[port]) since[port] = now ? now : 1;
+        if (!since[port]) { since[port] = now ? now : 1; if (getenv("STE_INPUT_TRACE")) { fprintf(stderr, "[OVERLAY] chord: Back+Start seen on port %d\n", port + 1); fflush(stderr); } }
         else if (!fired[port] && now - since[port] >= g_chord_ms) { fired[port] = 1; g_ovl_why = 3; g_ovl_port = port; InterlockedIncrement(&g_ovl_req); fprintf(stderr, "[OVERLAY] request: Back+Start chord (port %d)\n", port + 1); fflush(stderr); }
     } else { since[port] = 0; fired[port] = 0; }
 }

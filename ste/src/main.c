@@ -300,8 +300,10 @@ typedef struct MCPXAPUState MCPXAPUState;
 extern MCPXAPUState *mcpx_apu_init_standalone(uint8_t *ram_ptr);
 extern MCPXAPUState *g_apu_state;
 
+__declspec(thread) int g_ste_probe_guard;   /* c378: set by code that reads memory it does not own (the text scanner) inside __try: its access violations are left to that __except */
 static LONG CALLBACK veh_handler(PEXCEPTION_POINTERS ep)
 {
+    if (ep->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && g_ste_probe_guard) return EXCEPTION_CONTINUE_SEARCH;
     if (ep->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
         uintptr_t fault_addr = ep->ExceptionRecord->ExceptionInformation[1];
 

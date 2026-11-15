@@ -676,6 +676,13 @@ void sub_002D8D7E(void)
     if (src != last_src[port]) { last_src[port] = src; fprintf(stderr, "[XPP] XInputGetState: port %d source %d%s\n", port, src, src < 0 ? " (none)" : ""); fflush(stderr); }
     {   static unsigned shown[STE_NPORTS]; if ((st.Gamepad.wButtons || st.Gamepad.bAnalogButtons[0] || st.Gamepad.bAnalogButtons[1]) && shown[port]++ < 12)
             { fprintf(stderr, "[XPP] pad input: port %d wButtons=%04X A=%u B=%u\n", port, st.Gamepad.wButtons, st.Gamepad.bAnalogButtons[0], st.Gamepad.bAnalogButtons[1]); fflush(stderr); } }
+    {   /* c378: while the in-game overlay is open the game sees a released pad whatever the source (SDL pad, XInput, keyboard) */
+        extern int ste_overlay_visible(void);
+        extern void ste_sdl_chord_check(int port, const XBOX_INPUT_STATE *st);
+        ste_sdl_chord_check(port, &st);   /* Back+Start held: also for scripted and XInput pads (the SDL/keyboard branches above call it too; it fires once per hold) */
+        if (ste_overlay_visible()) { DWORD pk = st.dwPacketNumber; memset(&st, 0, sizeof st); st.dwPacketNumber = pk; }
+        else if ((st.Gamepad.wButtons & 0x30) == 0x30) st.Gamepad.wButtons &= (WORD)~0x30;   /* Back+Start held together is the overlay chord: the game does not see it (otherwise Start would also open its own pause menu) */
+    }
     if (ps) memcpy(GPTR(ps), &st, 22);            /* Xbox XINPUT_STATE = 4 + 2 + 8 + 4*2 bytes */
     xpp_ret(8, 0);
 }

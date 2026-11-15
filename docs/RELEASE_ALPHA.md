@@ -1,8 +1,16 @@
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
-# Replay Revival - Godzilla: Save the Earth (Xbox) recomp - ALPHA 0.1.4 (draft)
+# Replay Revival - Godzilla: Save the Earth (Xbox) recomp - ALPHA 0.1.5 (draft)
 
 **Early alpha. Work in progress, development continues.** Not affiliated with or endorsed by Toho, Atari or Pipeworks. You must own the game; no game data is included or distributed. Windows only for now.
-Draft prepared 2026-11-10, 0.1.4 section added 2026-11-14. Nothing here is published; the owner publishes.
+Draft prepared 2026-11-10, 0.1.4 section added 2026-11-14, 0.1.5 section 2026-11-15. Nothing here is published; the owner publishes.
+
+## What changed since 0.1.4
+| Area | Change | Status |
+|---|---|---|
+| In-game overlay | press **Back+Start for one second** (or F1, or the Guide button) to open the launcher's settings over the game: Video, Enhancements, Controllers (incl. remapping), Return to launcher, Quit. The game is paused while it is open and nothing reaches it; pad, keyboard and mouse work. Return to launcher exits with code 20. It needs `ste_overlay.dll` (with its `ui`, `assets` and `config` folders) next to the game, which the launcher package provides; without it the game runs as before. `master_volume` and `hide_cursor` apply at once. | in |
+| Button words and PC wording | with the Xbox or PlayStation button style, "PRESS START" reads PRESS MENU / PRESS OPTIONS, "Press START to join" and friends follow, the dodge tutorial says LT/RT or L2/R2, and Xbox-only save texts say "Computer" / "this computer". The original text is untouched with `button_prompts = xbox_original`. `STE_TEXT_PATCH=0` turns it off. The text is changed in memory after the game has loaded it (about 1-2 % of one core for the scan). | in |
+| Back+Start | held together they are now the overlay chord and are hidden from the game (so Start does not also open the game's pause menu) | in |
+| Version | exe resource and `--version` say 0.1.5 | in |
 
 ## What changed since 0.1.3a
 | Area | Change | Status |
@@ -37,9 +45,9 @@ Draft prepared 2026-11-10, 0.1.4 section added 2026-11-14. Nothing here is publi
 | Debug options | `STE_RING_AUTO_GAP_MS`, `STE_RING_FIGHT_FROM`, draw-log windows and the OOB report are opt-in test switches, off by default | in, opt-in |
 
 ## Known issues
-- Button words and PC wording are still the original Xbox text ("Press START", "Xbox console"). Face-button pictures follow the button style; words do not yet (see the table above).
+- No keyboard typing on the profile name screen yet (use a pad, or map the keyboard as a pad); planned for 0.1.6.
+- The footer word BACK next to the B picture is not re-worded (it means "go back"); only START and the Xbox-only save texts are.
 - No keyboard typing on the profile name screen (the on-screen keyboard still needs a pad or the keyboard mapped as a pad).
-- The in-game overlay is not available yet (see the table above); the launcher's settings pages and ini files are unchanged.
 - Mechagodzilla 3's back missiles are invisible in flight (launch fireball and impacts show). Cause not found after probes through c366 (docs\ITEM_D_MISSILES.md): the particle step is a constant 1/60, so it is not frame-rate dependent; the head/trail art is not in the scene list. Investigation continues in 0.1.4. Mechagodzilla 2's finger rockets are untested.
 - A rare freeze (no more frames, window stays open) was fixed in 0.1.3a (c370): the emulated vblank could wait for ever on an interrupt-status bit when another thread queued work at the same moment. It was seen three times in test runs, never in normal play reports.
 - Possible rare stall in the sound code: in two test runs of an earlier build (c367, debug frame-sleep on) the game stopped producing frames while its main thread sat in the DirectSound buffer routine (the game's audio set-up). Not reproduced since and not fixed in c370; if the game freezes, please send the log from `<logs>`.

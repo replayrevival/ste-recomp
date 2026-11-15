@@ -101,7 +101,7 @@ if (Test-Path $exp) {   # generation is deterministic: compare every generated f
 # --- 4. compile
 Write-Host "== compiling"
 $X = "$Root\xboxrecomp"; $Src = "$Root\ste\src"
-$Inc = @("$Gen\generated", "$X\templates\runtime", "$X\include", "$X\include\xbox", "$X\src", "$X\src\kernel", "$X\src\d3d", "$X\src\audio", "$X\src\input", "$X\src\apu", "$X\src\nv2a", "$X\src\usb", "$X\src\platform") | ForEach-Object { "/I `"$_`"" }
+$Inc = @("$Gen\generated", "$X\templates\runtime", "$X\include", "$X\include\xbox", "$X\src", "$X\src\kernel", "$X\src\d3d", "$X\src\audio", "$X\src\input", "$X\src\apu", "$X\src\nv2a", "$X\src\usb", "$X\src\platform", "$Src\overlay") | ForEach-Object { "/I `"$_`"" }
 $Inc = $Inc -join " "
 "// SPDX-License-Identifier: GPL-2.0-or-later`r`nconst char ste_candidate_id[] = `"STE_CANDIDATE_ID=$BuildNumber;`";`r`n" | Set-Content "$Obj\ste_candidate_id.c" -Encoding ascii
 $v = $Version.Split('.')
