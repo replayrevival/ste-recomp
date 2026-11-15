@@ -19,3 +19,5 @@ Committed locally in publish\ste-recomp, docs/screenshots/ (not pushed). The 0.1
 | 0.1.5_overlay_controllers.png | 1920x1061 | The overlay's Controllers page: button prompts, port, menu confirm/back swap. |
 
 Notes: the launcher's own shots (0.1.5_launcher_*) are yours. The overlay shots sit on the title screen (a fresh scripted run), not on a fight, and are 1920x1061 as captured (the presented frame of that run). Release-set gaps against docs\RELEASE_CHECKLIST.md: no 32:9 or 4K set this time (the older ste_*_fight_hud.jpg compare shots are unchanged), no beta HD vs original side-by-side (no HD art yet).
+
+Caveat (from the launcher session): 0.1.5_overlay_video.png was captured with an older config\settings.json, so it shows 'applies now' under Frame rate, V-Sync, Variable refresh rate and Draw distance; the shipped package says 'after restart' there. The launcher session recaptures the three overlay shots from the final package for the release page.
