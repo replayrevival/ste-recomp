@@ -53,6 +53,13 @@ static int xa2_env_int(const char *name, int def, int lo, int hi)
 
 static IXAudio2               *g_xa2 = NULL;
 static IXAudio2MasteringVoice *g_xa2_master = NULL;
+static volatile LONG g_master_pct = 100;   /* c375: [audio] master_volume 0..100 (ste_audio_set_master_volume) */
+void ste_audio_set_master_volume(int pct)
+{
+    if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+    g_master_pct = pct;
+    if (g_xa2_master) IXAudio2Voice_SetVolume((IXAudio2Voice *)g_xa2_master, (float)pct / 100.0f, 0);
+}
 static IXAudio2SourceVoice    *g_xa2_source = NULL;
 /* One slot more than can be queued: with every buffer on the voice, the
  * next one is staged in a slot the voice does not hold. With only
@@ -102,6 +109,7 @@ int xa2_init(void)
         goto fail;
     }
 
+    if (g_master_pct != 100) IXAudio2Voice_SetVolume((IXAudio2Voice *)g_xa2_master, (float)g_master_pct / 100.0f, 0);   /* c375 */
     wfx.wFormatTag      = WAVE_FORMAT_PCM;
     wfx.nChannels       = XA2_CHANNELS;
     wfx.nSamplesPerSec  = XA2_SAMPLE_RATE;

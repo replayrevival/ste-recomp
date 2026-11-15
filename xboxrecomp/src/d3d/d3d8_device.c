@@ -617,7 +617,7 @@ static HRESULT scan_present(D3D8DeviceState *s)
     }
     return hr;
 }
-static void scanout_present_frame(D3D8DeviceState *s, ID3D11Texture2D *bb)
+static void scanout_present_frame_inner(D3D8DeviceState *s, ID3D11Texture2D *bb)
 {
     D3D11_TEXTURE2D_DESC bd; ID3D11RenderTargetView *rtv = NULL; D3D11_VIEWPORT vp; float black[4] = { 0, 0, 0, 1 };
     float ra, oa, dw, dh; ID3D11ShaderResourceView *nul = NULL;
@@ -649,6 +649,21 @@ static void scanout_present_frame(D3D8DeviceState *s, ID3D11Texture2D *bb)
     ID3D11DeviceContext_PSSetShaderResources(s->scanout_context, 0, 1, &nul);
     ID3D11DeviceContext_OMSetRenderTargets(s->scanout_context, 0, NULL, NULL);
     ID3D11RenderTargetView_Release(rtv);
+}
+
+/* c375: the in-game overlay (launcher's ste_overlay via ste_overlay_glue.cpp) is drawn last, right before Present, on this thread. The default below is a no-op when the exe does not provide it. */
+void ste_overlay_frame(void *device, void *rtv, int w, int h);
+void ste_overlay_frame_none(void *device, void *rtv, int w, int h) { (void)device; (void)rtv; (void)w; (void)h; }
+#pragma comment(linker, "/alternatename:ste_overlay_frame=ste_overlay_frame_none")
+static void scanout_present_frame(D3D8DeviceState *s, ID3D11Texture2D *bb)
+{
+    D3D11_TEXTURE2D_DESC bd; ID3D11RenderTargetView *ortv = NULL;
+    scanout_present_frame_inner(s, bb);
+    ID3D11Texture2D_GetDesc(bb, &bd);
+    if (SUCCEEDED(ID3D11Device_CreateRenderTargetView(s->scanout_device, (ID3D11Resource *)bb, NULL, &ortv)) && ortv) {
+        ste_overlay_frame(s->scanout_device, ortv, (int)bd.Width, (int)bd.Height);
+        ID3D11RenderTargetView_Release(ortv);
+    }
 }
 
 static DWORD WINAPI d3d8_scanout_thread(void *opaque)

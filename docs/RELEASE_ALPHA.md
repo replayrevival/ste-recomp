@@ -1,10 +1,22 @@
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
-# Replay Revival - Godzilla: Save the Earth (Xbox) recomp - ALPHA 0.1.3 (draft)
+# Replay Revival - Godzilla: Save the Earth (Xbox) recomp - ALPHA 0.1.4 (draft)
 
 **Early alpha. Work in progress, development continues.** Not affiliated with or endorsed by Toho, Atari or Pipeworks. You must own the game; no game data is included or distributed. Windows only for now.
-Draft prepared 2026-11-10. Nothing here is published; the owner publishes.
+Draft prepared 2026-11-10, 0.1.4 section added 2026-11-14. Nothing here is published; the owner publishes.
 
-## What changed since 0.1.2d
+## What changed since 0.1.3a
+| Area | Change | Status |
+|---|---|---|
+| Start-up speed | **about 20 s faster every launch.** The game's network start-up waited ~20 s for an Ethernet link that does not exist (we reported "cable connected"). The runtime now answers "no cable" like a console without one, so the first game file is opened after 1.7 s instead of 22 s and the intro movies start 20 s sooner. `STE_ETHERNET_LINK=up` restores the old answer. Online play never worked and still does not. | in |
+| Start-up diagnostics | a `[BOOT]` timeline in the log (milliseconds since the process started, one line per step, plus the first file opens); `STE_BOOT_SAMPLE=1` adds a 2 s sampler. Symbol loading for crash reports moved to a background thread (it cost 1-3 s on a cold first launch). | in |
+| Mods that are patches | the game reads an enabled patch mod's `mods\<id>\_built\<file>` (built by the launcher or by `tools\step-diff\step_diff.py`, a small GPL tool that makes and applies `step1` patches) only when its SHA-256 equals the manifest's `result_sha256`; a missing file or a wrong hash falls back to the original and says so in the log (`[MODS] ... not built` / `RESULT MISMATCH`). Mods never contain game data. A self-test mod is in `tests\mods\ste.test-patch`. | in |
+| Settings | `[audio] master_volume` (0-100, default 100) and `[window] hide_cursor` (`auto` hides the pointer after 3 s without movement, `always`, `never`) in the settings ini; both are also what the in-game overlay will change live | in |
+| Crash reports | the report lists the last 48 memory-protection calls (who made the faulting page read-only); `STE_PROTECT_LOG=1` prints them live; `STE_DISK_SLOW_MS` / `STE_DISK_SLOW_JITTER` simulate a slow disk for tests | in, opt-in |
+| In-game overlay | the launcher's overlay (Video, Enhancements, Controllers, return to launcher = exit code 20) is written but **not in this build**: inside the game process its start-up still crashes in the launcher library (the launcher session is looking at it), and linking it needs a newer Visual C++ runtime than the game needs today. It is built only with `candidate376\relink376b_overlay.bat` | not in |
+| Text wording | START/BACK and "Xbox console" re-wording per button style is not in this release: the game looks its text up by the English string, so editing the strings breaks loading (docs\REPORT_0.1.4.md). The code is in, off unless `STE_TEXT_PATCH=1` | not in |
+| Version | exe resource and `--version` say 0.1.4 | in |
+
+## What changed since 0.1.2d (carried over from 0.1.3)
 | Area | Change | Status |
 |---|---|---|
 | Input / window | mouse pointer auto-hides while the game has focus; window client size corrected on monitors with a different DPI | in |
@@ -24,6 +36,9 @@ Draft prepared 2026-11-10. Nothing here is published; the owner publishes.
 | Debug options | `STE_RING_AUTO_GAP_MS`, `STE_RING_FIGHT_FROM`, draw-log windows and the OOB report are opt-in test switches, off by default | in, opt-in |
 
 ## Known issues
+- Button words and PC wording are still the original Xbox text ("Press START", "Xbox console"). Face-button pictures follow the button style; words do not yet (see the table above).
+- No keyboard typing on the profile name screen (the on-screen keyboard still needs a pad or the keyboard mapped as a pad).
+- The in-game overlay is not available yet (see the table above); the launcher's settings pages and ini files are unchanged.
 - Mechagodzilla 3's back missiles are invisible in flight (launch fireball and impacts show). Cause not found after probes through c366 (docs\ITEM_D_MISSILES.md): the particle step is a constant 1/60, so it is not frame-rate dependent; the head/trail art is not in the scene list. Investigation continues in 0.1.4. Mechagodzilla 2's finger rockets are untested.
 - A rare freeze (no more frames, window stays open) was fixed in 0.1.3a (c370): the emulated vblank could wait for ever on an interrupt-status bit when another thread queued work at the same moment. It was seen three times in test runs, never in normal play reports.
 - Possible rare stall in the sound code: in two test runs of an earlier build (c367, debug frame-sleep on) the game stopped producing frames while its main thread sat in the DirectSound buffer routine (the game's audio set-up). Not reproduced since and not fixed in c370; if the game freezes, please send the log from `<logs>`.

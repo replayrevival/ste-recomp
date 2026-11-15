@@ -239,8 +239,12 @@ NTSTATUS __stdcall xbox_ExSaveNonVolatileSetting(
 ULONG __stdcall xbox_PhyGetLinkState(BOOLEAN Verify)
 {
     (void)Verify;
-    /* Return link up, 100 Mbps, full duplex */
-    return 0x01; /* XNET_ETHERNET_LINK_ACTIVE */
+    /* c375: there is no network behind this answer. Reporting link-up made the title's XNet start-up run its DHCP exchange against a NIC that does not exist and wait for its
+     * ~20 s timeout on every launch (391 million interrupt-level raise/lower pairs in a polling loop, then the game continued offline). A console with no cable reports link down
+     * and skips it. STE_ETHERNET_LINK=up restores the old answer. */
+    {   static int up = -1; if (up < 0) { const char *e = getenv("STE_ETHERNET_LINK"); up = e && !_stricmp(e, "up"); }
+        return up ? 0x01 : 0x00; /* XNET_ETHERNET_LINK_ACTIVE or none */
+    }
 }
 
 NTSTATUS __stdcall xbox_PhyInitialize(BOOLEAN ForceReset, PVOID Param2)

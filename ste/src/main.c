@@ -186,6 +186,7 @@ extern void xbe_entry_point(void);
  *   - Add dumps of game-specific globals (heap handles, state flags)
  *   - Add SEH simulation if your game uses __try/__except
  */
+static volatile LONG g_sym_ready;   /* c375: set by the background symbol loader */
 /* Name the guest function a fault happened in, and recover the call chain.
  *
  * Recompiled code faults as ordinary native code, so the exception record
@@ -219,7 +220,7 @@ static void print_guest_context(void *rip)
     memset(buf, 0, sizeof(buf));
     sym->SizeOfStruct = sizeof(SYMBOL_INFO);
     sym->MaxNameLen = 255;
-    if (SymFromAddr(GetCurrentProcess(), (DWORD64)(uintptr_t)rip, &disp, sym))
+    if (g_sym_ready && SymFromAddr(GetCurrentProcess(), (DWORD64)(uintptr_t)rip, &disp, sym))
         fprintf(stderr, "  in %s+0x%llX\n",
                 sym->Name, (unsigned long long)disp);
 
@@ -448,6 +449,33 @@ static void ste_stdio_setup(void)
     }
 }
 
+/* c375: [BOOT] timeline: milliseconds since the process was created, one line per start-up step (also used by ste_pb_hook.c for the first frames). */
+void ste_boot(const char *what);
+static DWORD WINAPI ste_sym_thread(LPVOID u) { (void)u; SymSetOptions(SYMOPT_DEFERRED_LOADS | SYMOPT_UNDNAME); SymInitialize(GetCurrentProcess(), NULL, TRUE); g_sym_ready = 1; ste_boot("symbols loaded (background)"); return 0; }
+extern int xbox_IrqlTransitions(void);
+static DWORD WINAPI ste_boot_sampler(LPVOID u)   /* c375: STE_BOOT_SAMPLE=1: every 2 s of the first 50 s, the interrupt-level transition count (a busy start-up loop shows as millions) */
+{
+    int i; char b[96]; (void)u;
+    for (i = 0; i < 25; i++) { Sleep(2000); snprintf(b, sizeof b, "sample: irql transitions=%d", xbox_IrqlTransitions()); ste_boot(b); }
+    return 0;
+}
+
+void ste_boot_note(const char *what)   /* file opens during the first ~60 s, with the boot clock */
+{
+    static volatile LONG n; FILETIME c, e, k, u; if (InterlockedIncrement(&n) > 700) return;
+    if (!GetProcessTimes(GetCurrentProcess(), &c, &e, &k, &u)) return;
+    ste_boot(what);
+}
+
+void ste_boot(const char *what)
+{
+    FILETIME c, e, k, u, now; ULARGE_INTEGER a, b;
+    if (!GetProcessTimes(GetCurrentProcess(), &c, &e, &k, &u)) return;
+    GetSystemTimeAsFileTime(&now);
+    a.LowPart = c.dwLowDateTime; a.HighPart = c.dwHighDateTime; b.LowPart = now.dwLowDateTime; b.HighPart = now.dwHighDateTime;
+    fprintf(stderr, "[BOOT] +%6.0f ms  %s\n", (double)(b.QuadPart - a.QuadPart) / 10000.0, what);
+}
+
 /* ── WinMain ───────────────────────────────────────────────── */
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
@@ -464,8 +492,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     /* Unbuffered output for immediate visibility during debugging */
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
+    ste_boot("WinMain start");
 
     { int rc = ste_early_args(); if (rc >= 0) return rc; rc = ste_resolve_game(); if (rc) return rc; }
+    ste_boot("game folder resolved");
     {   /* c369: resolve the button-prompt style BEFORE anything can initialise the texture-pack loader (it reads STE_BUTTON_PROMPTS_RESOLVED once). Input init used to do it lazily, after the packs had loaded, so every pack stayed disabled. */
         extern int ste_sdl_init(void); extern void ste_buttons_resolve(int);
         const char *nh = getenv("STE_NO_HOST_PAD"), *vp = getenv("STE_VIRTUAL_PAD");
@@ -478,9 +508,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     /* Load symbols up front rather than from inside the handler: at fault
      * time the process is already in a bad way, and SymInitialize
      * allocates. Failure is not fatal -- the handler prints no name. */
-    SymSetOptions(SYMOPT_DEFERRED_LOADS | SYMOPT_UNDNAME);
-    SymInitialize(GetCurrentProcess(), NULL, TRUE);
+    CloseHandle(CreateThread(NULL, 0, ste_sym_thread, NULL, 0, NULL));   /* c375: symbol loading (up to ~3 s on a cold start) no longer delays start-up; crash names appear once it has finished */
     AddVectoredExceptionHandler(1, veh_handler);
+    ste_boot("symbols loaded (SymInitialize) and crash handler installed");
 
     /* Step 1: Load XBE */
     if (!load_xbe(g_xbe_path_w, &xbe_data, &xbe_size)) {
@@ -490,6 +520,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
         return 1;
     }
     printf("XBE loaded: %zu bytes\n", xbe_size);
+    ste_boot("XBE loaded");
 
     /* Step 2: Initialize Xbox memory layout */
     printf("Initializing Xbox memory layout...\n");
@@ -503,6 +534,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
     g_xbox_mem_offset = xbox_GetMemoryOffset();
     printf("Xbox memory mapped. Offset: 0x%llX\n", (unsigned long long)g_xbox_mem_offset);
+    ste_boot("guest memory mapped");
 
     /* Bring up the emulated APU.
      *
@@ -520,6 +552,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     /* Step 3: Initialize Xbox kernel */
     printf("Initializing Xbox kernel replacement...\n");
     xbox_kernel_init();
+    ste_boot("kernel initialised");
+    if (getenv("STE_BOOT_SAMPLE")) CloseHandle(CreateThread(NULL, 0, ste_boot_sampler, NULL, 0, NULL));
 
     /* Step 4: Set game directory for file I/O path translation */
     {

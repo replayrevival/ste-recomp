@@ -433,6 +433,11 @@ static int kernel_log_is_file_ordinal(unsigned ordinal)
 #define STACK_ARG(n) ((uint32_t)BRIDGE_MEM32(g_esp + (n) * 4))
 
 /* Guest return address of the call currently in a bridge. */
+/* c375: boot timeline hook, provided by the exe (main.c); no-op otherwise */
+void ste_boot_note(const char *what);
+void ste_boot_note_none(const char *what) { (void)what; }
+#pragma comment(linker, "/alternatename:ste_boot_note=ste_boot_note_none")
+
 RECOMP_TLS uint32_t g_xbox_kernel_caller;
 
 /* ── Per-ordinal bridge functions ─────────────────────────
@@ -2334,12 +2339,31 @@ static void bridge_MmGetPhysicalAddress(void)
 }
 
 /* ── MmSetAddressProtect (ordinal 182) ───────────────────── */
+/* c374: ring of the last 48 page-protection calls (MmSetAddressProtect / NtProtectVirtualMemory) so a crash on a page that is read-only
+ * (the load-crash lead) shows who changed it last. xbox_ProtectLogDump() is called by the exe's crash report; STE_PROTECT_LOG=1 also prints each call. */
+typedef struct { uint32_t va, size, prot, caller, api; unsigned long long ms; } ProtEnt;
+static ProtEnt g_prot_ring[48]; static volatile LONG g_prot_n;
+static void prot_note(uint32_t api, uint32_t va, uint32_t size, uint32_t prot)
+{
+    LONG i = InterlockedIncrement(&g_prot_n) - 1; ProtEnt *e = &g_prot_ring[i % 48];
+    static int live = -1; if (live < 0) live = getenv("STE_PROTECT_LOG") != NULL;
+    e->va = va; e->size = size; e->prot = prot; e->api = api; e->caller = g_xbox_kernel_caller; e->ms = (unsigned long long)GetTickCount64();
+    if (live) { fprintf(stderr, "[PROT] %s va=%08X size=%u prot=0x%X from=%08X\n", api ? "NtProtectVirtualMemory" : "MmSetAddressProtect", va, size, prot, e->caller); fflush(stderr); }
+}
+void xbox_ProtectLogDump(void)
+{
+    LONG n = g_prot_n, k, from = n > 48 ? n - 48 : 0;
+    fprintf(stderr, "[PROT] last %ld of %ld page-protection calls (oldest first):\n", (long)(n - from), (long)n);
+    for (k = from; k < n; k++) { const ProtEnt *e = &g_prot_ring[k % 48]; fprintf(stderr, "[PROT]   #%ld %s va=%08X size=%u prot=0x%X from=%08X t=%llu\n", (long)k, e->api ? "NtProtectVirtualMemory" : "MmSetAddressProtect", e->va, e->size, e->prot, e->caller, e->ms % 1000000ull); }
+}
+
 static void bridge_MmSetAddressProtect(void)
 {
     uint32_t addr = STACK_ARG(0);
     uint32_t size = STACK_ARG(1);
     uint32_t prot = STACK_ARG(2);
 
+    prot_note(0, addr, size, prot);
     xbox_MmSetAddressProtect(XBOX_TO_NATIVE(addr), size, prot);
     g_eax = 0;
 }
@@ -3694,6 +3718,7 @@ static NTSTATUS bridge_create_file_impl(
             fprintf(stderr, "  [FILE] %s (disp %u opts 0x%X from 0x%08X) -> 0x%08X\n",
                     gpath, (unsigned)disposition, (unsigned)options,
                     g_xbox_kernel_caller, status);
+        if (!status) { char bb[320]; snprintf(bb, sizeof bb, "open %s", gpath); ste_boot_note(bb); }   /* c375: [BOOT] timeline of file opens */
     }
     fflush(stderr);
     return st;
@@ -4109,6 +4134,11 @@ static int bridge_async_io_enabled(void)
     return on;
 }
 
+/* c373: text re-wording hook; the exe provides ste_text_patch, otherwise the no-op below is used */
+void ste_text_patch(void *buf, uint32_t n);
+void ste_text_patch_none(void *buf, uint32_t n) { (void)buf; (void)n; }
+#pragma comment(linker, "/alternatename:ste_text_patch=ste_text_patch_none")
+
 /* ── NtReadFile (ordinal 219, 8 args = 32 bytes) ──────── */
 static void bridge_NtReadFile(void)
 {
@@ -4132,8 +4162,23 @@ static void bridge_NtReadFile(void)
         off.HighPart = (LONG)BRIDGE_MEM32(offset_va + 4);
         poff = &off;
     }
+    {   /* c374 debug: STE_DISK_SLOW_MS=<ms> sleeps that long before every file read, STE_DISK_SLOW_JITTER=1 randomises it 0..2x (slow-disk / stall test for the load-crash lead) */
+        static int slow = -1, jit; if (slow < 0) { const char *e = getenv("STE_DISK_SLOW_MS"); slow = e ? atoi(e) : 0; jit = getenv("STE_DISK_SLOW_JITTER") != NULL; }
+        if (slow > 0) Sleep(jit ? (DWORD)(rand() % (2 * slow + 1)) : (DWORD)slow);
+    }
     g_eax = (uint32_t)xbox_NtReadFile(handle, NULL, NULL, NULL, &ios,
                 XBOX_TO_NATIVE(buffer_va), length, poff);
+    /* c373: let the exe re-word UI text in what was just read (ste_text.c); default is a no-op */
+    if ((NTSTATUS)g_eax >= 0 && ios.Information >= 8) {
+        /* the buffer can sit in a page the runtime keeps read-only (write watch): lift that for the duration of the edit */
+        void *tb = XBOX_TO_NATIVE(buffer_va); MEMORY_BASIC_INFORMATION tmi; DWORD oldp = 0; int lifted = 0;
+        if (VirtualQuery(tb, &tmi, sizeof tmi) && (tmi.Protect & (PAGE_READONLY | PAGE_EXECUTE_READ)) && tmi.State == MEM_COMMIT) {
+            lifted = VirtualProtect(tmi.BaseAddress, tmi.RegionSize, PAGE_READWRITE, &oldp);
+            { static int once; if (!once++) fprintf(stderr, "[TEXT] read buffer %08X sits in a read-only page (protect=0x%X): lifted for the edit\n", buffer_va, (unsigned)tmi.Protect); }
+        }
+        ste_text_patch(tb, (uint32_t)ios.Information);
+        if (lifted) { DWORD d2; VirtualProtect(tmi.BaseAddress, tmi.RegionSize, oldp, &d2); }
+    }
 
     /* What a read actually delivered. A decoder that rejects its input cannot
      * say whether the bytes were wrong or the read was, and the two look
@@ -8347,6 +8392,7 @@ static void bridge_NtProtectVirtualMemory(void)
     uint32_t size    = size_ptr ? BRIDGE_MEM32(size_ptr) : 0;
     DWORD old = 0;
 
+    prot_note(1, base_va, size, new_prot);
     if (VirtualProtect(XBOX_TO_NATIVE(base_va), size, (DWORD)new_prot, &old)) {
         if (old_ptr)
             BRIDGE_MEM32(old_ptr) = (uint32_t)old;

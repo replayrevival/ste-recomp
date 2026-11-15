@@ -188,7 +188,7 @@ static void scan_mod(int mi, const WCHAR *dir, const WCHAR *rel_prefix, int *nov
         if (!wcscmp(fd.cFileName, L".") || !wcscmp(fd.cFileName, L"..")) continue;
         if (rel_prefix[0]) swprintf_s(rel, MAX_PATH, L"%s\\%s", rel_prefix, fd.cFileName); else wcscpy_s(rel, MAX_PATH, fd.cFileName);
         swprintf_s(full, MAX_PATH, L"%s\\%s", dir, fd.cFileName);
-        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) { scan_mod(mi, full, rel, nover, nnew); continue; }
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) { if (!rel_prefix[0] && (!_wcsicmp(fd.cFileName, L"_built") || (!_wcsicmp(fd.cFileName, L"patches") && jget(g_mods[mi].manifest, "patches")))) continue; /* c374: patch results are scanned by scan_built, only for targets the manifest lists */ scan_mod(mi, full, rel, nover, nnew); continue; }
         if (!rel_prefix[0] && (!_wcsicmp(fd.cFileName, L"manifest.json") || !_wcsicmp(fd.cFileName, L"README.md") || !_wcsicmp(fd.cFileName, L"manifest.md") || !_wcsicmp(fd.cFileName, L"README.txt"))) continue;
         {
             WCHAR lc[MAX_PATH], gp[MAX_PATH]; int rp = -1; DWORD ga;
@@ -201,6 +201,32 @@ static void scan_mod(int mi, const WCHAR *dir, const WCHAR *rel_prefix, int *nov
         }
     } while (FindNextFileW(h, &fd));
     FindClose(h);
+}
+
+/* c374: manifest api 2 patch mods. The launcher (or a tool) builds mods\<id>\_built\<target> from the user's original file and the mod's patch.
+ * The game only READS it: a built file is used only when its SHA-256 equals the manifest's patches[].result_sha256; on a missing or mismatching file the
+ * original game file is used and the reason is logged. Nothing is ever written here, and the originals are never touched (docsormats\mod_patch.md). */
+static void scan_built(int mi, const WCHAR *dir, int *nover)
+{
+    jv *pa = jget(g_mods[mi].manifest, "patches"); int k;
+    if (!pa || pa->t != J_ARR) return;
+    for (k = 0; k < pa->nk; k++) {
+        jv *p = pa->kids[k]; const char *tg = jgets(p, "target", NULL), *want = jgets(p, "result_sha256", NULL);
+        WCHAR wt[MAX_PATH], full[MAX_PATH], lc[MAX_PATH], gp[MAX_PATH]; char have[65]; int rp = -1;
+        if (!tg || !*tg || !want) { rep("  patch #%d: manifest entry needs target and result_sha256, ignored", k + 1); continue; }
+        if (!_strnicmp(want, "sha256:", 7)) want += 7;
+        MultiByteToWideChar(CP_UTF8, 0, tg, -1, wt, MAX_PATH); { WCHAR *c; for (c = wt; *c; c++) if (*c == L'/') *c = L'\\'; }
+        if (strstr(tg, "..")) { rep("  patch %s: refused (path escapes the mod folder)", tg); continue; }
+        swprintf_s(full, MAX_PATH, L"%s\\_built\\%s", dir, wt);
+        if (GetFileAttributesW(full) == INVALID_FILE_ATTRIBUTES) { rep("  patch %s: not built (no _built file; the launcher's Prepare mods step builds it), the original is used", tg); continue; }
+        sha256_file_hex(full, have);
+        if (_stricmp(have, want)) { rep("  patch %s: RESULT MISMATCH (found sha256:%.16s..., wanted sha256:%.16s...), the original is used", tg, have, want); continue; }
+        swprintf_s(gp, MAX_PATH, L"%s\\%s", g_game_dir, wt);
+        wcscpy_s(lc, MAX_PATH, wt); lcw(lc);
+        ov_put(lc, full, mi, &rp);
+        if (rp >= 0) rep("  overlap: %s also provided by mod '%s' (load order: '%s' wins)", tg, g_mods[rp].id, g_mods[mi].id);
+        (*nover)++; rep("  patch %s: built file verified (sha256:%.16s...), used  <- %s", tg, have, g_mods[mi].id);
+    }
 }
 
 static int find_mod(const char *id) { int i; for (i = 0; i < g_nmods; i++) if (!strcmp(g_mods[i].id, id)) return i; return -1; }
@@ -287,7 +313,7 @@ void xbox_mods_init(const WCHAR *game_dir)
         if (ok && !g_nactive) {}   /* nothing */
         if (!ok) { rep("%s %s: SKIPPED - %s", M->id, M->version, M->why); continue; }
         M->active = 1; g_active[g_nactive++] = idx[i];
-        { int nover = 0, nnew = 0; rep("%s %s (%s) ACTIVE, load position %d:", M->id, M->version, M->folder, g_nactive); scan_mod(idx[i], M->dir, L"", &nover, &nnew); rep("  = %d override(s), %d new file(s)", nover, nnew); }
+        { int nover = 0, nnew = 0; rep("%s %s (%s) ACTIVE, load position %d:", M->id, M->version, M->folder, g_nactive); scan_mod(idx[i], M->dir, L"", &nover, &nnew); scan_built(idx[i], M->dir, &nover); rep("  = %d override(s), %d new file(s)", nover, nnew); }
     }
     {   /* c124: the title caches the loose game files it reads (Partition5 cache_N.bin = Cache\ in the save dir) and later reads the cache instead of the disc, so an override would never be seen. A non-empty tag moves the cache to Cache.<tag>: one cache per active override set. */
         size_t k; unsigned long acc = 0;

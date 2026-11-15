@@ -2,7 +2,7 @@
  * ste_sdlinput.c - SDL3 gamepad input for the Godzilla STE recomp (a Replay Revival recomp).
  *
  * Replaces the XInput-only host pad source: Xbox, PlayStation, Switch and generic pads through SDL3's gamepad API (zlib licence; docs\CREDITS_AND_SOURCES.md),
- * the launcher's mapping file (STE_INPUT_MAP, format: launcher docs INPUT_MAPPING.md, version 1), per-port deadzone and rumble scale,
+ * the launcher's mapping file (STE_INPUT_MAP, format E:\GodzillaSTE\launcher\docs\INPUT_MAPPING.md, version 1), per-port deadzone and rumble scale,
  * the Guide/Home button (plus F1 and a Back+Start chord) as the overlay request, and keyboard key bindings (key:<SDL name>).
  * XInput stays as the fallback: ste_sdl_init() returns 0 when SDL cannot start or STE_INPUT_BACKEND=xinput (ini [input] backend = auto | sdl | xinput).
  * The host side (recomp_manual.c) owns the Xbox ports; this file only answers "which pad", "its state as an Xbox pad" and "rumble".
@@ -101,8 +101,47 @@ static volatile LONG g_ovl_port;
 
 static int dbg(void) { static int v = -1; if (v < 0) { const char *e = getenv("STE_INPUT_TRACE"); v = e && *e && *e != '0'; } return v; }
 
+extern int ste_overlay_visible(void); extern void ste_overlay_key(int vk);   /* c375: ste_overlay_glue.cpp */
 static int pad_by_slot(int s) { return s >= 0 && s < MAXPADS && g_pad[s].open ? 1 : 0; }
 
+
+/* c375: raw pad state for the overlay (bit0 up 1 down 2 left 3 right 4 A 5 B 6 start 7 back; left stick -32768..32767, SDL up = negative). Returns 0 when the slot is not open. */
+int ste_sdl_raw_buttons(int slot, unsigned *mask, int *lx, int *ly)
+{
+    SDL_Gamepad *gp; unsigned m = 0;
+    if (!pad_by_slot(slot)) return 0;
+    EnterCriticalSection(&g_cs); gp = g_pad[slot].gp;
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_UP)) m |= 1u;   if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_DOWN)) m |= 2u;
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_LEFT)) m |= 4u; if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_RIGHT)) m |= 8u;
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_SOUTH)) m |= 16u;    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_EAST)) m |= 32u;
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_START)) m |= 64u;    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_BACK)) m |= 128u;
+    *mask = m; *lx = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFTX); *ly = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFTY);
+    LeaveCriticalSection(&g_cs);
+    return 1;
+}
+/* c375: a button or trigger that was just pressed on any open pad, in SDL3's names (for the overlay's remapping screen); NULL when nothing new. Guide is never reported. */
+const char *ste_sdl_poll_source(void)
+{
+    static unsigned char was[MAXPADS][40]; static unsigned char tw[MAXPADS][2]; int s, b; const char *r = NULL;
+    EnterCriticalSection(&g_cs);
+    for (s = 0; s < MAXPADS && !r; ++s) {
+        SDL_Gamepad *gp; int t;
+        if (!g_pad[s].open) continue;
+        gp = g_pad[s].gp;
+        for (b = 0; b < 40 && b < (int)SDL_GAMEPAD_BUTTON_COUNT; ++b) {
+            int d = b != SDL_GAMEPAD_BUTTON_GUIDE && SDL_GetGamepadButton(gp, (SDL_GamepadButton)b) ? 1 : 0;
+            if (d && !was[s][b] && !r) r = SDL_GetGamepadStringForButton((SDL_GamepadButton)b);
+            was[s][b] = (unsigned char)d;
+        }
+        for (t = 0; t < 2; ++t) {
+            int d = SDL_GetGamepadAxis(gp, t ? SDL_GAMEPAD_AXIS_RIGHT_TRIGGER : SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > 19660;
+            if (d && !tw[s][t] && !r) r = t ? "righttrigger" : "lefttrigger";
+            tw[s][t] = (unsigned char)d;
+        }
+    }
+    LeaveCriticalSection(&g_cs);
+    return r;
+}
 /* ---------- names ---------- */
 static int vk_from_name(const char *n)
 {
@@ -394,6 +433,7 @@ int ste_sdl_get_state(int slot, int port, XBOX_INPUT_STATE *st)
         if (gd && !g_guide_was[slot]) { g_ovl_why = 1; g_ovl_port = port; InterlockedIncrement(&g_ovl_req); fprintf(stderr, "[OVERLAY] request: guide button (port %d)\n", port + 1); fflush(stderr); }
         g_guide_was[slot] = (unsigned char)gd;
     }
+    if (ste_overlay_visible()) memset(st, 0, sizeof *st);   /* c375: the overlay is open: the game gets a released pad */
     LeaveCriticalSection(&g_cs);
     return 1;
 }
@@ -410,7 +450,7 @@ void ste_sdl_rumble(int slot, int port, unsigned lo, unsigned hi)
 }
 
 /* ---------- keyboard ---------- */
-void ste_sdl_key(int vk, int down) { if (vk > 0 && vk < 256) g_key[vk] = (unsigned char)down; if (down && g_ovl_vk && vk == g_ovl_vk) { g_ovl_why = 2; g_ovl_port = 0; InterlockedIncrement(&g_ovl_req); fprintf(stderr, "[OVERLAY] request: key 0x%02X\n", vk); fflush(stderr); } }
+void ste_sdl_key(int vk, int down) { if (down) ste_overlay_key(vk); if (vk > 0 && vk < 256) g_key[vk] = (unsigned char)down; if (down && g_ovl_vk && vk == g_ovl_vk) { g_ovl_why = 2; g_ovl_port = 0; InterlockedIncrement(&g_ovl_req); fprintf(stderr, "[OVERLAY] request: key 0x%02X\n", vk); fflush(stderr); } }
 void ste_sdl_keys_clear(void) { memset(g_key, 0, sizeof g_key); }
 static int key_down(int vk)
 {
@@ -436,6 +476,7 @@ int ste_sdl_keyboard_apply(int port, XBOX_INPUT_STATE *st)
         st->Gamepad.wButtons = w;
         for (i = 0; i < 8; ++i) st->Gamepad.bAnalogButtons[i] = ((c.src[i] >> 16) == K_KEY && key_down(c.src[i] & 0xFFFF)) ? 255 : 0;   /* A B X Y Black White LT RT */
     }
+    if (ste_overlay_visible()) memset(st, 0, sizeof *st);   /* c375 */
     return 1;
 }
 

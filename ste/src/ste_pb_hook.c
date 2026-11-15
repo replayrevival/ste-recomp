@@ -598,7 +598,7 @@ static void ste_pb_frame_hook_impl(void)
 #pragma comment(lib, "dbghelp.lib")
 /* c256: where crash / watchdog dumps go. STE_DUMP_DIR (the launcher can set it to <data>\logs\dumps) wins; else <data>\logs\dumps next to the launcher's settings (STE_VIDEO_INI is
  * <data>\<settings folder>\ste_video.ini); else <exe dir>\data\logs\dumps (portable layout); else the old ..\logs\dumps; last resort .\dumps. Nothing outside the user's own folders is touched:
- * the old "less than 5 GB free -> a roomier drive" redirect is now opt-in (STE_DUMP_FALLBACK_DIR). */
+ * the old "less than 5 GB free -> F:\GodzillaSTE_archive" redirect is now opt-in (STE_DUMP_FALLBACK_DIR). */
 static int ste_dir_ok(const char *d) { DWORD a = GetFileAttributesA(d); return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY); }
 static void ste_dump_dir(char *dir, size_t n)
 {
@@ -644,6 +644,7 @@ static LONG WINAPI ste_crash_filter(EXCEPTION_POINTERS *ep)
         MEMORY_BASIC_INFORMATION q; void *fa = (void *)ep->ExceptionRecord->ExceptionInformation[1];
         if (VirtualQuery(fa, &q, sizeof q)) fprintf(stderr, "[CRASH] fault page: addr=%p base=%p alloc_base=%p region=0x%llX state=0x%lX protect=0x%lX alloc_protect=0x%lX type=0x%lX\n", fa, q.BaseAddress, q.AllocationBase, (unsigned long long)q.RegionSize, (unsigned long)q.State, (unsigned long)q.Protect, (unsigned long)q.AllocationProtect, (unsigned long)q.Type);
     }
+    { extern void xbox_ProtectLogDump(void); xbox_ProtectLogDump(); }   /* c374: the last page-protection calls (who made the faulting page read-only?) */
     fprintf(stderr, "[CRASHDUMP] exception %08lX at %p -> %s\n", (unsigned long)code, ep->ExceptionRecord->ExceptionAddress, path);
     fflush(stderr);
     f = CreateFileA(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -689,7 +690,7 @@ __declspec(allocate(".CRT$XCU")) static void (__cdecl *ste_crash_init_p)(void) =
 __declspec(allocate(".CRT$XCU")) static void (__cdecl *ste_early_init_p)(void) = ste_early_init;
 /* STE_CRASH_TEST=1 raises an access violation from the first frame hook (used to verify the dump path). */
 
-/* ---- c149: stall watchdog (a tester's c144 hang, 2026-10-25) -------------------------------------------------
+/* ---- c149: stall watchdog (Miko's c144 hang, 2026-10-25) -------------------------------------------------
  * The scanout/vblank threads keep running when the game thread or the render thread wedges, so the process looks alive. This thread watches the
  * number of pushbuffer frames the game thread has enqueued. If it does not move for STE_WATCHDOG_SECS (default 120; 0 = off) it logs every
  * thread once (CPU time over a 1 s window = spinning vs blocked, and a host stack with symbols from the exe's pdb) and writes a minidump
@@ -956,6 +957,11 @@ static void ste_cam_probe(void)
     fprintf(stderr, "\n"); fflush(stderr);
 }void ste_pb_frame_hook(void)
 {
+    {   /* c375: [BOOT] first frames */
+        extern void ste_boot(const char *); static unsigned bn; bn++;
+        if (bn == 1) ste_boot("first game frame (D3DDevice_Swap)"); else if (bn == 30) ste_boot("frame 30"); else if (bn == 120) ste_boot("frame 120"); else if (bn == 600) ste_boot("frame 600");
+    }
+    { extern void ste_overlay_wait_if_paused(void); ste_overlay_wait_if_paused(); }   /* c375: the in-game overlay is open: hold the game thread here */
     static LARGE_INTEGER freq, win_start, last_enter; static unsigned long long last_cyc, cps_c0; static LARGE_INTEGER cps_q0; static double cyc_per_ms;
     static double sum_wall, sum_cpu, sum_hw, sum_hc, sum_tex, sum_xf, sum_sub; static unsigned nfr; static long long pk0[4], tk0, te0, tp0, v0;
     LARGE_INTEGER q0, q1; unsigned long long c0, c1;

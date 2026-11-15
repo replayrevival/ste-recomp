@@ -1,8 +1,8 @@
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
 # Mods as patches (mod manifest api 2, item 5) - v1, approved 2026-11-12
 
-Goal (owner decision, release decisions 3): a mod never contains game data. A content mod is a set of binary patches that turn the user's own original file into the modded file. The project ships no mods; modders host them; the launcher and the game verify and apply them.
-Status: specification only. Nothing in the exe or launcher implements it yet. It extends `mod_manifest.md` (api 1, whole-file overrides stay valid and unchanged, for mods whose files are the modder's own work: scripts, textures made from scratch, text).
+Goal (project owner, RELEASE DECISIONS 3): a mod never contains game data. A content mod is a set of binary patches that turn the user's own original file into the modded file. The project ships no mods; modders host them; the launcher and the game verify and apply them.
+Status (2026-11-14): the GAME side is implemented (c374): for every enabled api-2 mod it reads `mods/<id>/_built/<target>` only when the file exists and its SHA-256 equals `patches[].result_sha256`; otherwise it logs `not built` / `RESULT MISMATCH` and uses the original (it never writes anything). The patch tool `tools/step-diff/step_diff.py` (make / apply / info / manifest-entry, GPL, stdlib only) writes and applies `step1`; the game does not apply patches itself yet (the launcher's Prepare mods step or the tool builds `_built`). Self-test mod: tests/mods/ste.test-patch. It extends `mod_manifest.md` (api 1, whole-file overrides stay valid and unchanged, for mods whose files are the modder's own work: scripts, textures made from scratch, text).
 
 ## 1. Rules
 1. **Identify, never guess.** A patch names the ORIGINAL file it applies to by game-relative path and by SHA-256 (`base_sha256`), and states the SHA-256 of the result (`result_sha256`). If the user's file does not hash to `base_sha256` the patch is not applied (status `BASE MISMATCH`, shown with both hashes); if the result does not hash to `result_sha256` the output is discarded (status `RESULT MISMATCH`). No "best effort" application.
@@ -75,7 +75,7 @@ The classic BSD-2-Clause bsdiff 4.3 format (`BSDIFF40`, three bzip2 blocks) is a
 [MODS] other.mod 1.0: SKIPPED - patch bundle\Godzilla2k.cmf: BASE MISMATCH (found sha256:ab12..., wanted sha256:cd34...)
 ```
 
-## 7. Decisions (owner, 2026-11-12) - all as recommended
+## 7. Decisions (project owner, 2026-11-12) - all as recommended
 1. **One patch per game file.** A mod lists as many patches as it needs; each is verified against its own original (SHA-256 of the original before, SHA-256 of the result after).
 2. **Optional zlib compression** of patch data (zlib licence, GPL-compatible).
 3. **Our own patch-making tool ships in the repo** (`tools\step-diff`, GPL-2.0-or-later). To be built with item 5; Biollante (restoring her from the on-disc files as her own roster slot) is the first real test case.

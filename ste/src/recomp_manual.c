@@ -513,7 +513,7 @@ static void ste_unlock_poll(void)
         if (ste_enh_int("unlock_all_challenges", "STE_ENHANCE_UNLOCK_ALL_CHALLENGES")) g_ste_unlock_mask |= 0x020u;
         if (ste_enh_int("unlock_gallery", "STE_ENHANCE_UNLOCK_GALLERY")) g_ste_unlock_mask |= 0x010u;   /* c117: code 294206 sets shell bit 0x10 = all Gallery items (verified in the UI) */
         if (ste_enh_int("unlock_final_wars", "STE_ENHANCE_UNLOCK_FINAL_WARS")) g_ste_unlock_mask |= 0x040u;   /* c120: code 409014 sets shell bit 0x40 = all Final Wars gallery items (verified in the UI, fe_fw_cmp.png) */
-        if (ste_enh_int("unlock_biollante", "STE_ENHANCE_UNLOCK_BIOLLANTE")) g_ste_unlock_mask |= 0x002u;   /* c189: shell bit 0x002 alone (half of code 525955's 0x082) makes the hidden 10th-cell Biollante selectable while the other locked monsters stay '?' (fresh-profile UI test); 0x080 alone only reveals the locked ones as blue disabled tiles */
+        if (ste_enh_int("unlock_biollante", "STE_ENHANCE_UNLOCK_BIOLLANTE")) g_ste_unlock_mask |= 0x002u;   /* c189: shell bit 0x002 alone (half of code 525955's 0x082) makes the hidden 10th-cell Biollante selectable while the other locked monsters stay '?' (fresh-profile UI test, D:\ReplayRevival_Archive\GodzillaSTE\soak\q1b\shb_cmp2.png); 0x080 alone only reveals the locked ones as blue disabled tiles */
         g_ste_stem_nominhp = ste_enh_int("stem_no_min_health", "STE_ENHANCE_STEM_NO_MIN_HEALTH"); g_ste_stem_noknock = ste_enh_int("stem_no_knockback_scaling", "STE_ENHANCE_STEM_NO_KNOCKBACK_SCALING"); g_ste_stem_nojuggle = ste_enh_int("stem_no_juggle_limit", "STE_ENHANCE_STEM_NO_JUGGLE_LIMIT");
         g_ste_stem_nodim = ste_enh_int("stem_no_results_dim", "STE_ENHANCE_STEM_NO_RESULTS_DIM"); g_ste_stem_veh = ste_enh_int("stem_more_ai_vehicles", "STE_ENHANCE_STEM_MORE_AI_VEHICLES"); g_ste_stem_vknock = ste_enh_int("stem_weapon_vertical_knockback", "STE_ENHANCE_STEM_WEAPON_VERTICAL_KNOCKBACK");
         g_ste_stem_size = ste_enh_int("stem_rule_player_size", "STE_ENHANCE_STEM_RULE_PLAYER_SIZE"); if (g_ste_stem_size < 0) g_ste_stem_size = 0; if (g_ste_stem_size > 1000) g_ste_stem_size = 1000;
@@ -660,6 +660,7 @@ void sub_002D8D7E(void)
     }
     if (g_pscr_n) {   /* STE c50: STE_PAD_SCRIPT presses buttons like a player. KEYS: S=Start K=Back U/D/L/R=d-pad A/B/X/Y=face buttons b=black w=white l=left trigger r=right trigger */
         double age = ste_proc_age(); int i, j; static int logged[4096];
+        { static double shift = -1.0; if (shift < -0.5) { const char *e = getenv("STE_PAD_SCRIPT_SHIFT"); shift = e ? atof(e) : 0.0; } age += shift; }   /* c376: test harness only: the scripts were timed before the 20 s start-up fix; STE_PAD_SCRIPT_SHIFT=<s> moves the script clock */
         for (i = 0; i < g_pscr_n; ++i) if (g_pscr[i].port == port && age >= g_pscr[i].t && age < g_pscr[i].t + g_pscr[i].d) {
             st.Gamepad.wButtons |= (uint16_t)g_pscr[i].w; for (j = 0; j < 8; ++j) if (g_pscr[i].a[j]) st.Gamepad.bAnalogButtons[j] = g_pscr[i].a[j];
             if (!logged[i]) { logged[i] = 1; fprintf(stderr, "[XPP] pad script: entry %d port %d (w=%04X a=%u%u%u%u) pressed at t=%.1f s\n", i, port, g_pscr[i].w, g_pscr[i].a[0] != 0, g_pscr[i].a[1] != 0, g_pscr[i].a[2] != 0, g_pscr[i].a[3] != 0, age); fflush(stderr); } }

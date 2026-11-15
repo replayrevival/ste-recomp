@@ -1,0 +1,20 @@
+{
+  "api": 2,
+  "id": "ste.test-patch",
+  "name": "Patch mod self-test (Top Ten default name)",
+  "version": "1.0.0",
+  "game": "STE-Xbox",
+  "profile": "test",
+  "license": "GPL-2.0-or-later",
+  "description": "Changes one default high-score name (PALMER -> TESTER) in ShellData\\TOPTEN.BSF. Contains only a step1 patch against the user's own file, no game data.",
+  "patch_tool": "step-diff 1.0",
+  "patches": [
+    {
+      "target": "ShellData\\TOPTEN.BSF",
+      "base_sha256": "sha256:dde397d1f324580886334463cd7343f853690026b0447c1c6a836e0de37764df",
+      "result_sha256": "sha256:cd142d16d0b3f9530db22e76c8e86414a75b29cd4c13a819ed56c403ee3a4103",
+      "patch": "patches\\TOPTEN.BSF.step",
+      "size": 8984
+    }
+  ]
+}

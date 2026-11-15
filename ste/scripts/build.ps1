@@ -151,6 +151,8 @@ $bat += "cl $hdef /D STE_VERSION=\`"$Version\`" /Fo`"$Obj\main.obj`" `"$Src\main
 $bat += "cl $hdef /Fo`"$Obj\recomp_manual.obj`" `"$Src\recomp_manual.c`""
 $bat += "cl $hdef /Fo`"$Obj\ste_pb_hook.obj`" `"$Src\ste_pb_hook.c`""
 $bat += "cl $hdef /I `"$Sdl3Src\include`" /Fo`"$Obj\ste_sdlinput.obj`" `"$Src\ste_sdlinput.c`""
+$bat += "cl $hdef /Fo`"$Obj\ste_text.obj`" `"$Src\ste_text.c`""
+$bat += "cl $hdef /Fo`"$Obj\ste_settings_glue.obj`" `"$Src\ste_settings_glue.c`""
 $bat += "cl $hdef /Fo`"$Obj\ste_candidate_id.obj`" `"$Obj\ste_candidate_id.c`""
 $bat += "rc /nologo /fo `"$Obj\ste_version.res`" `"$Obj\ste_version.rc`""
 foreach ($c in $bat) { Invoke-VS $c }
