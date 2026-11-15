@@ -16,6 +16,8 @@
 #include <string.h>
 #define STE_OVERLAY_WANT_LOADER
 #include "ste_overlay_c.h"
+extern void recomp_exit_hook_run(const char *why);
+extern void ste_cursor_force_visible(int on);
 
 extern void ste_audio_set_master_volume(int percent);
 extern int ste_overlay_poll(int *why, int *port);
@@ -90,7 +92,19 @@ static volatile LONG g_keyq[64]; static volatile LONG g_kq_w; static LONG g_kq_r
 
 void ste_overlay_key(int vk) { if (g_visible && vk > 0) { LONG w = g_kq_w; g_keyq[w % 64] = vk; g_kq_w = w + 1; } }
 int ste_overlay_visible(void) { return g_visible ? 1 : 0; }
-void ste_overlay_wait_if_paused(void) { while (g_visible) Sleep(8); }
+/* 0.1.5a: the window is pumped by the game thread itself (dev_Swap / dev_Present), so holding that thread without pumping froze the window: no close, no Alt+F4, no
+ * cursor updates ("not responding"). The wait therefore keeps pumping messages; WM_QUIT ends the process like in the device's own pump. */
+void ste_overlay_wait_if_paused(void)
+{
+    while (g_visible) {
+        MSG msg;
+        while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
+            if (msg.message == WM_QUIT) { recomp_exit_hook_run("window"); ExitProcess(0); }
+            TranslateMessage(&msg); DispatchMessageA(&msg);
+        }
+        Sleep(8);
+    }
+}
 
 static int ends_with(const char *s, const char *suf) { size_t a = strlen(s), b = strlen(suf); return a >= b && !strcmp(s + a - b, suf); }
 
@@ -105,8 +119,8 @@ static int cb_apply(void *u, const char *key, const char *value)
     if (!strncmp(key, "enhance.", 8)) return STE_APPLIED_NEXT_MATCH;
     return STE_APPLIED_AFTER_RESTART;
 }
-static void cb_show(void *u) { (void)u; g_visible = 1; fprintf(stderr, "[OVERLAY] opened: game paused, input goes to the overlay\n"); fflush(stderr); }
-static void cb_hide(void *u) { (void)u; g_visible = 0; ste_sdl_keys_clear(); fprintf(stderr, "[OVERLAY] closed: game resumed\n"); fflush(stderr); }
+static void cb_show(void *u) { (void)u; if (!g_visible) ste_cursor_force_visible(1); g_visible = 1; fprintf(stderr, "[OVERLAY] opened: game paused, input goes to the overlay\n"); fflush(stderr); }
+static void cb_hide(void *u) { (void)u; if (g_visible) ste_cursor_force_visible(0); g_visible = 0; ste_sdl_keys_clear(); fprintf(stderr, "[OVERLAY] closed: game resumed\n"); fflush(stderr); }
 static void cb_return(void *u) { (void)u; fprintf(stderr, "[OVERLAY] return to launcher: exit code 20\n"); fflush(stderr); ExitProcess(20); }
 static void cb_quit(void *u) { (void)u; fprintf(stderr, "[OVERLAY] quit game\n"); fflush(stderr); ExitProcess(0); }
 static int cb_rumble(void *u, unsigned pad_id, float strength, unsigned ms)

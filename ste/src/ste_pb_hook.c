@@ -493,6 +493,7 @@ static uint32_t *g_snap[PB_SNAPS]; static uint32_t g_snap_bytes[PB_SNAPS];
 static volatile LONG g_q_w, g_q_r, g_enq_cnt, g_done_cnt;   /* single producer (game thread) / single consumer (render thread) */
 static HANDLE g_ev_job, g_ev_done, g_ev_attached;
 static uint32_t g_enq_from;
+extern void recomp_exit_hook_run(const char *why);
 static int g_async_depth = 2;
 
 static DWORD WINAPI ste_render_thread(LPVOID unused)
@@ -501,7 +502,21 @@ static DWORD WINAPI ste_render_thread(LPVOID unused)
     if (ste_attach() < 0) g_state = -1; else ste_set_get(g_last);
     SetEvent(g_ev_attached);
     for (;;) {
-        WaitForSingleObject(g_ev_job, INFINITE);
+        /* 0.1.5a: this thread owns the game window (ste_attach creates it) and pumps its messages only while it runs jobs. When the game thread stops submitting (the overlay's
+         * pause, a long load, a modal wait) an INFINITE wait left the window unpumped: Windows greyed it out ("not responding"), Alt+F4 / the close button did nothing and the
+         * cursor state froze. The idle wait therefore also wakes for window messages and dispatches them (WM_QUIT ends the process like the device's own pump). */
+        for (;;) {
+            DWORD wr = MsgWaitForMultipleObjects(1, &g_ev_job, FALSE, INFINITE, QS_ALLINPUT);
+            if (wr == WAIT_OBJECT_0 + 1) {
+                MSG msg;
+                while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
+                    if (msg.message == WM_QUIT) { recomp_exit_hook_run("window"); ExitProcess(0); }
+                    TranslateMessage(&msg); DispatchMessageA(&msg);
+                }
+                continue;
+            }
+            break;
+        }
         while (g_q_r != g_q_w) {
             PbJob j = g_q[(unsigned)g_q_r % PBQ];
             { uint32_t dw = (j.cur >= j.from ? (j.cur - j.from) : ((j.hi - j.lo) - (j.from - j.cur))) >> 2; if (dw > g_pf_pbmax) g_pf_pbmax = dw; g_pf_ringdw = (j.hi - j.lo) >> 2;
@@ -598,7 +613,7 @@ static void ste_pb_frame_hook_impl(void)
 #pragma comment(lib, "dbghelp.lib")
 /* c256: where crash / watchdog dumps go. STE_DUMP_DIR (the launcher can set it to <data>\logs\dumps) wins; else <data>\logs\dumps next to the launcher's settings (STE_VIDEO_INI is
  * <data>\<settings folder>\ste_video.ini); else <exe dir>\data\logs\dumps (portable layout); else the old ..\logs\dumps; last resort .\dumps. Nothing outside the user's own folders is touched:
- * the old "less than 5 GB free -> F:\GodzillaSTE_archive" redirect is now opt-in (STE_DUMP_FALLBACK_DIR). */
+ * the old "less than 5 GB free -> redirect to an archive folder" behaviour is now opt-in (STE_DUMP_FALLBACK_DIR). */
 static int ste_dir_ok(const char *d) { DWORD a = GetFileAttributesA(d); return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY); }
 static void ste_dump_dir(char *dir, size_t n)
 {
@@ -690,7 +705,7 @@ __declspec(allocate(".CRT$XCU")) static void (__cdecl *ste_crash_init_p)(void) =
 __declspec(allocate(".CRT$XCU")) static void (__cdecl *ste_early_init_p)(void) = ste_early_init;
 /* STE_CRASH_TEST=1 raises an access violation from the first frame hook (used to verify the dump path). */
 
-/* ---- c149: stall watchdog (Miko's c144 hang, 2026-10-25) -------------------------------------------------
+/* ---- c149: stall watchdog (a reported hang, 2026-10-25) -------------------------------------------------
  * The scanout/vblank threads keep running when the game thread or the render thread wedges, so the process looks alive. This thread watches the
  * number of pushbuffer frames the game thread has enqueued. If it does not move for STE_WATCHDOG_SECS (default 120; 0 = off) it logs every
  * thread once (CPU time over a 1 s window = spinning vs blocked, and a host stack with symbols from the exe's pdb) and writes a minidump
@@ -786,15 +801,51 @@ static void ste_wd_fire(double stalled_s)
         fflush(stderr);
     }
 }
+extern int ste_overlay_visible(void);
+extern void ste_cursor_force_visible(int on);
+/* 0.1.5a fail-safe: give the user their pointer back whatever state the window is in (class cursor was set to NULL by hide_cursor, a clip rectangle, a stuck hide count). */
+static BOOL CALLBACK ste_restore_cursor_cb(HWND h, LPARAM lp)
+{
+    DWORD pid = 0; (void)lp; GetWindowThreadProcessId(h, &pid);
+    if (pid == GetCurrentProcessId()) SetClassLongPtrA(h, GCLP_HCURSOR, (LONG_PTR)LoadCursorA(NULL, (LPCSTR)IDC_ARROW));
+    return TRUE;
+}
+void ste_restore_cursor(void)
+{
+    CURSORINFO ci; int guard = 0;
+    ClipCursor(NULL);
+    EnumWindows(ste_restore_cursor_cb, 0);
+    ci.cbSize = sizeof ci;
+    while (guard++ < 16 && GetCursorInfo(&ci) && !(ci.flags & CURSOR_SHOWING)) ShowCursor(TRUE);
+    SetCursor(LoadCursorA(NULL, (LPCSTR)IDC_ARROW));
+}
 static DWORD WINAPI ste_watchdog_thread(LPVOID unused)
 {
     const char *e = getenv("STE_WATCHDOG_SECS"), *fo = getenv("STE_WATCHDOG_FORCE"); double secs = e && e[0] ? atof(e) : 120.0, force = fo && fo[0] ? atof(fo) : 0.0;
-    LONG last = -1; ULONGLONG t_last = GetTickCount64(), t0 = t_last; int fired = 0, forced = 0; (void)unused;
-    if (secs <= 0.0 && force <= 0.0) return 0;
+    LONG last = -1; ULONGLONG t_last = GetTickCount64(), t0 = t_last; int fired = 0, forced = 0, hfired = 0, hcount = 0, hforced = 0; (void)unused;
+    const char *hfo = getenv("STE_HANG_FORCE"); double hforce = hfo && hfo[0] ? atof(hfo) : 0.0;
+    const char *hs = getenv("STE_HANG_SECS"); double hsecs = hs && hs[0] ? atof(hs) : 3.0;
+    if (secs <= 0.0 && force <= 0.0 && hsecs <= 0.0 && hforce <= 0.0) return 0;
     for (;;) {
         ULONGLONG now; LONG c;
         Sleep(1000); now = GetTickCount64(); c = g_enq_cnt;
-        if (c != last) { last = c; t_last = now; fired = 0; continue; }
+        if (hforce > 0.0 && !hforced && (double)(now - t0) / 1000.0 >= hforce) {   /* test aid: STE_HANG_FORCE=<secs> runs the hang level once at that process age */
+            hforced = 1; hcount++;
+            fprintf(stderr, "[HANG] forced test at process age %.0f s: restoring the cursor, dumping threads\n", (double)(now - t0) / 1000.0); fflush(stderr);
+            ste_cursor_force_visible(1); ste_restore_cursor(); ste_wd_fire(0.0); ste_cursor_force_visible(0);
+            continue;
+        }
+        if (c != last) { last = c; t_last = now; fired = 0; if (hfired) { hfired = 0; fprintf(stderr, "[HANG] frames flow again\n"); fflush(stderr); ste_cursor_force_visible(0); } continue; }
+        /* 0.1.5a: hang level. No pushbuffer frame for STE_HANG_SECS (default 3; 0 = off) while the overlay is NOT intentionally holding the game: [HANG] line, cursor restored,
+         * thread states and a minidump (the same routine as the long watchdog), at most 3 times per run. The overlay's own pause is not a hang. */
+        if (hsecs > 0.0 && !hfired && hcount < 3 && (double)(now - t_last) / 1000.0 >= hsecs && !ste_overlay_visible()) {
+            hfired = 1; hcount++;
+            fprintf(stderr, "[HANG] no frame for %.0f s (enq=%ld done=%ld overlay=%d); restoring the cursor, dumping threads\n", (double)(now - t_last) / 1000.0, g_enq_cnt, g_done_cnt, ste_overlay_visible());
+            fflush(stderr);
+            ste_cursor_force_visible(1); ste_restore_cursor();
+            ste_wd_fire((double)(now - t_last) / 1000.0);
+            continue;
+        }
         if (force > 0.0 && !forced && (double)(now - t0) / 1000.0 >= force) { forced = 1; ste_wd_fire((double)(now - t_last) / 1000.0); continue; }
         if (secs > 0.0 && !fired && (double)(now - t_last) / 1000.0 >= secs) { fired = 1; ste_wd_fire((double)(now - t_last) / 1000.0); }
     }

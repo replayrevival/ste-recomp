@@ -1,8 +1,21 @@
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
-# Replay Revival - Godzilla: Save the Earth (Xbox) recomp - ALPHA 0.1.5 (draft)
+# Replay Revival - Godzilla: Save the Earth (Xbox) recomp - ALPHA 0.1.5a (draft)
 
 **Early alpha. Work in progress, development continues.** Not affiliated with or endorsed by Toho, Atari or Pipeworks. You must own the game; no game data is included or distributed. Windows only for now.
 Draft prepared 2026-11-10, 0.1.4 section added 2026-11-14, 0.1.5 section 2026-11-15. Nothing here is published; the owner publishes.
+
+## 0.1.5a: hotfix for the in-game menu freeze (replaces 0.1.5)
+**Do not publish plain 0.1.5.** On Miko's other PC (true fullscreen, V-Sync on) opening the in-game menu froze the game: the window greyed out, the close button and Alt+F4 did nothing, the pointer stayed invisible. Cause: the game window belongs to the render thread, which only handled window messages while it was drawing game frames. The menu pauses the game, no frames arrive, and the window stopped answering Windows for good (true fullscreen additionally makes the display driver wait for that window). Reproduced on the Stream PC (window hung for the whole test, close request ignored), fixed, and checked again.
+| Area | Change | Status |
+|---|---|---|
+| Window while the game is paused or stalled | the render thread keeps handling window messages while it waits for work, and the menu's pause wait does too: the window never greys out, the close button and Alt+F4 work with the menu open, a long load no longer makes the window "not responding" | fixed |
+| Pointer | forced visible while the menu is open | in |
+| Hang watchdog | no game frame for 3 s while the menu is NOT open: `[HANG]` line in the log, pointer restored (class cursor, clip rectangle, hide count), every thread's stack and a minidump in the dumps folder (max 3 per run). `STE_HANG_SECS` (default 3, 0 = off). The old 120 s watchdog stays | new |
+| Guide button | no longer opens the menu by default (opt-in: `[input] overlay_guide = 1`); Back+Start (held 1 s) and F1 stay | changed |
+| Checked | window mode x V-Sync x VRR at 16:9 plus 21:9 in all three window modes (15 runs): menu opens, window answers for 12 s, a close request ends the game with exit code 0; true fullscreen with the menu held open 60 s; Alt+Tab out and back with the menu open (window kept answering) | PASS on the Stream PC |
+| Not checked here | the owner's own setup (true fullscreen at a high refresh rate, a real pad's Guide button): Miko re-tests before anything is published | open |
+
+Interim workaround for anyone on plain 0.1.5: rename `ste_overlay.dll` next to the game to turn the menu off.
 
 ## What changed since 0.1.4
 | Area | Change | Status |

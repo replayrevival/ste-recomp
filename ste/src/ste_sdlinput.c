@@ -95,7 +95,7 @@ static CRITICAL_SECTION g_cs;
 static J *g_map;                       /* parsed STE_INPUT_MAP, NULL = built-in defaults */
 static unsigned char g_key[256];       /* VK down state, fed by the window procedure (focus-aware) */
 static volatile LONG g_ovl_req;        /* overlay request counter */
-static int g_ovl_guide = 1, g_ovl_chord = 1, g_ovl_vk = VK_F1; static DWORD g_chord_ms = 1000;
+static int g_ovl_guide = 0, g_ovl_chord = 1, g_ovl_vk = VK_F1; static DWORD g_chord_ms = 1000;
 static volatile LONG g_ovl_why;        /* 1 guide, 2 key, 3 chord */
 static volatile LONG g_ovl_port;
 
@@ -352,7 +352,7 @@ int ste_sdl_init(void)
     if (!(be && *be)) {
         if (iv && *iv) { strncpy(ini, iv, MAX_PATH - 1); ini[MAX_PATH - 1] = 0; } else { GetModuleFileNameA(NULL, ini, MAX_PATH); p = strrchr(ini, 0x5C); if (p) strcpy(p + 1, "ste_enhance.ini"); }
         GetPrivateProfileStringA("input", "backend", "auto", v, sizeof v, ini); be = v;
-        g_ovl_guide = GetPrivateProfileIntA("input", "overlay_guide", 1, ini) != 0; g_ovl_chord = GetPrivateProfileIntA("input", "overlay_chord", 1, ini) != 0;
+        g_ovl_guide = GetPrivateProfileIntA("input", "overlay_guide", 0, ini) != 0; g_ovl_chord = GetPrivateProfileIntA("input", "overlay_chord", 1, ini) != 0;
         { char kn[32] = "F1"; GetPrivateProfileStringA("input", "overlay_key", "F1", kn, sizeof kn, ini); g_ovl_vk = !_stricmp(kn, "none") ? 0 : vk_from_name(kn); }
         g_chord_ms = (DWORD)GetPrivateProfileIntA("input", "overlay_chord_ms", 1000, ini);
     }
