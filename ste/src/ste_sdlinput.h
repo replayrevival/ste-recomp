@@ -23,6 +23,7 @@ void        ste_sdl_keys_clear(void);
 int         ste_sdl_keyboard_apply(int port, XBOX_INPUT_STATE *st);
 void        ste_sdl_chord_check(int port, const XBOX_INPUT_STATE *st);
 int         ste_sdl_display_bounds(int index, int *x, int *y, int *w, int *h, int *count);   /* c252: display `index` in SDL_GetDisplays order (the launcher's `display` key); 0 = out of range / failed */
+int         ste_input_selftest(void);           /* c377: STE_INPUT_SELFTEST=1 virtual-pad check of every button (0 = pass) */
 int         ste_overlay_poll(int *why, int *port);   /* 1 = a request is pending; why: 1 guide, 2 key, 3 Back+Start chord */
 #ifdef __cplusplus
 }

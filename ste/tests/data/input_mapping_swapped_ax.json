@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "menu_swap_confirm_back": false,
+  "ports": [],
+  "profiles": {
+    "default": {
+      "name": "test: A and X swapped",
+      "deadzone": 0.15,
+      "rumble": 100,
+      "bindings": { "a": "x", "x": "a", "b": "b", "y": "y", "black": "leftshoulder", "white": "rightshoulder",
+                    "left_trigger": "lefttrigger", "right_trigger": "righttrigger", "start": "start", "back": "back",
+                    "left_thumb": "leftstick", "right_thumb": "rightstick", "dpad_up": "dpup", "dpad_down": "dpdown", "dpad_left": "dpleft", "dpad_right": "dpright",
+                    "move": "leftstick", "look": "rightstick" }
+    }
+  }
+}

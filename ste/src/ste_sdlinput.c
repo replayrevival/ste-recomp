@@ -142,6 +142,67 @@ const char *ste_sdl_poll_source(void)
     LeaveCriticalSection(&g_cs);
     return r;
 }
+
+/* c377: STE_INPUT_SELFTEST=1 (exe: main.c, right after ste_sdl_init): attaches a virtual SDL gamepad (standard layout: virtual button n = SDL_GamepadButton n),
+ * presses every button / trigger one at a time and checks what ste_sdl_get_state() hands the game: the Xbox analog slot (A B X Y Black White LT RT = 0..7) or the wButtons bit.
+ * SDL3 is positional: SOUTH = A, EAST = B, WEST = X, NORTH = Y; LEFT_SHOULDER = Black, RIGHT_SHOULDER = White. Uses the mapping file named by STE_INPUT_MAP when one is set,
+ * so it also checks the launcher's default bindings. Prints one [INPUTTEST] line per control and "[INPUTTEST] RESULT PASS|FAIL"; returns 0 on PASS. No game files are touched. */
+int ste_input_selftest(void)
+{
+    static const struct { int vbtn; const char *want; int slot; WORD bit; } T[] = {
+        { SDL_GAMEPAD_BUTTON_SOUTH, "a", 0, 0 }, { SDL_GAMEPAD_BUTTON_EAST, "b", 1, 0 }, { SDL_GAMEPAD_BUTTON_WEST, "x", 2, 0 }, { SDL_GAMEPAD_BUTTON_NORTH, "y", 3, 0 },
+        { SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, "leftshoulder", 4, 0 }, { SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, "rightshoulder", 5, 0 },
+        { SDL_GAMEPAD_BUTTON_START, "start", -1, XBOX_GAMEPAD_START }, { SDL_GAMEPAD_BUTTON_BACK, "back", -1, XBOX_GAMEPAD_BACK },
+        { SDL_GAMEPAD_BUTTON_LEFT_STICK, "leftstick", -1, XBOX_GAMEPAD_LEFT_THUMB }, { SDL_GAMEPAD_BUTTON_RIGHT_STICK, "rightstick", -1, XBOX_GAMEPAD_RIGHT_THUMB },
+        { SDL_GAMEPAD_BUTTON_DPAD_UP, "dpup", -1, XBOX_GAMEPAD_DPAD_UP }, { SDL_GAMEPAD_BUTTON_DPAD_DOWN, "dpdown", -1, XBOX_GAMEPAD_DPAD_DOWN },
+        { SDL_GAMEPAD_BUTTON_DPAD_LEFT, "dpleft", -1, XBOX_GAMEPAD_DPAD_LEFT }, { SDL_GAMEPAD_BUTTON_DPAD_RIGHT, "dpright", -1, XBOX_GAMEPAD_DPAD_RIGHT } };
+    static const char *slotname[8] = { "A", "B", "X", "Y", "Black", "White", "LeftTrigger", "RightTrigger" };
+    SDL_VirtualJoystickDesc d; SDL_JoystickID vid; SDL_Joystick *js; int fails = 0, i, k, slot = -1, tries;
+    if (!g_backend_sdl) { fprintf(stderr, "[INPUTTEST] RESULT FAIL (SDL backend is not active)\n"); return 2; }
+    {   /* STE_INPUT_SELFTEST_GUID=<pad guid from the log>: show SDL's own mapping for a real pad model (is its A on b0 and X on b2?) */
+        const char *g = getenv("STE_INPUT_SELFTEST_GUID");
+        if (g && *g) { char *mp = SDL_GetGamepadMappingForGUID(SDL_StringToGUID(g)); fprintf(stderr, "[INPUTTEST] SDL mapping for guid %s: %s\n", g, mp ? mp : "(none)"); if (mp) SDL_free(mp); fflush(stderr); }
+    }
+    SDL_INIT_INTERFACE(&d);
+    d.type = SDL_JOYSTICK_TYPE_GAMEPAD; d.naxes = 6; d.nbuttons = 15; d.vendor_id = 0x045E; d.product_id = 0x02FF; d.name = "STE self-test Xbox One pad";
+    vid = SDL_AttachVirtualJoystick(&d);
+    if (!vid) { fprintf(stderr, "[INPUTTEST] RESULT FAIL (cannot attach a virtual pad: %s)\n", SDL_GetError()); return 2; }
+    js = SDL_OpenJoystick(vid);
+    for (tries = 0; tries < 40 && slot < 0; ++tries) { Sleep(60); ste_sdl_update(); for (i = 0; i < MAXPADS; ++i) if (g_pad[i].open && g_pad[i].id == vid) slot = i; }
+    if (slot < 0 || !js) { fprintf(stderr, "[INPUTTEST] RESULT FAIL (the virtual pad did not show up as a gamepad)\n"); return 2; }
+    fprintf(stderr, "[INPUTTEST] pad slot %d guid %s, mapping file %s\n", slot, g_pad[slot].guid, g_map ? "loaded" : "none (built-in defaults)"); fflush(stderr);
+    for (i = 0; i < (int)(sizeof T / sizeof T[0]); ++i) {
+        XBOX_INPUT_STATE st; int bad = 0, raw; const char *nm;
+        SDL_SetJoystickVirtualButton(js, T[i].vbtn, true); SDL_UpdateJoysticks(); ste_sdl_update();
+        raw = SDL_GetGamepadButton(g_pad[slot].gp, (SDL_GamepadButton)T[i].vbtn) ? 1 : 0;
+        memset(&st, 0, sizeof st); ste_sdl_get_state(slot, 0, &st);
+        nm = SDL_GetGamepadStringForButton((SDL_GamepadButton)T[i].vbtn);
+        for (k = 0; k < 6; ++k) { int on = st.Gamepad.bAnalogButtons[k] != 0; if (on != (k == T[i].slot)) bad = 1; }
+        if (st.Gamepad.bAnalogButtons[6] || st.Gamepad.bAnalogButtons[7]) bad = 1;
+        if (st.Gamepad.wButtons != T[i].bit) bad = 1;
+        if (!raw || !nm || strcmp(nm, T[i].want)) bad = 1;
+        fprintf(stderr, "[INPUTTEST] SDL button %-2d '%s' raw=%d -> game gets %s : %s (wButtons=0x%04X; analog A%u B%u X%u Y%u Black%u White%u)\n", T[i].vbtn, nm ? nm : "?", raw,
+                T[i].slot >= 0 ? slotname[T[i].slot] : "a digital button", bad ? "FAIL" : "PASS", st.Gamepad.wButtons,
+                st.Gamepad.bAnalogButtons[0] != 0, st.Gamepad.bAnalogButtons[1] != 0, st.Gamepad.bAnalogButtons[2] != 0, st.Gamepad.bAnalogButtons[3] != 0, st.Gamepad.bAnalogButtons[4] != 0, st.Gamepad.bAnalogButtons[5] != 0);
+        fflush(stderr);
+        fails += bad;
+        SDL_SetJoystickVirtualButton(js, T[i].vbtn, false); SDL_UpdateJoysticks(); ste_sdl_update();
+    }
+    for (i = 0; i < 2; ++i) {   /* triggers: virtual axes 4 and 5 */
+        XBOX_INPUT_STATE st; int bad = 0;
+        SDL_SetJoystickVirtualAxis(js, 4 + i, 32767); SDL_UpdateJoysticks(); ste_sdl_update();
+        memset(&st, 0, sizeof st); ste_sdl_get_state(slot, 0, &st);
+        for (k = 0; k < 8; ++k) { int on = st.Gamepad.bAnalogButtons[k] > 200; if (on != (k == 6 + i)) bad = 1; }
+        if (st.Gamepad.wButtons) bad = 1;
+        fprintf(stderr, "[INPUTTEST] %s trigger -> game gets %s (LT=%u RT=%u): %s\n", i ? "right" : "left", slotname[6 + i], st.Gamepad.bAnalogButtons[6], st.Gamepad.bAnalogButtons[7], bad ? "FAIL" : "PASS");
+        fflush(stderr); fails += bad;
+        SDL_SetJoystickVirtualAxis(js, 4 + i, -32768); SDL_UpdateJoysticks(); ste_sdl_update();
+    }
+    fprintf(stderr, "[INPUTTEST] RESULT %s (%d failure(s))\n", fails ? "FAIL" : "PASS", fails); fflush(stderr);
+    SDL_CloseJoystick(js); SDL_DetachVirtualJoystick(vid);
+    return fails ? 1 : 0;
+}
+
 /* ---------- names ---------- */
 static int vk_from_name(const char *n)
 {
@@ -405,6 +466,41 @@ int ste_sdl_nth(int n)
     return n >= 0 && n < m ? idx[n] : -1;
 }
 
+
+/* c377: what a source stands for, for the log ("SDL 'x' (WEST)", "left trigger", "key 0x43"). */
+static const char *src_desc(int src, char *b, size_t n)
+{
+    int k = src >> 16, v = src & 0xFFFF;
+    if (k == K_BTN) snprintf(b, n, "SDL '%s'", SDL_GetGamepadStringForButton((SDL_GamepadButton)v) ? SDL_GetGamepadStringForButton((SDL_GamepadButton)v) : "?");
+    else if (k == K_TRIG) snprintf(b, n, v == SDL_GAMEPAD_AXIS_LEFT_TRIGGER ? "left trigger" : "right trigger");
+    else if (k == K_STICK) snprintf(b, n, v ? "right stick" : "left stick");
+    else if (k == K_KEY) snprintf(b, n, "key 0x%02X", v);
+    else snprintf(b, n, "nothing");
+    return b;
+}
+/* c377: once per pad and port: the effective face-button / Black / White bindings, with a warning when A B X Y are not on their own positions (a custom remap in the mapping file),
+ * and once per game button the first time it is pressed (so a report like "X does A's action" is answered by one log line). */
+static void bind_log(int slot, int port, const PortCfg *c, const XBOX_INPUT_STATE *st)
+{
+    static unsigned char shown[MAXPADS][4]; static unsigned char pressed[4][8]; int i; char b[48];
+    static const char *gn[8] = { "A", "B", "X", "Y", "Black", "White", "LeftTrigger", "RightTrigger" };
+    static const int idv[4] = { SDL_GAMEPAD_BUTTON_SOUTH, SDL_GAMEPAD_BUTTON_EAST, SDL_GAMEPAD_BUTTON_WEST, SDL_GAMEPAD_BUTTON_NORTH };
+    if (port >= 0 && port < 4 && !shown[slot][port]) {
+        int custom = 0;
+        shown[slot][port] = 1;
+        for (i = 0; i < 4; ++i) if (c->src[i] != SRC(K_BTN, idv[i])) custom = 1;
+        fprintf(stderr, "[INPUT] port %d pad slot %d bindings: A<-%s", port + 1, slot, src_desc(c->src[0], b, sizeof b));
+        fprintf(stderr, " B<-%s", src_desc(c->src[1], b, sizeof b)); fprintf(stderr, " X<-%s", src_desc(c->src[2], b, sizeof b)); fprintf(stderr, " Y<-%s", src_desc(c->src[3], b, sizeof b));
+        fprintf(stderr, " Black<-%s", src_desc(c->src[4], b, sizeof b)); fprintf(stderr, " White<-%s\n", src_desc(c->src[5], b, sizeof b));
+        if (custom) fprintf(stderr, "[INPUT] NOTE: port %d has a CUSTOM face-button binding (not A=south B=east X=west Y=north): it comes from the mapping file (remapped in the launcher or overlay), not from the game\n", port + 1);
+        fflush(stderr);
+    }
+    if (port >= 0 && port < 4) for (i = 0; i < 8; ++i) if (st->Gamepad.bAnalogButtons[i] && !pressed[port][i]) {
+        pressed[port][i] = 1;
+        fprintf(stderr, "[INPUT] port %d: game button %s first pressed (bound to %s)\n", port + 1, gn[i], i < 8 ? src_desc(c->src[i], b, sizeof b) : "?"); fflush(stderr);
+    }
+}
+
 /* the pad in `slot` as an Xbox pad for `port`; returns 0 when the slot is not open */
 int ste_sdl_get_state(int slot, int port, XBOX_INPUT_STATE *st)
 {
@@ -433,6 +529,7 @@ int ste_sdl_get_state(int slot, int port, XBOX_INPUT_STATE *st)
         if (gd && !g_guide_was[slot]) { g_ovl_why = 1; g_ovl_port = port; InterlockedIncrement(&g_ovl_req); fprintf(stderr, "[OVERLAY] request: guide button (port %d)\n", port + 1); fflush(stderr); }
         g_guide_was[slot] = (unsigned char)gd;
     }
+    bind_log(slot, port, &c, st);
     if (ste_overlay_visible()) memset(st, 0, sizeof *st);   /* c375: the overlay is open: the game gets a released pad */
     LeaveCriticalSection(&g_cs);
     return 1;
