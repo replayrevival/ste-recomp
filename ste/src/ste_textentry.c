@@ -155,8 +155,23 @@ static int char_to_key(char c, int *row, int *idx)
 #define BTN_LEFT 0x0004
 #define BTN_RIGHT 0x0008
 
+/* 0.1.7: STE_RAND_SEED=<n> (showcase recordings, off by default): the game's C runtime rand() (seed word at guest 0x003F8984, LCG 214013/2531011, sub_001A5317) is reset to <n> on the frame a match
+ * starts (game-mode word 0x003562B4 becomes 4), so two recordings of the same pad script draw the same random numbers. It does not make the fight identical by itself: the simulation is driven by the
+ * frame time, so equal takes also need the same frame pacing (see REPORT_0.1.7). Only a harness option, nothing in the game files changes. */
+static void seed_frame(unsigned frame)
+{
+    static int init, on; static uint32_t seed, last_mode; static unsigned n;
+    uint32_t mode;
+    if (!init) { const char *e = getenv("STE_RAND_SEED"); init = 1; if (e && *e) { seed = (uint32_t)strtoul(e, NULL, 0); on = 1; fprintf(stderr, "[SEED] STE_RAND_SEED=%u: rand() reset at every match start\n", seed); fflush(stderr); } }
+    if (!on) return;
+    mode = guest_rd(0x003562B4u);
+    if (mode == 4u && last_mode != 4u) { *(volatile uint32_t *)((uintptr_t)0x003F8984u + (uintptr_t)g_xbox_mem_offset) = seed; if (n++ < 20u) { fprintf(stderr, "[SEED] f=%u match start: rand seed set to %u\n", frame, seed); fflush(stderr); } }
+    last_mode = mode;
+}
+
 void ste_te_frame(unsigned frame)
 {
+    seed_frame(frame);
     const unsigned char *px; unsigned w, h; Grid G; char c;
     if (g_on <= 0 && !te_enabled()) return;
     if (g_on <= 0) return;

@@ -2689,6 +2689,35 @@ static void kelvin_oob_note(uint32_t phys)
     if ((events & 0x3FFu) == 1 || events == 100000u) { fprintf(stderr, "[OOBSTAT] events=%u frames=%u draws=%u distinct_vertex_buffers=%u (frame %u)\n", events, frames, draws, nobj, K.frame); fflush(stderr); }
 }
 
+/* 0.1.7 texture inventory (STE_TEXINV=1, STE_TEXINV_OUT=<file.csv>): counts, per guest texture (offset, format), the draws and submitted vertices that sample it, with the content key (the same FNV hash the texture
+ * dump and the pack loader use, recomputed every 600 frames) and its size. At exit one CSV row per key, most used first: key, width, height, format word, draws, vertices, first frame, last frame, distinct guest
+ * offsets. Used to plan the recreated-art pilot (which Tokyo textures matter most). Logging only; no pixel data is written. */
+typedef struct { uint32_t off, fmt, w, h, hframe, first, last; uint64_t key; unsigned long long draws, verts; } TexInvRec;
+static TexInvRec g_ti[8192]; static unsigned g_ti_n; static int g_ti_on = -1;
+static int texinv_cmp(const void *a, const void *b) { const TexInvRec *x = (const TexInvRec *)a, *y = (const TexInvRec *)b; return x->verts < y->verts ? 1 : x->verts > y->verts ? -1 : 0; }
+static void texinv_dump(void)
+{
+    const char *o = getenv("STE_TEXINV_OUT"); FILE *f; unsigned i, j, nk = 0; static TexInvRec agg[8192];
+    for (i = 0; i < g_ti_n; ++i) {   /* merge records that share a key */
+        for (j = 0; j < nk; ++j) if (agg[j].key == g_ti[i].key) break;
+        if (j == nk) { agg[nk++] = g_ti[i]; agg[j].off = 1; }
+        else { agg[j].draws += g_ti[i].draws; agg[j].verts += g_ti[i].verts; if (g_ti[i].first < agg[j].first) agg[j].first = g_ti[i].first; if (g_ti[i].last > agg[j].last) agg[j].last = g_ti[i].last; agg[j].off++; }
+    }
+    qsort(agg, nk, sizeof agg[0], texinv_cmp);
+    f = (o && *o) ? fopen(o, "w") : NULL;
+    if (f) { fprintf(f, "key,width,height,format,draws,vertices,first_frame,last_frame,guest_offsets\n"); for (i = 0; i < nk; ++i) fprintf(f, "%016llX,%u,%u,%08X,%llu,%llu,%u,%u,%u\n", (unsigned long long)agg[i].key, agg[i].w, agg[i].h, agg[i].fmt, agg[i].draws, agg[i].verts, agg[i].first, agg[i].last, agg[i].off); fclose(f); }
+    fprintf(stderr, "[TEXINV] %u distinct textures sampled (%u guest slots)%s%s\n", nk, g_ti_n, f ? ", csv: " : "", f ? o : ""); fflush(stderr);
+}
+static void texinv_note(uint32_t off, uint32_t fmt, uint32_t verts, uint32_t frame, const uint8_t *tp8, size_t tb, uint32_t tw, uint32_t th)
+{
+    unsigned i; TexInvRec *r = NULL;
+    for (i = 0; i < g_ti_n; ++i) if (g_ti[i].off == off && g_ti[i].fmt == fmt && g_ti[i].w == tw && g_ti[i].h == th) { r = &g_ti[i]; break; }
+    if (!r) { if (g_ti_n >= 8192) return; r = &g_ti[g_ti_n++]; memset(r, 0, sizeof *r); r->off = off; r->fmt = fmt; r->w = tw; r->h = th; r->first = frame; r->hframe = frame + 1000000u; }
+    if (frame - r->hframe >= 600u || r->hframe > frame) { r->key = (tp8 && tb && tb < (1u << 20)) ? hash_bytes(tp8, tb) : 0; r->hframe = frame; }
+    r->draws++; r->verts += verts; r->last = frame;
+    { static uint32_t lastd; if (frame - lastd >= 3000u) { lastd = frame; texinv_dump(); } }   /* periodic: the harness kills the process, atexit would not run */
+}
+
 static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
 {
     long long _t0, _t1;
@@ -2853,6 +2882,8 @@ static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
             }
         }
     }
+    if (g_ti_on < 0) { const char *e = getenv("STE_TEXINV"); g_ti_on = e && e[0] == (char)49; if (g_ti_on) atexit(texinv_dump); }
+    if (g_ti_on && textured[0]) { uint32_t tw = 0, th = 0, tp = 0; size_t tb = 0; tex_geometry(&K.tex[0], &tw, &th, &tp, &tb); texinv_note(K.tex[0].offset, K.tex[0].format, count, K.frame, guest_ptr(K.tex[0].offset), tb, tw, th); }
     if (g_kelvin_logwin) {   /* c340 probe: the exe (STE_DRAWLOG_TAP) opens a window of g_kelvin_logwin Kelvin frames (window number g_kelvin_logwin_id) in which every NEW draw key (c342: first occurrence per window; GPU and CPU vertex path) is logged: state, screen box of the first 64 vertices, texture content hash, point-sprite flag. Logging only. */
         static uint32_t lw_id; static uint64_t lw_seen[16384]; static unsigned lw_n; uint64_t lh = 1469598103934665603ull; uint32_t lk[11], lq; int ldup = 0;
         if (lw_id != g_kelvin_logwin_id) { lw_id = g_kelvin_logwin_id; lw_n = 0; }

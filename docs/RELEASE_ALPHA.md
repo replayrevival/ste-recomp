@@ -4,6 +4,20 @@
 **Early alpha. Work in progress, development continues.** Not affiliated with or endorsed by Toho, Atari or Pipeworks. You must own the game; no game data is included or distributed. Windows only for now.
 Draft prepared 2026-11-10, 0.1.4 section added 2026-11-14, 0.1.5 section 2026-11-15. Nothing here is published; the owner publishes.
 
+## 0.1.7 (draft, 2026-11-19)
+| Area | Change | Status |
+|---|---|---|
+| Disc images | `--game <file.iso>` (or `STE_GAME_PATH`) mounts an Xbox disc image (XISO / redump-style) READ-ONLY: nothing is unpacked or written, the game files are read straight out of the image (intro movies, menus and a full fight tested). Folders still work | in (tested with an image built from an extracted copy; not yet with a real redump image) |
+| PlayStation wording | where "PRESS OPTIONS" does not fit a string, the PlayStation style now keeps the original word START (was MENU); the Xbox style still says MENU | in |
+| Cheats from the in-game menu | the five in-match cheat toggles apply immediately when switched in the menu (before: next match) | in (game side; the menu page is the launcher's) |
+| Recording | `STE_RECORD` reworked: GPU ring + worker thread, one video frame per presented frame at a constant rate, x264 ultrafast by default (NVENC next to the game halved the frame rate on the test PC), dropped-frame and frame-time counters in the log; `RECOMP_AUDIO_WAV_WALL=1` keeps the WAV on the wall clock (menu pauses, loads); `STE_RAND_SEED` (harness) | in, opt-in |
+| Texture inventory | `STE_TEXINV=1` writes a CSV of which textures a session samples (hashes, sizes, draw and vertex counts, no pixels): first step of the recreated-art pilot (docs\TOKYO_ART_INVENTORY.md) | in, opt-in |
+| Effects sweeps | 4:3 aspect sweep of all 18 monsters and second pass of the gaps: no new defect | done |
+| Version | exe resource and `--version` say 0.1.7 | in |
+| Low preset | 1080p60 held on 4C/8T (p99 about 19 ms) and mostly on 2C/4T here; weak GPUs not measurable on the test PC | measured |
+
+Known: Mechagodzilla 2 has no finger-rocket attack that could be triggered from the pad in 24 button combinations (its jet-pack, laser and sparks draw fine); two recordings of the same pad script are never identical (the fight runs on the real frame time).
+
 ## 0.1.6 (draft, 2026-11-18)
 | Area | Change | Status |
 |---|---|---|

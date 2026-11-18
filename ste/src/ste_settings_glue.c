@@ -116,6 +116,11 @@ static int cb_apply(void *u, const char *key, const char *value)
     if (ends_with(key, "hide_cursor")) { g_cursor_mode = !strcmp(value, "always") ? 1 : !strcmp(value, "never") ? 2 : 0; return STE_APPLIED_NOW; }
     if (!strcmp(key, "input.mapping")) return STE_APPLIED_NOW;           /* the next pad poll re-reads nothing yet; used at the next start */
     if (!strcmp(key, "input.button_prompts")) return STE_APPLIED_NEXT_MATCH;
+    if (!strncmp(key, "enhance.cheat_", 14)) {   /* 0.1.7: the in-match cheats switch on and off at once */
+        extern int ste_cheat_live(const char *name, int on);
+        int on = value[0] && strcmp(value, "0") && strcmp(value, "off") && strcmp(value, "false") && strcmp(value, "no");
+        if (ste_cheat_live(key + 8, on)) return STE_APPLIED_NOW;
+    }
     if (!strncmp(key, "enhance.", 8)) return STE_APPLIED_NEXT_MATCH;
     return STE_APPLIED_AFTER_RESTART;
 }

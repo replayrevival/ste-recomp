@@ -28,11 +28,11 @@ typedef struct { const char *src; const char *xb[3]; const char *ps[3]; int sing
 #define PLAT(s, d) { s, { d, 0, 0 }, { d, 0, 0 }, 0 }
 static const TextRule k_rules[] = {
     /* button words */
-    { "PRESS START",                    { "PRESS MENU", 0, 0 },                     { "PRESS OPTIONS", "PRESS MENU", 0 }, 0 },
-    { "Press START to Continue.",       { "Press MENU to Continue.", 0, 0 },        { "Press OPTIONS to Continue.", "Press MENU to Continue.", 0 }, 0 },
-    { "Press START to add COM",         { "Press MENU to add COM", 0, 0 },          { "Press OPTIONS to add COM", "Press MENU to add COM", 0 }, 0 },
-    { "Press START to join",            { "Press MENU to join", 0, 0 },             { "Press OPTIONS to join", "Press MENU to join", 0 }, 0 },
-    { "START",                          { "MENU", 0, 0 },                           { "OPTIONS", "MENU", 0 }, 1 },
+    { "PRESS START",                    { "PRESS MENU", 0, 0 },                     { "PRESS OPTIONS", "PRESS START", 0 }, 0 },
+    { "Press START to Continue.",       { "Press MENU to Continue.", 0, 0 },        { "Press OPTIONS to Continue.", "Press START to Continue.", 0 }, 0 },
+    { "Press START to add COM",         { "Press MENU to add COM", 0, 0 },          { "Press OPTIONS to add COM", "Press START to add COM", 0 }, 0 },
+    { "Press START to join",            { "Press MENU to join", 0, 0 },             { "Press OPTIONS to join", "Press START to join", 0 }, 0 },
+    { "START",                          { "MENU", 0, 0 },                           { "OPTIONS", "START", 0 }, 1 },
     { "Pull left trigger or right trigger to dodge sideways.", { "Pull LT or RT to dodge sideways.", 0, 0 }, { "Pull L2 or R2 to dodge sideways.", 0, 0 }, 0 },
     { "Pull L and R triggers to dodge sideways.",              { "Pull LT and RT to dodge sideways.", 0, 0 }, { "Pull L2 and R2 to dodge sideways.", 0, 0 }, 0 },
     /* platform words */

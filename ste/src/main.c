@@ -116,6 +116,9 @@ static int ste_early_args(void)
     if (argv) LocalFree(argv);
     return rc;
 }
+#include "xiso_vfs.h"
+#define STE_XISO_ROOT L"C:\\__ste_xiso_virtual_root__"   /* host-style path that stands for the root of a mounted disc image (it does not exist on disk) */
+static int g_xiso_mode;
 static WCHAR g_game_dir_w[MAX_PATH], g_xbe_path_w[MAX_PATH];
 static char g_game_dir[MAX_PATH * 3];
 static const char *g_game_src = "built-in default";
@@ -153,9 +156,19 @@ static int ste_resolve_game(void)
         if (at == INVALID_FILE_ATTRIBUTES) { swprintf_s(msg, MAX_PATH + 200, L"game path not found: %ls (from %hs)", full, g_game_src); return ste_fail(3, msg); }
         if (!(at & FILE_ATTRIBUTE_DIRECTORY)) {
             const WCHAR *x = wcsrchr(full, L'.');
-            if (x && (!_wcsicmp(x, L".iso") || !_wcsicmp(x, L".xiso")))
-                swprintf_s(msg, MAX_PATH + 200, L"%ls is a disc image. Mounting XISO images is not implemented yet: extract it and pass the folder that contains default.xbe.", full);
-            else swprintf_s(msg, MAX_PATH + 200, L"game path is a file, not a folder: %ls", full);
+            if (x && (!_wcsicmp(x, L".iso") || !_wcsicmp(x, L".xiso"))) {   /* 0.1.7: read-only XISO mount (xiso_vfs.c): the image is never written or unpacked */
+                XisoEntry xe;
+                if (!xiso_mount(full, STE_XISO_ROOT)) { swprintf_s(msg, MAX_PATH + 200, L"%ls is not an Xbox disc image (no XDVDFS volume descriptor found).", full); return ste_fail(3, msg); }
+                if (!xiso_lookup(STE_XISO_ROOT L"\\default.xbe", &xe)) { swprintf_s(msg, MAX_PATH + 200, L"no default.xbe in the disc image %ls (from %hs)", full, g_game_src); return ste_fail(3, msg); }
+                g_xiso_mode = 1;
+                wcscpy_s(g_xbe_path_w, MAX_PATH, STE_XISO_ROOT L"\\default.xbe");
+                wcscpy_s(g_game_dir_w, MAX_PATH, STE_XISO_ROOT);
+                WideCharToMultiByte(CP_UTF8, 0, STE_XISO_ROOT, -1, g_game_dir, (int)sizeof g_game_dir, NULL, NULL);
+                if (!GetEnvironmentVariableW(L"RECOMP_GAME_OWNED_ROOT", NULL, 0)) SetEnvironmentVariableW(L"RECOMP_GAME_OWNED_ROOT", STE_XISO_ROOT);
+                fprintf(stderr, "[CONFIG] game=disc image %ls (mounted read-only, %s, default.xbe %u bytes)\n", full, g_game_src, (unsigned)xe.size);
+                return 0;
+            }
+            swprintf_s(msg, MAX_PATH + 200, L"game path is a file, not a folder: %ls", full);
             return ste_fail(3, msg);
         }
     }
@@ -635,7 +648,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 static BOOL load_xbe(const WCHAR *path, void **out_data, size_t *out_size)
 {
-    FILE *f = _wfopen(path, L"rb");
+    FILE *f;
+    if (g_xiso_mode) {   /* 0.1.7: default.xbe straight out of the mounted disc image */
+        XisoEntry xe; uint32_t got = 0; void *d;
+        if (!xiso_lookup(path, &xe) || xe.is_dir || xe.size == 0 || xe.size > (64u << 20)) { fprintf(stderr, "Cannot find the XBE in the disc image: %ls\n", path); return FALSE; }
+        d = malloc(xe.size); if (!d) return FALSE;
+        if (!xiso_read(&xe, 0, d, xe.size, &got) || got != xe.size) { free(d); return FALSE; }
+        *out_data = d; *out_size = xe.size; return TRUE;
+    }
+    f = _wfopen(path, L"rb");
     if (!f) {
         fprintf(stderr, "Cannot open XBE: %ls\n", path);
         return FALSE;

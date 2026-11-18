@@ -256,6 +256,30 @@ static int go_write_intent(DWORD win_access, ULONG disp, const WCHAR *path)
     return 0;
 }
 
+/* ---- 0.1.7: read-only XISO image as the game folder (xiso_vfs.c) ----------------------------------------------------------------------------------------------------------
+ * When the exe mounted an .iso, paths under the virtual root are answered from the image: NtCreateFile hands out a dummy event handle that is recorded here, and read / query /
+ * seek / enumerate / close calls on such a handle are served by xiso_vfs. Nothing is ever written to the image; write intents get STATUS_ACCESS_DENIED. */
+#include "xiso_vfs.h"
+#define XVH_MAX 1024
+typedef struct { HANDLE h; XisoEntry e; uint64_t pos; int dir_idx; int dir_started; } XVh;
+static XVh s_xv[XVH_MAX]; static CRITICAL_SECTION s_xv_cs; static LONG s_xv_init;
+static void xv_lock(void) { if (InterlockedCompareExchange(&s_xv_init, 1, 0) == 0) { InitializeCriticalSection(&s_xv_cs); InterlockedExchange(&s_xv_init, 2); } while (s_xv_init != 2) Sleep(0); EnterCriticalSection(&s_xv_cs); }
+static void xv_unlock(void) { LeaveCriticalSection(&s_xv_cs); }
+static XVh *xv_get(HANDLE h)   /* caller holds the lock for the duration of the use */
+{ int i; if (!h || h == INVALID_HANDLE_VALUE) return NULL; for (i = 0; i < XVH_MAX; ++i) if (s_xv[i].h == h) return &s_xv[i]; return NULL; }
+static int xv_is(HANDLE h) { int r; if (!xiso_active()) return 0; xv_lock(); r = xv_get(h) != NULL; xv_unlock(); return r; }
+static HANDLE xv_open(const XisoEntry *e)
+{
+    HANDLE h = CreateEventW(NULL, TRUE, FALSE, NULL); int i;
+    if (!h) return NULL;
+    xv_lock();
+    for (i = 0; i < XVH_MAX; ++i) if (!s_xv[i].h) { s_xv[i].h = h; s_xv[i].e = *e; s_xv[i].pos = 0; s_xv[i].dir_idx = 0; s_xv[i].dir_started = 0; xv_unlock(); return h; }
+    xv_unlock(); CloseHandle(h); return NULL;
+}
+static int xv_close(HANDLE h) { XVh *v; int r = 0; if (!xiso_active()) return 0; xv_lock(); v = xv_get(h); if (v) { v->h = NULL; r = 1; } xv_unlock(); if (r) CloseHandle(h); return r; }
+static void xv_time(LARGE_INTEGER *t) { t->QuadPart = 127466112000000000LL; }   /* 2004-01-01: the image keeps no per-file times */
+static int xv_owns(const WCHAR *path) { return xiso_active() && path && !_wcsnicmp(path, xiso_root(), wcslen(xiso_root())) && (path[wcslen(xiso_root())] == 0 || path[wcslen(xiso_root())] == L'\\' || path[wcslen(xiso_root())] == L'/'); }
+
 /* Translate an Xbox OBJECT_ATTRIBUTES path to a Win32 wide path */
 static BOOL translate_obj_path(PXBOX_OBJECT_ATTRIBUTES ObjectAttributes,
                                WCHAR* win_path, DWORD buf_size)
@@ -299,6 +323,23 @@ NTSTATUS __stdcall xbox_NtCreateFile(
     if (!translate_obj_path(ObjectAttributes, win_path, MAX_PATH)) {
         xbox_log(XBOX_LOG_ERROR, XBOX_LOG_FILE, "NtCreateFile: path translation failed");
         return STATUS_OBJECT_PATH_NOT_FOUND;
+    }
+
+    if (xv_owns(win_path)) {   /* 0.1.7: the game folder is an XISO image: read-only, served from the image */
+        XisoEntry xe; HANDLE vh;
+        if (go_write_intent(xbox_access_to_win32(DesiredAccess), CreateDisposition, win_path)) {
+            if (IoStatusBlock) { IoStatusBlock->Status = STATUS_ACCESS_DENIED; IoStatusBlock->Information = 0; }
+            return STATUS_ACCESS_DENIED;
+        }
+        if (!xiso_lookup(win_path, &xe)) {
+            if (IoStatusBlock) { IoStatusBlock->Status = STATUS_OBJECT_NAME_NOT_FOUND; IoStatusBlock->Information = 0; }
+            return STATUS_OBJECT_NAME_NOT_FOUND;
+        }
+        vh = xv_open(&xe);
+        if (!vh) return STATUS_INSUFFICIENT_RESOURCES;
+        *FileHandle = vh;
+        if (IoStatusBlock) { IoStatusBlock->Status = STATUS_SUCCESS; IoStatusBlock->Information = 1; }
+        return STATUS_SUCCESS;
     }
 
     {   /* c91: game-owned write guard */
@@ -438,6 +479,19 @@ NTSTATUS __stdcall xbox_NtReadFile(
     if (!IoStatusBlock)
         return STATUS_INVALID_PARAMETER;
 
+    if (xv_is(FileHandle)) {   /* 0.1.7: read from the XISO image */
+        XVh *v; uint64_t off; uint32_t got = 0; XisoEntry e; int ok;
+        xv_lock(); v = xv_get(FileHandle); e = v->e; off = (ByteOffset && ByteOffset->QuadPart >= 0) ? (uint64_t)ByteOffset->QuadPart : v->pos; xv_unlock();
+        ok = xiso_read(&e, off, Buffer, Length, &got);
+        xv_lock(); v = xv_get(FileHandle); if (v) v->pos = off + got; xv_unlock();
+        if (!ok) { IoStatusBlock->Status = STATUS_UNSUCCESSFUL; IoStatusBlock->Information = 0; return STATUS_UNSUCCESSFUL; }
+        IoStatusBlock->Information = got;
+        if (got == 0 && Length > 0) { IoStatusBlock->Status = STATUS_END_OF_FILE; return STATUS_END_OF_FILE; }
+        IoStatusBlock->Status = STATUS_SUCCESS;
+        if (Event) SetEvent(Event);
+        return STATUS_SUCCESS;
+    }
+
     overwrite_settle(FileHandle);
     { /* c125 debug: STE_READTRACE_SIZE=<bytes> logs every read of the file with that size */
         static long long want = -2; static volatile LONG n;
@@ -483,6 +537,7 @@ NTSTATUS __stdcall xbox_NtWriteFile(
 
     if (!IoStatusBlock)
         return STATUS_INVALID_PARAMETER;
+    if (xv_is(FileHandle)) { IoStatusBlock->Status = STATUS_ACCESS_DENIED; IoStatusBlock->Information = 0; return STATUS_ACCESS_DENIED; }   /* 0.1.7: the XISO image is read-only */
 
     overwrite_settle(FileHandle);
     if (ByteOffset && ByteOffset->QuadPart >= 0) {
@@ -511,6 +566,7 @@ NTSTATUS __stdcall xbox_NtWriteFile(
 NTSTATUS __stdcall xbox_NtClose(HANDLE Handle)
 {
     XBOX_TRACE(XBOX_LOG_FILE, "NtClose(handle=%p)", Handle);
+    if (xv_close(Handle)) return STATUS_SUCCESS;   /* 0.1.7: a handle into the XISO image */
     if (Handle && Handle != INVALID_HANDLE_VALUE) {
         overwrite_settle(Handle);
         xbox_dir_context_drop(Handle);
@@ -539,6 +595,39 @@ NTSTATUS __stdcall xbox_NtQueryInformationFile(
     (void)Length;
     if (!IoStatusBlock || !FileInformation)
         return STATUS_INVALID_PARAMETER;
+
+    if (xv_is(FileHandle)) {   /* 0.1.7: XISO image entry */
+        XVh *v; XisoEntry e; uint64_t pos; LARGE_INTEGER tm;
+        xv_lock(); v = xv_get(FileHandle); e = v->e; pos = v->pos; xv_unlock(); xv_time(&tm);
+        switch (FileInformationClass) {
+            case XboxFileBasicInformation: {
+                PXBOX_FILE_BASIC_INFORMATION info = (PXBOX_FILE_BASIC_INFORMATION)FileInformation;
+                info->CreationTime = info->LastAccessTime = info->LastWriteTime = info->ChangeTime = tm;
+                info->FileAttributes = (e.is_dir ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL) | FILE_ATTRIBUTE_READONLY;
+                IoStatusBlock->Status = STATUS_SUCCESS; IoStatusBlock->Information = sizeof(XBOX_FILE_BASIC_INFORMATION); return STATUS_SUCCESS;
+            }
+            case XboxFileStandardInformation: {
+                PXBOX_FILE_STANDARD_INFORMATION info = (PXBOX_FILE_STANDARD_INFORMATION)FileInformation;
+                info->EndOfFile.QuadPart = e.is_dir ? 0 : (LONGLONG)e.size;
+                info->AllocationSize.QuadPart = (info->EndOfFile.QuadPart + 2047) & ~2047LL;
+                info->NumberOfLinks = 1; info->DeletePending = FALSE; info->Directory = e.is_dir ? TRUE : FALSE;
+                IoStatusBlock->Status = STATUS_SUCCESS; IoStatusBlock->Information = sizeof(XBOX_FILE_STANDARD_INFORMATION); return STATUS_SUCCESS;
+            }
+            case XboxFilePositionInformation: {
+                PXBOX_FILE_POSITION_INFORMATION info = (PXBOX_FILE_POSITION_INFORMATION)FileInformation;
+                info->CurrentByteOffset.QuadPart = (LONGLONG)pos;
+                IoStatusBlock->Status = STATUS_SUCCESS; IoStatusBlock->Information = sizeof(XBOX_FILE_POSITION_INFORMATION); return STATUS_SUCCESS;
+            }
+            case XboxFileNetworkOpenInformation: {
+                PXBOX_FILE_NETWORK_OPEN_INFORMATION info = (PXBOX_FILE_NETWORK_OPEN_INFORMATION)FileInformation;
+                info->CreationTime = info->LastAccessTime = info->LastWriteTime = info->ChangeTime = tm;
+                info->EndOfFile.QuadPart = e.is_dir ? 0 : (LONGLONG)e.size; info->AllocationSize.QuadPart = (info->EndOfFile.QuadPart + 2047) & ~2047LL;
+                info->FileAttributes = (e.is_dir ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL) | FILE_ATTRIBUTE_READONLY;
+                IoStatusBlock->Status = STATUS_SUCCESS; IoStatusBlock->Information = sizeof(XBOX_FILE_NETWORK_OPEN_INFORMATION); return STATUS_SUCCESS;
+            }
+            default: return STATUS_NOT_IMPLEMENTED;
+        }
+    }
 
     /* Not for a position query: XAPI SetEndOfFile makes one before it
      * sets the end of file, and a pending overwrite must survive it. */
@@ -622,6 +711,15 @@ NTSTATUS __stdcall xbox_NtSetInformationFile(
     (void)Length;
     if (!IoStatusBlock || !FileInformation)
         return STATUS_INVALID_PARAMETER;
+
+    if (xv_is(FileHandle)) {   /* 0.1.7: XISO image: only the file position can be set */
+        if (FileInformationClass == XboxFilePositionInformation) {
+            PXBOX_FILE_POSITION_INFORMATION info = (PXBOX_FILE_POSITION_INFORMATION)FileInformation; XVh *v;
+            xv_lock(); v = xv_get(FileHandle); if (v) v->pos = (uint64_t)info->CurrentByteOffset.QuadPart; xv_unlock();
+            IoStatusBlock->Status = STATUS_SUCCESS; return STATUS_SUCCESS;
+        }
+        IoStatusBlock->Status = STATUS_ACCESS_DENIED; return STATUS_ACCESS_DENIED;
+    }
 
     switch (FileInformationClass) {
         case XboxFilePositionInformation: {
@@ -754,7 +852,7 @@ NTSTATUS __stdcall xbox_NtQueryVolumeInformationFile(
 
 NTSTATUS __stdcall xbox_NtFlushBuffersFile(HANDLE FileHandle, PXBOX_IO_STATUS_BLOCK IoStatusBlock)
 {
-    FlushFileBuffers(FileHandle);
+    if (!xv_is(FileHandle)) FlushFileBuffers(FileHandle);
     if (IoStatusBlock) {
         IoStatusBlock->Status = STATUS_SUCCESS;
         IoStatusBlock->Information = 0;
@@ -773,6 +871,17 @@ NTSTATUS __stdcall xbox_NtQueryFullAttributesFile(
         return STATUS_INVALID_PARAMETER;
     if (!translate_obj_path(ObjectAttributes, win_path, MAX_PATH))
         return STATUS_OBJECT_PATH_NOT_FOUND;
+
+    if (xv_owns(win_path)) {   /* 0.1.7: XISO image */
+        XisoEntry xe; LARGE_INTEGER tm;
+        if (!xiso_lookup(win_path, &xe)) return STATUS_OBJECT_NAME_NOT_FOUND;
+        xv_time(&tm);
+        FileInformation->CreationTime = FileInformation->LastAccessTime = FileInformation->LastWriteTime = FileInformation->ChangeTime = tm;
+        FileInformation->EndOfFile.QuadPart = xe.is_dir ? 0 : (LONGLONG)xe.size;
+        FileInformation->AllocationSize.QuadPart = (FileInformation->EndOfFile.QuadPart + 2047) & ~2047LL;
+        FileInformation->FileAttributes = (xe.is_dir ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL) | FILE_ATTRIBUTE_READONLY;
+        return STATUS_SUCCESS;
+    }
 
     if (!GetFileAttributesExW(win_path, GetFileExInfoStandard, &fad)) {
         DWORD err = GetLastError();
@@ -868,6 +977,26 @@ NTSTATUS __stdcall xbox_NtQueryDirectoryFile(
     if (FileInformationClass != XboxFileDirectoryInformation) {
         IoStatusBlock->Status = STATUS_INVALID_INFO_CLASS;
         return STATUS_INVALID_INFO_CLASS;
+    }
+
+    if (xv_is(FileHandle)) {   /* 0.1.7: enumerate a directory of the XISO image (entries come in name order, no . and ..) */
+        XVh *v; XisoEntry dir, ce; char name[260], pat[260]; int idx, found = 0; LARGE_INTEGER tm; ULONG hdr, nl;
+        pat[0] = '*'; pat[1] = 0;
+        if (FileName && FileName->Buffer && FileName->Length > 0 && FileName->Length < 259) { memcpy(pat, FileName->Buffer, FileName->Length); pat[FileName->Length] = 0; }
+        xv_lock(); v = xv_get(FileHandle); dir = v->e; if (RestartScan || !v->dir_started) { v->dir_idx = 0; v->dir_started = 1; } idx = v->dir_idx; xv_unlock();
+        if (!dir.is_dir) { IoStatusBlock->Status = STATUS_INVALID_PARAMETER; return STATUS_INVALID_PARAMETER; }
+        while (xiso_dir_entry(&dir, idx, &ce, name)) { idx++; if (xiso_name_match(pat, name)) { found = 1; break; } }
+        xv_lock(); v = xv_get(FileHandle); if (v) v->dir_idx = idx; xv_unlock();
+        if (!found) { IoStatusBlock->Status = STATUS_NO_MORE_FILES; return STATUS_NO_MORE_FILES; }
+        entry = (PXBOX_FILE_DIRECTORY_INFORMATION)FileInformation; memset(entry, 0, Length); xv_time(&tm);
+        entry->CreationTime = entry->LastAccessTime = entry->LastWriteTime = entry->ChangeTime = tm;
+        entry->EndOfFile.QuadPart = ce.is_dir ? 0 : (LONGLONG)ce.size; entry->AllocationSize.QuadPart = (entry->EndOfFile.QuadPart + 2047) & ~2047LL;
+        entry->FileAttributes = (ce.is_dir ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL) | FILE_ATTRIBUTE_READONLY;
+        nl = (ULONG)strlen(name); entry->FileNameLength = nl;
+        hdr = (ULONG)((ULONG_PTR)&((PXBOX_FILE_DIRECTORY_INFORMATION)0)->FileName);
+        if (nl > 0 && (hdr + nl) <= Length) memcpy(entry->FileName, name, nl);
+        IoStatusBlock->Status = STATUS_SUCCESS; IoStatusBlock->Information = hdr + nl;
+        return STATUS_SUCCESS;
     }
 
     ctx = find_or_create_dir_context(FileHandle, TRUE);

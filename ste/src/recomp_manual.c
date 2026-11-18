@@ -120,6 +120,21 @@ extern recomp_func_t recomp_lookup_kernel(uint32_t xbox_va);
 
 #define G32(a)  (*(volatile uint32_t *)((uintptr_t)(a) + (uintptr_t)g_xbox_mem_offset))
 #define GPTR(a) ((void *)((uintptr_t)(a) + (uintptr_t)g_xbox_mem_offset))
+/* 0.1.7: in-game cheat toggles from the overlay apply live. gb0..2 are the cheat-flag bits that are OR-ed into the game each pad poll (c190); switching one off also clears it in the live objects once. */
+static volatile uint32_t gb0, gb1, gb2;
+static volatile uint32_t g_cheat_clear[3];   /* bits to clear once on the next poll */
+int ste_cheat_live(const char *name, int on)
+{
+    static const struct { const char *n; int idx; uint32_t bit; } t[] = { { "cheat_invulnerable_p1", 1, 0x01u }, { "cheat_invulnerable_com", 1, 0x02u }, { "cheat_super_damage_com", 1, 0x20u }, { "cheat_red_p1", 2, 0x10u }, { "cheat_red_com", 2, 0x20u } };
+    unsigned i;
+    for (i = 0; i < sizeof t / sizeof t[0]; ++i) if (!strcmp(name, t[i].n)) {
+        volatile uint32_t *g = t[i].idx == 1 ? &gb1 : &gb2;
+        if (on) *g |= t[i].bit; else { *g &= ~t[i].bit; g_cheat_clear[t[i].idx] |= t[i].bit; }
+        return 1;
+    }
+    return 0;
+}
+
 #define XPP_GAMEPAD_TYPE   0x002D7ABCu   /* device-type record the game passes to XInputOpen/XGetDevices */
 #define XPP_NTSETEVENT_VA  (0xFE000000u + 36u * 4u)  /* kernel thunk slot 36 = ordinal 225 NtSetEvent in this XBE */
 
@@ -544,7 +559,7 @@ static void ste_unlock_poll(void)
     {   /* c190: in-match cheat flags. The game's own cheat codes set bits in cheatflags[1] (0x003F0E1C) / cheatflags[2] (0x003F0E20), what getGameCheats0/1 read
          * (XBOX_CHEAT_MENU.md, code table); cheatflags[0] (0x003F0E18, mirrored at 0x00425BB0) holds the code-entered bit of 072866. STE_ENHANCE_GAME_BITS0/1/2 (hex) OR bits into them
          * from the pad poll (default 0 = nothing). Classification probe for goal 3e; the named ste_enhance.ini toggles come after the per-bit effects are verified. */
-        static int ginit; static uint32_t gb0, gb1, gb2;
+        static int ginit;
         if (!ginit) { const char *e0 = getenv("STE_ENHANCE_GAME_BITS0"), *e1 = getenv("STE_ENHANCE_GAME_BITS1"), *e2 = getenv("STE_ENHANCE_GAME_BITS2"); ginit = 1;
             if (e0 && *e0) gb0 = (uint32_t)strtoul(e0, NULL, 0); if (e1 && *e1) gb1 = (uint32_t)strtoul(e1, NULL, 0); if (e2 && *e2) gb2 = (uint32_t)strtoul(e2, NULL, 0);
             /* c191: named in-match cheat toggles (ste_enhance.ini [enhance] / env STE_ENHANCE_<KEY>, default 0). Slot 0 = P1, slot 1 = COM / second player. Evidence: tests\q23_cheatcls.ps1 runs cls190_* (health-bar fill by tests\clsbars.py) */
@@ -558,6 +573,11 @@ static void ste_unlock_poll(void)
              * 0x003F0E18.. is the snapshot copy made by sub_00085F00 (struct 0x003F0958, +0x4C0). Write both. */
             uint32_t so = G32(0x004424F4u);
             if (so > 0x10000u && so < 0x04000000u) { if (gb0) G32(so + 0x4C0u) |= gb0; if (gb1) G32(so + 0x4C4u) |= gb1; if (gb2) G32(so + 0x4C8u) |= gb2; }
+        }
+        if (g_cheat_clear[1] || g_cheat_clear[2]) {   /* a toggle was switched off: clear its bits in the live objects once */
+            uint32_t c1 = g_cheat_clear[1], c2 = g_cheat_clear[2], so2 = G32(0x004424F4u); g_cheat_clear[1] = g_cheat_clear[2] = 0;
+            G32(0x003F0E1Cu) &= ~c1; G32(0x003F0E20u) &= ~c2;
+            if (so2 > 0x10000u && so2 < 0x04000000u) { G32(so2 + 0x4C4u) &= ~c1; G32(so2 + 0x4C8u) &= ~c2; }
         }
         if (gb0) { G32(0x003F0E18u) |= gb0; G32(0x00425BB0u) |= gb0; }
         if (gb1) G32(0x003F0E1Cu) |= gb1;

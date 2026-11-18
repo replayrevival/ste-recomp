@@ -656,20 +656,25 @@ void ste_overlay_frame(void *device, void *rtv, int w, int h);
 void ste_overlay_frame_none(void *device, void *rtv, int w, int h) { (void)device; (void)rtv; (void)w; (void)h; }
 #pragma comment(linker, "/alternatename:ste_overlay_frame=ste_overlay_frame_none")
 
-/* c404: opt-in gameplay recorder (STE_RECORD=<file.mkv>). The presented frame (the swap-chain back buffer after the upscale/blit, i.e. what the screenshots show, bars included; the in-game overlay is
- * left out unless STE_RECORD_OVERLAY=1) is copied through a 3-deep ring of staging textures (no stall: a frame whose copy is not finished is skipped), memcpy'd into a pooled buffer and written by a worker
- * thread to the stdin of an ffmpeg process (STE_FFMPEG = path to ffmpeg.exe, default "ffmpeg" on PATH). ffmpeg stamps the frames with the wall clock and writes a constant STE_RECORD_FPS (default 60) video,
- * so dropped frames never change the speed of the clip. The game's own timing is untouched: the render thread only does a GPU copy and a memcpy, a full queue drops the frame ([RECORD] counts).
- * STE_RECORD_CODEC = x264 (default, -crf 14) | nvenc (h264_nvenc -cq 16) | raw (no ffmpeg: <file>.rgba + <file>.txt with the geometry); STE_RECORD_ARGS = replacement encoder arguments.
- * Audio: RECOMP_AUDIO_WAV=<file.wav> (apu_wav.h) is the mix; both start logging a GetTickCount64() ([RECORD] first frame tick= / [AUDIO-WAV] open tick=): audio_offset_s = (frame tick - wav tick) / 1000.
- * Off (the default) it costs one static int test per presented frame. */
-#define REC_NBUF 10
+/* c404/0.1.7: opt-in gameplay recorder (STE_RECORD=<file.mkv>). The presented frame (the swap-chain back buffer after the upscale/blit, i.e. what the screenshots show, bars included; the in-game overlay is
+ * left out unless STE_RECORD_OVERLAY=1) is copied on the GPU into a ring of REC_SLOTS staging textures (the render thread only issues the copy and, a few frames later, a non-blocking Map), and a worker thread
+ * repacks the mapped rows into its own buffer and writes them to the stdin of an ffmpeg process (STE_FFMPEG = path to ffmpeg.exe, default "ffmpeg" on PATH). So the render thread never memcpy's a frame and
+ * never waits for the encoder: if ffmpeg stalls the ring fills and frames are DROPPED and counted, they never slow the game. 0.1.7 (Miko: the 4K takes stuttered): the default encoder is x264 ultrafast (NVENC next to the game halved
+ * the frame rate on the dev PC, so it is opt-in) and ffmpeg runs at below-normal priority.
+ * Timestamps: STE_RECORD_TS=frames (default): the frames are written at a constant STE_RECORD_FPS (default 60), one video frame per presented frame, so a clip has exactly the frames the player was shown
+ * (no wall-clock duplicates or drops added by ffmpeg); =wall uses the wall clock instead (use_wallclock_as_timestamps, cfr). [RECORD] at stop logs frames written, dropped (ring full), map retries, and how
+ * many presented-frame intervals took > 20 ms / > 34 ms while recording (game or machine hitches, not recorder cost): a clip is smooth when dropped = 0 and the over-20 count is ~0.
+ * STE_RECORD_FROM / STE_RECORD_SECS start the recording at a process age and stop it after n seconds. STE_RECORD_CODEC = x264 ultrafast (default) | x264fast | nvenc | raw (no ffmpeg: <file>.rgba + <file>.txt);
+ * STE_RECORD_ARGS = replacement encoder arguments. Audio: RECOMP_AUDIO_WAV=<file.wav> (+ RECOMP_AUDIO_WAV_WALL=1) is the mix; both log a GetTickCount64() ([RECORD] first frame tick= /
+ * [AUDIO-WAV] first samples tick=): audio_offset_s = (frame tick - wav tick) / 1000. Off (the default) it costs one static int test per presented frame. */
+#define REC_SLOTS 12
 typedef struct {
     int state;                                  /* 0 = not read yet, 1 = recording, -1 = off / failed */
     HANDLE pipe, proc, thread, ev; CRITICAL_SECTION cs; volatile LONG quit;
-    unsigned char *buf[REC_NBUF]; int freeq[REC_NBUF], nfree; int ready[REC_NBUF], rh, rt, rn;   /* pooled frame buffers; queue of ready indices */
-    size_t fbytes; unsigned w, h; DXGI_FORMAT fmt; ID3D11Texture2D *st[3]; unsigned issued; int overlay; FILE *raw;
-    unsigned long long dropped, skipped, written, first_tick; double stop_age;
+    unsigned char *wbuf; size_t fbytes; unsigned w, h; DXGI_FORMAT fmt; int overlay; FILE *raw;
+    ID3D11Texture2D *st[REC_SLOTS]; volatile LONG sstate[REC_SLOTS]; D3D11_MAPPED_SUBRESOURCE sm[REC_SLOTS]; unsigned sseq[REC_SLOTS];   /* slot: 0 free, 1 copy issued, 2 mapped (worker owns), 3 worker done (unmap) */
+    int pend[REC_SLOTS], ph, pn; int ready[REC_SLOTS], rh, rt, rn; unsigned issued;
+    unsigned long long dropped, skipped, written, first_tick, presented, over20, over34; double maxdt; LONGLONG lastq; double stop_age;
 } RecState;
 static RecState g_rec;
 static double rec_age(void)   /* seconds since the process was created (the same clock the pad scripts use) */
@@ -684,13 +689,14 @@ static DWORD WINAPI rec_worker(void *p)
 {
     (void)p;
     for (;;) {
-        int idx = -1; DWORD nw;
-        EnterCriticalSection(&g_rec.cs); if (g_rec.rn) { idx = g_rec.ready[g_rec.rh]; g_rec.rh = (g_rec.rh + 1) % REC_NBUF; g_rec.rn--; } LeaveCriticalSection(&g_rec.cs);
-        if (idx < 0) { if (g_rec.quit) break; WaitForSingleObject(g_rec.ev, 50); continue; }
-        if (g_rec.raw) fwrite(g_rec.buf[idx], 1, g_rec.fbytes, g_rec.raw);
-        else if (g_rec.pipe) WriteFile(g_rec.pipe, g_rec.buf[idx], (DWORD)g_rec.fbytes, &nw, NULL);
+        int slot = -1; DWORD nw; unsigned y;
+        EnterCriticalSection(&g_rec.cs); if (g_rec.rn) { slot = g_rec.ready[g_rec.rh]; g_rec.rh = (g_rec.rh + 1) % REC_SLOTS; g_rec.rn--; } LeaveCriticalSection(&g_rec.cs);
+        if (slot < 0) { if (g_rec.quit) break; WaitForSingleObject(g_rec.ev, 50); continue; }
+        for (y = 0; y < g_rec.h; ++y) memcpy(g_rec.wbuf + (size_t)y * g_rec.w * 4u, (const unsigned char *)g_rec.sm[slot].pData + (size_t)y * g_rec.sm[slot].RowPitch, (size_t)g_rec.w * 4u);
+        InterlockedExchange(&g_rec.sstate[slot], 3);   /* the render thread may unmap it now */
+        if (g_rec.raw) fwrite(g_rec.wbuf, 1, g_rec.fbytes, g_rec.raw);
+        else if (g_rec.pipe) WriteFile(g_rec.pipe, g_rec.wbuf, (DWORD)g_rec.fbytes, &nw, NULL);
         g_rec.written++;
-        EnterCriticalSection(&g_rec.cs); g_rec.freeq[g_rec.nfree++] = idx; LeaveCriticalSection(&g_rec.cs);
     }
     return 0;
 }
@@ -699,48 +705,66 @@ static void rec_stop(void)
 {
     if (g_rec.state != 1) return;
     g_rec.state = -1; g_rec.quit = 1; SetEvent(g_rec.ev);
-    if (g_rec.thread) WaitForSingleObject(g_rec.thread, 8000);
+    if (g_rec.thread) WaitForSingleObject(g_rec.thread, 20000);
     if (g_rec.pipe) { CloseHandle(g_rec.pipe); g_rec.pipe = NULL; }
-    if (g_rec.proc) { WaitForSingleObject(g_rec.proc, 20000); CloseHandle(g_rec.proc); g_rec.proc = NULL; }
+    if (g_rec.proc) { WaitForSingleObject(g_rec.proc, 60000); CloseHandle(g_rec.proc); g_rec.proc = NULL; }
     if (g_rec.raw) { fclose(g_rec.raw); g_rec.raw = NULL; }
-    fprintf(stderr, "[RECORD] stopped: %llu frames written, %llu dropped (queue full), %llu skipped (copy not ready)\n", g_rec.written, g_rec.dropped, g_rec.skipped); fflush(stderr);
+    fprintf(stderr, "[RECORD] stopped: %llu frames written, %llu dropped (ring full), %llu map retries; presented frames %llu, intervals > 20 ms: %llu, > 34 ms: %llu, longest %.1f ms\n",
+            g_rec.written, g_rec.dropped, g_rec.skipped, g_rec.presented, g_rec.over20, g_rec.over34, g_rec.maxdt); fflush(stderr);
+}
+
+static int rec_nvenc_ok(const char *ff)
+{
+    char cmd[1024]; STARTUPINFOA si; PROCESS_INFORMATION pi; DWORD code = 1; HANDLE nul;
+    SECURITY_ATTRIBUTES sa; memset(&sa, 0, sizeof sa); sa.nLength = sizeof sa; sa.bInheritHandle = TRUE;
+    nul = CreateFileA("NUL", GENERIC_WRITE, FILE_SHARE_WRITE, &sa, OPEN_EXISTING, 0, NULL);
+    _snprintf(cmd, sizeof cmd, "\"%s\" -hide_banner -loglevel error -f lavfi -i color=black:s=320x240:r=30 -frames:v 3 -c:v h264_nvenc -f null -", ff);
+    memset(&si, 0, sizeof si); si.cb = sizeof si; si.dwFlags = STARTF_USESTDHANDLES; si.hStdOutput = nul; si.hStdError = nul; si.hStdInput = NULL;
+    if (!CreateProcessA(NULL, cmd, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) { if (nul != INVALID_HANDLE_VALUE) CloseHandle(nul); return 0; }
+    if (WaitForSingleObject(pi.hProcess, 15000) == WAIT_OBJECT_0) GetExitCodeProcess(pi.hProcess, &code); else TerminateProcess(pi.hProcess, 1);
+    CloseHandle(pi.hProcess); CloseHandle(pi.hThread); if (nul != INVALID_HANDLE_VALUE) CloseHandle(nul);
+    return code == 0;
 }
 
 static int rec_start(D3D8DeviceState *s, const D3D11_TEXTURE2D_DESC *bd)
 {
-    const char *path = getenv("STE_RECORD"), *codec = getenv("STE_RECORD_CODEC"), *ff = getenv("STE_FFMPEG"), *fps = getenv("STE_RECORD_FPS"), *xa = getenv("STE_RECORD_ARGS"), *ov = getenv("STE_RECORD_OVERLAY");
-    char cmd[2048], enc[512], logp[MAX_PATH + 16]; int i, raw; D3D11_TEXTURE2D_DESC sd; const char *pix;
+    const char *path = getenv("STE_RECORD"), *codec = getenv("STE_RECORD_CODEC"), *ff = getenv("STE_FFMPEG"), *fps = getenv("STE_RECORD_FPS"), *xa = getenv("STE_RECORD_ARGS"), *ov = getenv("STE_RECORD_OVERLAY"), *ts = getenv("STE_RECORD_TS");
+    char cmd[2048], enc[512], logp[MAX_PATH + 16], tsargs[96]; int i, raw; D3D11_TEXTURE2D_DESC sd; const char *pix; const char *f = fps && atoi(fps) > 0 ? fps : "60"; const char *ffx = ff && *ff ? ff : "ffmpeg";
     if (!path || !*path) return 0;
     if (bd->Format == DXGI_FORMAT_R8G8B8A8_UNORM || bd->Format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB) pix = "rgba";
     else if (bd->Format == DXGI_FORMAT_B8G8R8A8_UNORM || bd->Format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB) pix = "bgra";
     else { fprintf(stderr, "[RECORD] unsupported back buffer format %d, recording off\n", (int)bd->Format); return 0; }
     g_rec.w = bd->Width; g_rec.h = bd->Height; g_rec.fmt = bd->Format; g_rec.fbytes = (size_t)bd->Width * bd->Height * 4u; g_rec.overlay = ov && ov[0] == '1';
     InitializeCriticalSection(&g_rec.cs); g_rec.ev = CreateEventA(NULL, FALSE, FALSE, NULL);
-    for (i = 0; i < REC_NBUF; ++i) { g_rec.buf[i] = (unsigned char *)malloc(g_rec.fbytes); if (!g_rec.buf[i]) { fprintf(stderr, "[RECORD] out of memory\n"); return 0; } g_rec.freeq[i] = i; } g_rec.nfree = REC_NBUF;
+    g_rec.wbuf = (unsigned char *)malloc(g_rec.fbytes); if (!g_rec.wbuf) { fprintf(stderr, "[RECORD] out of memory\n"); return 0; }
     sd = *bd; sd.Usage = D3D11_USAGE_STAGING; sd.BindFlags = 0; sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ; sd.MiscFlags = 0; sd.SampleDesc.Count = 1; sd.SampleDesc.Quality = 0;
-    for (i = 0; i < 3; ++i) if (FAILED(ID3D11Device_CreateTexture2D(s->scanout_device, &sd, NULL, &g_rec.st[i]))) { fprintf(stderr, "[RECORD] staging texture failed, recording off\n"); return 0; }
+    for (i = 0; i < REC_SLOTS; ++i) if (FAILED(ID3D11Device_CreateTexture2D(s->scanout_device, &sd, NULL, &g_rec.st[i]))) { fprintf(stderr, "[RECORD] staging texture failed, recording off\n"); return 0; }
     raw = codec && !_stricmp(codec, "raw");
     if (raw) {
         char tp[MAX_PATH + 8]; FILE *t; _snprintf(tp, sizeof tp, "%s.rgba", path); g_rec.raw = fopen(tp, "wb");
-        _snprintf(tp, sizeof tp, "%s.txt", path); t = fopen(tp, "w"); if (t) { fprintf(t, "raw %s frames, %ux%u, nominal %s fps\n", pix, g_rec.w, g_rec.h, fps ? fps : "60"); fclose(t); }
+        _snprintf(tp, sizeof tp, "%s.txt", path); t = fopen(tp, "w"); if (t) { fprintf(t, "raw %s frames, %ux%u, nominal %s fps\n", pix, g_rec.w, g_rec.h, f); fclose(t); }
         if (!g_rec.raw) return 0;
     } else {
-        SECURITY_ATTRIBUTES sa; HANDLE rd = NULL, wr = NULL, lg; STARTUPINFOA si; PROCESS_INFORMATION pi; const char *f = fps && atoi(fps) > 0 ? fps : "60";
-        if (xa && *xa) _snprintf(enc, sizeof enc, "%s", xa);
-        else if (codec && !_stricmp(codec, "nvenc")) _snprintf(enc, sizeof enc, "-c:v h264_nvenc -preset p5 -cq 16 -pix_fmt yuv420p");
-        else _snprintf(enc, sizeof enc, "-c:v libx264 -preset veryfast -crf 14 -pix_fmt yuv420p");
-        _snprintf(cmd, sizeof cmd, "\"%s\" -y -hide_banner -loglevel warning -use_wallclock_as_timestamps 1 -f rawvideo -pix_fmt %s -video_size %ux%u -i - -fps_mode cfr -r %s -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2\" %s \"%s\"",
-                  ff && *ff ? ff : "ffmpeg", pix, g_rec.w, g_rec.h, f, enc, path);
+        SECURITY_ATTRIBUTES sa; HANDLE rd = NULL, wr = NULL, lg; STARTUPINFOA si; PROCESS_INFORMATION pi; const char *used;
+        if (xa && *xa) { _snprintf(enc, sizeof enc, "%s", xa); used = "custom"; }
+        else if (codec && !_stricmp(codec, "nvenc") && rec_nvenc_ok(ffx)) { _snprintf(enc, sizeof enc, "-c:v h264_nvenc -preset p5 -rc vbr -cq 16 -b:v 0 -pix_fmt yuv420p"); used = "nvenc"; }   /* measured on the dev PC: NVENC next to the game halved the frame rate, so it is opt-in */
+        else if (codec && !_stricmp(codec, "x264fast")) { _snprintf(enc, sizeof enc, "-c:v libx264 -preset veryfast -crf 14 -pix_fmt yuv420p"); used = "x264 veryfast"; }
+        else { _snprintf(enc, sizeof enc, "-c:v libx264 -preset ultrafast -crf 17 -pix_fmt yuv420p"); used = "x264 ultrafast"; }   /* default: light on the CPU (ffmpeg runs at below-normal priority), larger files */
+        if (ts && !_stricmp(ts, "wall")) _snprintf(tsargs, sizeof tsargs, "-use_wallclock_as_timestamps 1"); else _snprintf(tsargs, sizeof tsargs, "-framerate %s", f);
+        _snprintf(cmd, sizeof cmd, "\"%s\" -y -hide_banner -loglevel warning %s -f rawvideo -pix_fmt %s -video_size %ux%u -i - -fps_mode cfr -r %s -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2\" %s \"%s\"",
+                  ffx, tsargs, pix, g_rec.w, g_rec.h, f, enc, path);
         memset(&sa, 0, sizeof sa); sa.nLength = sizeof sa; sa.bInheritHandle = TRUE;
-        if (!CreatePipe(&rd, &wr, &sa, 1 << 20)) { fprintf(stderr, "[RECORD] CreatePipe failed\n"); return 0; }
+        if (!CreatePipe(&rd, &wr, &sa, 4 << 20)) { fprintf(stderr, "[RECORD] CreatePipe failed\n"); return 0; }
         SetHandleInformation(wr, HANDLE_FLAG_INHERIT, 0);
         _snprintf(logp, sizeof logp, "%s.ffmpeg.log", path); lg = CreateFileA(logp, GENERIC_WRITE, FILE_SHARE_READ, &sa, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         memset(&si, 0, sizeof si); si.cb = sizeof si; si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW; si.wShowWindow = SW_HIDE; si.hStdInput = rd; si.hStdOutput = lg != INVALID_HANDLE_VALUE ? lg : NULL; si.hStdError = si.hStdOutput;
         memset(&pi, 0, sizeof pi);
-        if (!CreateProcessA(NULL, cmd, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) { fprintf(stderr, "[RECORD] cannot start ffmpeg (%lu): set STE_FFMPEG=<path to ffmpeg.exe> or STE_RECORD_CODEC=raw\n", (unsigned long)GetLastError()); CloseHandle(rd); CloseHandle(wr); return 0; }
+        if (!CreateProcessA(NULL, cmd, NULL, NULL, TRUE, CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS, NULL, NULL, &si, &pi)) { fprintf(stderr, "[RECORD] cannot start ffmpeg (%lu): set STE_FFMPEG=<path to ffmpeg.exe> or STE_RECORD_CODEC=raw\n", (unsigned long)GetLastError()); CloseHandle(rd); CloseHandle(wr); return 0; }
         CloseHandle(rd); if (lg != INVALID_HANDLE_VALUE) CloseHandle(lg); CloseHandle(pi.hThread); g_rec.proc = pi.hProcess; g_rec.pipe = wr;
+        fprintf(stderr, "[RECORD] encoder: %s, timestamps: %s\n", used, ts && !_stricmp(ts, "wall") ? "wall clock" : "one frame per presented frame at a constant rate");
     }
     g_rec.thread = CreateThread(NULL, 0, rec_worker, NULL, 0, NULL);
+    if (g_rec.thread) SetThreadPriority(g_rec.thread, THREAD_PRIORITY_BELOW_NORMAL);
     atexit(rec_stop);
     fprintf(stderr, "[RECORD] recording %ux%u (%s) to %s%s\n", g_rec.w, g_rec.h, pix, path, raw ? " (raw)" : ""); fflush(stderr);
     return 1;
@@ -749,7 +773,7 @@ static int rec_start(D3D8DeviceState *s, const D3D11_TEXTURE2D_DESC *bd)
 /* called once per presented frame on the render thread with the back buffer; when after_overlay is 0 it is the frame without the overlay */
 static void rec_frame(D3D8DeviceState *s, ID3D11Texture2D *bb, int after_overlay)
 {
-    D3D11_TEXTURE2D_DESC bd; D3D11_MAPPED_SUBRESOURCE m; unsigned cur, prev; int idx = -1; HRESULT hr; unsigned y;
+    D3D11_TEXTURE2D_DESC bd; int i, f = -1; LARGE_INTEGER q, qf;
     if (g_rec.state < 0) return;
     if (g_rec.overlay != after_overlay && g_rec.state == 1) return;
     if (g_rec.state == 0) {
@@ -766,19 +790,27 @@ static void rec_frame(D3D8DeviceState *s, ID3D11Texture2D *bb, int after_overlay
     if (g_rec.stop_age > 0.0 && rec_age() >= g_rec.stop_age) { rec_stop(); return; }
     ID3D11Texture2D_GetDesc(bb, &bd);
     if (bd.Width != g_rec.w || bd.Height != g_rec.h || bd.Format != g_rec.fmt) { static int warned; if (!warned++) fprintf(stderr, "[RECORD] back buffer changed size/format, frames skipped\n"); return; }
-    cur = g_rec.issued % 3u; ID3D11DeviceContext_CopyResource(s->scanout_context, (ID3D11Resource *)g_rec.st[cur], (ID3D11Resource *)bb); g_rec.issued++;
-    if (g_rec.issued < 3) return;
-    prev = (g_rec.issued - 3u) % 3u;   /* the copy made two frames ago */
-    memset(&m, 0, sizeof m);
-    hr = ID3D11DeviceContext_Map(s->scanout_context, (ID3D11Resource *)g_rec.st[prev], 0, D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &m);
-    if (FAILED(hr)) { g_rec.skipped++; return; }
-    EnterCriticalSection(&g_rec.cs); if (g_rec.nfree) idx = g_rec.freeq[--g_rec.nfree]; LeaveCriticalSection(&g_rec.cs);
-    if (idx < 0) { g_rec.dropped++; ID3D11DeviceContext_Unmap(s->scanout_context, (ID3D11Resource *)g_rec.st[prev], 0); return; }
-    for (y = 0; y < g_rec.h; ++y) memcpy(g_rec.buf[idx] + (size_t)y * g_rec.w * 4u, (const unsigned char *)m.pData + (size_t)y * m.RowPitch, (size_t)g_rec.w * 4u);
-    ID3D11DeviceContext_Unmap(s->scanout_context, (ID3D11Resource *)g_rec.st[prev], 0);
-    if (!g_rec.first_tick) { g_rec.first_tick = GetTickCount64(); fprintf(stderr, "[RECORD] first frame tick=%llu\n", g_rec.first_tick); fflush(stderr); }
-    EnterCriticalSection(&g_rec.cs); g_rec.ready[g_rec.rt] = idx; g_rec.rt = (g_rec.rt + 1) % REC_NBUF; g_rec.rn++; LeaveCriticalSection(&g_rec.cs);
-    SetEvent(g_rec.ev);
+    QueryPerformanceCounter(&q); QueryPerformanceFrequency(&qf);
+    if (g_rec.lastq) { double dt = (double)(q.QuadPart - g_rec.lastq) * 1000.0 / (double)qf.QuadPart; if (dt > 20.0) g_rec.over20++; if (dt > 34.0) g_rec.over34++; if (dt > g_rec.maxdt) g_rec.maxdt = dt; }
+    g_rec.lastq = q.QuadPart; g_rec.presented++;
+    for (i = 0; i < REC_SLOTS; ++i) if (g_rec.sstate[i] == 3) { ID3D11DeviceContext_Unmap(s->scanout_context, (ID3D11Resource *)g_rec.st[i], 0); InterlockedExchange(&g_rec.sstate[i], 0); }   /* the worker is done with these rows */
+    for (i = 0; i < REC_SLOTS; ++i) if (g_rec.sstate[i] == 0) { f = i; break; }
+    if (f < 0) g_rec.dropped++;   /* ring full: the encoder cannot keep up; the frame is dropped, the game is never slowed */
+    else {
+        ID3D11DeviceContext_CopyResource(s->scanout_context, (ID3D11Resource *)g_rec.st[f], (ID3D11Resource *)bb);
+        if (!g_rec.first_tick) { g_rec.first_tick = GetTickCount64(); fprintf(stderr, "[RECORD] first frame tick=%llu\n", g_rec.first_tick); fflush(stderr); }
+        g_rec.sstate[f] = 1; g_rec.sseq[f] = g_rec.issued++; g_rec.pend[(g_rec.ph + g_rec.pn) % REC_SLOTS] = f; g_rec.pn++;
+    }
+    while (g_rec.pn) {   /* map the oldest copies whose GPU work is done, in order, without waiting */
+        int sl = g_rec.pend[g_rec.ph]; HRESULT hr;
+        if (g_rec.issued - g_rec.sseq[sl] < 2u) break;   /* give the GPU two frames */
+        memset(&g_rec.sm[sl], 0, sizeof g_rec.sm[sl]);
+        hr = ID3D11DeviceContext_Map(s->scanout_context, (ID3D11Resource *)g_rec.st[sl], 0, D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &g_rec.sm[sl]);
+        if (FAILED(hr)) { g_rec.skipped++; break; }   /* still drawing: try again next frame (order is kept) */
+        g_rec.sstate[sl] = 2; g_rec.ph = (g_rec.ph + 1) % REC_SLOTS; g_rec.pn--;
+        EnterCriticalSection(&g_rec.cs); g_rec.ready[g_rec.rt] = sl; g_rec.rt = (g_rec.rt + 1) % REC_SLOTS; g_rec.rn++; LeaveCriticalSection(&g_rec.cs);
+        SetEvent(g_rec.ev);
+    }
 }
 
 static void scanout_present_frame(D3D8DeviceState *s, ID3D11Texture2D *bb)

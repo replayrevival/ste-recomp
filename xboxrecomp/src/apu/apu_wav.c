@@ -54,6 +54,8 @@ static uint64_t s_frames;        /* sample frames written */
 static uint64_t s_cap;           /* 0 = uncapped */
 static uint64_t s_next_refresh;  /* s_frames at which the header is rewritten */
 static int      s_hooks;         /* atexit / ctrl handler registered */
+static int      s_wall = -1;     /* RECOMP_AUDIO_WAV_WALL=1: keep the file on the wall clock (0.1.7): a stretch with no samples (the game paused by the in-game menu, a load) is filled with silence, so wav time == time since the first sample and a video recorded next to it stays in sync */
+static uint64_t s_t0_ms;         /* wav_ms() at the first sample written */
 
 static void put_le32(uint8_t *p, uint32_t v)
 {
@@ -180,6 +182,19 @@ void apu_wav_write(const int16_t *samples, int count)
 #if defined(_WIN32)
     if (s_fp && s_frames == 0) { fprintf(stderr, "[AUDIO-WAV] first samples tick=%llu (STE_RECORD: audio_offset_s = (video first frame tick - this) / 1000)\n", (unsigned long long)GetTickCount64()); fflush(stderr); }
 #endif
+    if (s_wall < 0) { const char *w = getenv("RECOMP_AUDIO_WAV_WALL"); s_wall = (w && w[0] == (char)49); }
+    if (s_wall && s_fp) {
+        uint64_t now = wav_ms();
+        if (s_frames == 0) s_t0_ms = now;
+        else {
+            uint64_t want = (now - s_t0_ms) * (uint64_t)APU_WAV_RATE / 1000u;
+            if (want > s_frames + (uint64_t)(APU_WAV_RATE / 5)) {   /* more than 200 ms missing: pad with silence */
+                uint8_t z[1024 * FRAME_BYTES]; uint64_t miss = want - s_frames - (uint64_t)(APU_WAV_RATE / 50);   /* leave 20 ms so the next block lines up */
+                memset(z, 0, sizeof z);
+                while (miss > 0 && s_fp) { size_t n = miss > 1024 ? 1024 : (size_t)miss; fwrite(z, FRAME_BYTES, n, s_fp); s_frames += n; miss -= n; if (s_frames >= s_next_refresh) { write_header(); s_next_refresh = s_frames + APU_WAV_RATE; } }
+            }
+        }
+    }
     while (s_fp && count > 0) {
         int n = count > 1024 ? 1024 : count, i;
         if (s_cap && s_frames + (uint64_t)n > s_cap)
