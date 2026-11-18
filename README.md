@@ -11,7 +11,7 @@
   <img alt="Status: early alpha" src="https://img.shields.io/badge/status-early%20alpha-orange">
 </p>
 
-![Godzilla 2000's atomic breath hits Gigan in Tokyo at 21:9 ultrawide](docs/screenshots/0.1.5_hero_ultrawide_fight_tokyo.png)
+![Godzilla 2000's atomic breath hits Gigan in Tokyo at 21:9 ultrawide](docs/screenshots/0.1.6_hero_ultrawide_fight_tokyo.jpg)
 
 *Godzilla 2000's atomic breath hits Gigan in Tokyo at 21:9 ultrawide, with Unlimited draw distance: the whole street, Mount Fuji and the original HUD in view.*
 
@@ -33,7 +33,7 @@
 
 *The same moment: the original 4:3 view on the left, 21:9 on the right.*
 
-![The Tokyo skyline runs all the way to the hills and the harbour](docs/screenshots/0.1.5_ultrawide_tokyo_skyline_unlimited.png)
+![A fight at 4K and 60 fps: the whole city, drawn to the horizon](docs/screenshots/0.1.6_fight_4k_60fps.jpg)
 
 *Unlimited draw distance: the Tokyo skyline runs all the way to the hills and the harbour.*
 
@@ -43,7 +43,7 @@
 2. **Run the launcher** (`launcher.exe`) and point it at your own copy of the game: a disc image (.iso) or a folder.
 3. **Press PLAY.**
 
-![The launcher](docs/screenshots/0.1.5a_launcher_overview.png)
+![The launcher](docs/screenshots/0.1.6_launcher_overview.png)
 
 ## What you need
 
@@ -52,33 +52,33 @@
 - A graphics card that supports **DirectX 11**.
 - A controller is recommended. The keyboard works too.
 
-## What's new in v0.1.5a
+## What's new in v0.1.6
 
-- **An in-game menu.** Hold Back and Start together for a second (or press F1) and the game pauses. Change the volume or other settings, set up your controllers, or go back to the launcher, then carry on playing. The Guide / Home button can open it too if you switch that on in the launcher's Controllers tab.
-- **0.1.5a fixes a freeze when opening that menu** (seen on a real PC in true fullscreen: the window stopped answering and Alt+F4 did nothing). The window now keeps answering while the menu is open, and closing it ends the game.
-- **The words follow your controller style.** With Xbox or PlayStation button pictures chosen, texts such as "PRESS START" now say "PRESS MENU" (or "PRESS OPTIONS" on PlayStation where it fits) and "Xbox console" says "this computer". Original Xbox keeps the original words.
-- Volume and the mouse pointer change at once from the in-game menu. Button prompts and the enhancements apply from the next match; other video settings the next time you start.
+- **Mechagodzilla 3's missiles are back.** The back launcher's missiles now show their heads and their smoke trails. The same fix repairs other small particle effects that were drawn wrongly.
+- **Type your name with the keyboard.** On the profile screen's on-screen keyboard you can now type with your PC keyboard (Tab does END).
+- **The in-game menu** (hold Back and Start for a second, or press F1) keeps working as before: change the volume and other settings, set up controllers, or go back to the launcher without leaving the game.
 
 <table>
 <tr>
-<td><img src="docs/screenshots/0.1.5a_overlay_paused.png" alt="The in-game menu over the game: Resume, Video, Enhancements, Controllers, Return to launcher, Quit game"></td>
-<td><img src="docs/screenshots/0.1.5a_overlay_video.png" alt="The in-game menu's Video page with the Volume row"></td>
+<td><img src="docs/screenshots/0.1.6_missile_trails_mechagodzilla.jpg" alt="Mechagodzilla 3's missiles with smoke trails and an explosion"></td>
+<td><img src="docs/screenshots/0.1.6_keyboard_name_entry.jpg" alt="The on-screen keyboard with the name GODZILLA typed"></td>
 </tr>
 <tr>
-<td colspan="2"><img src="docs/screenshots/0.1.5_press_menu_wording_playstation.png" alt="With PlayStation button pictures the text says 'Press MENU to add COM'"></td>
+<td><img src="docs/screenshots/0.1.6_ingame_menu_paused.png" alt="The in-game menu over the game: Resume, Video, Enhancements, Controllers, Return to launcher, Quit game"></td>
+<td><img src="docs/screenshots/0.1.6_ingame_menu_enhancements.png" alt="The in-game menu's Enhancements page"></td>
 </tr>
 </table>
 
-Earlier: 0.1.4 made the game start about 20 seconds sooner and made mods that change the game's own files work. 0.1.3a fixed a rare freeze. 0.1.3 brought unlimited draw distance at a smooth 60 fps, a big performance boost, Xbox / PlayStation / original Xbox button pictures, the Mods tab and Save crash report.
+Earlier: 0.1.5a fixed a freeze when opening the in-game menu. 0.1.5 added the menu and made the text follow your button style ("PRESS START" becomes "PRESS MENU"). 0.1.4 made the game start about 20 seconds sooner and made mods that change the game's own files work. 0.1.3 brought unlimited draw distance at a smooth 60 fps, a big performance boost, Xbox / PlayStation / original Xbox button pictures, the Mods tab and Save crash report.
 
-[Read the full release notes](https://github.com/replayrevival/ste-recomp/releases/tag/v0.1.5a-alpha).
+[Read the full release notes](https://github.com/replayrevival/ste-recomp/releases/tag/v0.1.6-alpha).
 
-**Coming next:** typing names with a keyboard, the missing Mechagodzilla missile trails, then a beta, then 1.0. Linux and Mac come later.
+**Coming next:** more checks of the game's effects, a beta, then 1.0. Linux and Mac come later.
 
 <table>
 <tr>
-<td><img src="docs/screenshots/0.1.5a_launcher_video.png" alt="Video settings"></td>
-<td><img src="docs/screenshots/0.1.5a_launcher_controllers_playstation.png" alt="Controller settings with PlayStation button pictures"></td>
+<td><img src="docs/screenshots/0.1.6_launcher_video.png" alt="Video settings"></td>
+<td><img src="docs/screenshots/0.1.6_launcher_controllers_playstation.png" alt="Controller settings with PlayStation button pictures"></td>
 </tr>
 <tr>
 <td><img src="docs/screenshots/0.1.5_button_prompts_xbox.png" alt="The character-select screen with Xbox button pictures"></td>
