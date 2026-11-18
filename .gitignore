@@ -49,3 +49,6 @@ __pycache__/
 .idea/
 Thumbs.db
 .DS_Store
+secrets/
+youtube_token.json
+youtube_client_secret.json
