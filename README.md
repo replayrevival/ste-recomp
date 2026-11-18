@@ -52,26 +52,27 @@
 - A graphics card that supports **DirectX 11**.
 - A controller is recommended. The keyboard works too.
 
-## What's new in v0.1.6
+## What's new in v0.1.7
 
-- **Mechagodzilla 3's missiles are back.** The back launcher's missiles now show their heads and their smoke trails. The same fix repairs other small particle effects that were drawn wrongly.
-- **Type your name with the keyboard.** On the profile screen's on-screen keyboard you can now type with your PC keyboard (Tab does END).
-- **The in-game menu** (hold Back and Start for a second, or press F1) keeps working as before: change the volume and other settings, set up controllers, or go back to the launcher without leaving the game.
+- **Cheats switch on at once.** Open the in-game menu (hold Back and Start for a second, or press F1), go to Enhancements > Cheats and turn on "Player 1 invulnerable" or the others. They now work straight away, even in the middle of a fight.
+- **Checked in the original 4:3 view too.** Sparks, flames, smoke and missiles were looked at across 18 fights without a crash.
+- **PlayStation style wording.** Where the text has no room for "OPTIONS" it now says START (it said MENU before).
+- Under the hood: the game program can read a disc image directly (for developers; the launcher does not use this yet), and the optional video recorder was reworked.
 
 <table>
 <tr>
-<td><img src="docs/screenshots/0.1.6_missile_trails_mechagodzilla.jpg" alt="Mechagodzilla 3's missiles with smoke trails and an explosion"></td>
-<td><img src="docs/screenshots/0.1.6_keyboard_name_entry.jpg" alt="The on-screen keyboard with the name GODZILLA typed"></td>
+<td><img src="docs/screenshots/0.1.7_overlay_cheat_toggle.jpg" alt="The in-game menu's Enhancements page with the Cheats section: Player 1 invulnerable switched on, marked 'applies now'"></td>
+<td><img src="docs/screenshots/0.1.7_missile_salvo_wide.jpg" alt="A wide view of a Mechagodzilla missile salvo"></td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/0.1.6_ingame_menu_paused.png" alt="The in-game menu over the game: Resume, Video, Enhancements, Controllers, Return to launcher, Quit game"></td>
-<td><img src="docs/screenshots/0.1.6_ingame_menu_enhancements.png" alt="The in-game menu's Enhancements page"></td>
+<td><img src="docs/screenshots/0.1.7_fight_wide.jpg" alt="A pulled-back view of a fight in Tokyo"></td>
+<td><img src="docs/screenshots/0.1.7_4to3_beam.jpg" alt="Atomic breath in the original 4:3 view"></td>
 </tr>
 </table>
 
-Earlier: 0.1.5a fixed a freeze when opening the in-game menu. 0.1.5 added the menu and made the text follow your button style ("PRESS START" becomes "PRESS MENU"). 0.1.4 made the game start about 20 seconds sooner and made mods that change the game's own files work. 0.1.3 brought unlimited draw distance at a smooth 60 fps, a big performance boost, Xbox / PlayStation / original Xbox button pictures, the Mods tab and Save crash report.
+Earlier: 0.1.6 brought back Mechagodzilla 3's missile trails and typing your name with the keyboard. 0.1.5a fixed a freeze when opening the in-game menu. 0.1.5 added the menu and made the text follow your button style ("PRESS START" becomes "PRESS MENU"). 0.1.4 made the game start about 20 seconds sooner and made mods that change the game's own files work. 0.1.3 brought unlimited draw distance at a smooth 60 fps, a big performance boost, Xbox / PlayStation / original Xbox button pictures, the Mods tab and Save crash report.
 
-[Read the full release notes](https://github.com/replayrevival/ste-recomp/releases/tag/v0.1.6-alpha).
+[Read the full release notes](https://github.com/replayrevival/ste-recomp/releases/tag/v0.1.7-alpha).
 
 **Coming next:** more checks of the game's effects, a beta, then 1.0. Linux and Mac come later.
 
