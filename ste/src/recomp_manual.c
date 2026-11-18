@@ -665,6 +665,7 @@ void sub_002D8D7E(void)
             st.Gamepad.wButtons |= (uint16_t)g_pscr[i].w; for (j = 0; j < 8; ++j) if (g_pscr[i].a[j]) st.Gamepad.bAnalogButtons[j] = g_pscr[i].a[j];
             if (!logged[i]) { logged[i] = 1; fprintf(stderr, "[XPP] pad script: entry %d port %d (w=%04X a=%u%u%u%u) pressed at t=%.1f s\n", i, port, g_pscr[i].w, g_pscr[i].a[0] != 0, g_pscr[i].a[1] != 0, g_pscr[i].a[2] != 0, g_pscr[i].a[3] != 0, age); fflush(stderr); } }
     }
+    { extern void ste_te_pad_apply(int port, uint16_t *wButtons, uint8_t *analog); ste_te_pad_apply(port, &st.Gamepad.wButtons, st.Gamepad.bAnalogButtons); }   /* 0.1.6: keyboard text entry */
     { uint32_t cur = st.Gamepad.wButtons | ((uint32_t)(st.Gamepad.bAnalogButtons[0] != 0) << 16) | ((uint32_t)(st.Gamepad.bAnalogButtons[1] != 0) << 17) | ((uint32_t)(st.Gamepad.bAnalogButtons[2] != 0) << 18) | ((uint32_t)(st.Gamepad.bAnalogButtons[3] != 0) << 19) | ((uint32_t)(st.Gamepad.bAnalogButtons[4] != 0) << 20) | ((uint32_t)(st.Gamepad.bAnalogButtons[5] != 0) << 21) | ((uint32_t)(st.Gamepad.bAnalogButtons[6] != 0) << 22) | ((uint32_t)(st.Gamepad.bAnalogButtons[7] != 0) << 23);
       if (cur != last_btn[port]) { last_btn[port] = cur; pkt[port]++; } st.dwPacketNumber = pkt[port]; }
     {   /* STE_RUMBLE_SELFTEST=1: pulse full rumble for 1 s on port N at t = 60 + 5N s (host pads only), to check the port->pad mapping on real hardware */

@@ -103,10 +103,12 @@ static LRESULT CALLBACK ste_wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
     }
     switch (m) {   /* c134: keyboard as a port-0 pad (keyboard.c; ste_video.ini [input] keyboard, RECOMP_KEYBOARD) */
     case WM_KEYDOWN: case WM_SYSKEYDOWN:
+        { extern int ste_overlay_visible(void); extern int ste_te_key_down(int vk, int repeat); if (m == WM_KEYDOWN && !ste_overlay_visible() && ste_te_key_down((int)w, (int)((l >> 30) & 1))) return 0; }   /* c401: typing on the game keyboard */
         xbox_InputKeySet((int)w, 1); ste_sdl_key((int)w, 1);   /* c248: key bindings + overlay key */
         if (getenv("STE_KEY_TRACE")) { static unsigned kn; if (kn++ < 60) { fprintf(stderr, "[KEY] down vk=0x%02X\n", (unsigned)w); fflush(stderr); } }
         return m == WM_SYSKEYDOWN ? DefWindowProcA(h, m, w, l) : 0;   /* Alt+F4 and Alt+Space keep working */
     case WM_KEYUP: case WM_SYSKEYUP:
+        { extern int ste_te_key_up(int vk); if (m == WM_KEYUP && ste_te_key_up((int)w)) return 0; }
         xbox_InputKeySet((int)w, 0); ste_sdl_key((int)w, 0);
         return m == WM_SYSKEYUP ? DefWindowProcA(h, m, w, l) : 0;
     case WM_KILLFOCUS:
@@ -323,6 +325,7 @@ static void ste_process_range(uint32_t from, uint32_t cur, uint32_t lo, uint32_t
                 b.vertices - a.vertices, b.clears - a.clears, flips, jumps, calls, unhandled, malformed,
                 b.textures_decoded - a.textures_decoded, b.unsupported_texture_formats - a.unsupported_texture_formats);
     if (g_frame == 20 || (g_frame % 600) == 0) ste_print_unhandled();
+    { extern void ste_te_frame(unsigned frame); ste_te_frame(g_frame); }   /* c401: keyboard text entry state machine */
     { long long _t = ste_q(); d3d8_PresentFrame(); g_t_pf += ste_q() - _t; }
     {   /* c135 probe: STE_SHOT_FIGHT="n1,n2,..." (+ STE_SHOT_DIR): frame-synchronised screenshots for A/B runs of the fight intro. The trigger is the first frame with game-state word 4 (in-game)
          * and >= 350 draws; shots are taken n frames after it (file fs_<n>.bmp) and the draw count is logged ([FSHOT]). Probe only. */
@@ -401,6 +404,15 @@ static void ste_rft(double busy_ms)
     if (!freq.QuadPart) QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&now);
     if (last.QuadPart) { if (n < 8192) { buf[n++] = (double)(now.QuadPart - last.QuadPart) * 1000.0 / (double)freq.QuadPart; bsum += busy_ms; } ste_title_fps_rt((double)(now.QuadPart - last.QuadPart) * 1000.0 / (double)freq.QuadPart); }
+    if (last.QuadPart) {   /* 0.1.6 (water-stage stall hunt): every frame that took > 250 ms to arrive is logged with what the game and the renderer were doing; first 80 per run */
+        double dt = (double)(now.QuadPart - last.QuadPart) * 1000.0 / (double)freq.QuadPart; static unsigned nlog;
+        if (dt > 250.0 && g_frame > 300 && nlog < 80) {
+            extern volatile float g_ste_pb_fill; extern float g_qv_scale_cur; KelvinStats ks; const D3D8VideoCfg *vcf = d3d8_video_cfg(); nlog++; kelvin_get_stats(&ks);
+            fprintf(stderr, "[STALLFRAME] #%u frame=%u dt=%.0f ms busy=%.1f ms mode=%u out=%ux%u draws_total=%llu pushbuffer=%.0f%% qv=%.2f overlay_hold=%d\n", nlog, g_frame, dt, busy_ms, (unsigned)rd(0x003562B4u), (unsigned)vcf->out_w, (unsigned)vcf->out_h,
+                    (unsigned long long)ks.draws, (double)g_ste_pb_fill * 100.0, (double)g_qv_scale_cur, 0);
+            fflush(stderr);
+        }
+    }
     last = now;
     if (!win.QuadPart) win = now;
     if ((now.QuadPart - win.QuadPart) >= 10 * freq.QuadPart && n > 10) {

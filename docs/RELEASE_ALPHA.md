@@ -4,6 +4,15 @@
 **Early alpha. Work in progress, development continues.** Not affiliated with or endorsed by Toho, Atari or Pipeworks. You must own the game; no game data is included or distributed. Windows only for now.
 Draft prepared 2026-11-10, 0.1.4 section added 2026-11-14, 0.1.5 section 2026-11-15. Nothing here is published; the owner publishes.
 
+## 0.1.6 (draft, 2026-11-18)
+| Area | Change | Status |
+|---|---|---|
+| Mechagodzilla missiles | the Rocket Pack missiles of Mechagodzilla 3 now show their white heads and grey smoke trails in flight. Cause: the title's point sprites (heads, trails, many smoke puffs) sample their texture from texture stage 3, and the renderer only wrote the sprite's texture coordinate into stage 0, so every sprite pixel read the transparent corner of its texture. The coordinate is now written to all four stages (what the NV2A does). Every point-sprite effect benefits | in |
+| Keyboard name entry | on the profile name screen (and any screen with the same on-screen keyboard) the PC keyboard types: letters, digits and Space are turned into the D-pad and A presses a player would make, by reading where the highlighted key is on screen; Tab = END. Backspace, Enter and the arrows keep their pad-mapping meaning. Outside that screen the keyboard behaves as before. `STE_TEXT_ENTRY=0` turns it off | in |
+| Recording for trailers | opt-in `STE_RECORD=<file.mkv>` records the presented frames (no overlay) through ffmpeg at a constant frame rate without changing game timing; `RECOMP_AUDIO_WAV` records the game's own mix. Docs: RECORDING.md. Off by default | in, opt-in |
+| Stall log | every frame that arrives more than 250 ms late is logged as `[STALLFRAME]` (frame, delay, game mode, output size, queue state) to help catch the rare stall seen once in a 4K water stage | in |
+| Version | exe resource and `--version` say 0.1.6 | to do at release prep |
+
 ## 0.1.5a: hotfix for the in-game menu freeze (replaces 0.1.5)
 **Do not publish plain 0.1.5.** On Miko's other PC (true fullscreen, V-Sync on) opening the in-game menu froze the game: the window greyed out, the close button and Alt+F4 did nothing, the pointer stayed invisible. Cause: the game window belongs to the render thread, which only handled window messages while it was drawing game frames. The menu pauses the game, no frames arrive, and the window stopped answering Windows for good (true fullscreen additionally makes the display driver wait for that window). Reproduced on the Stream PC (window hung for the whole test, close request ignored), fixed, and checked again.
 | Area | Change | Status |
@@ -58,10 +67,8 @@ Interim workaround for anyone on plain 0.1.5: rename `ste_overlay.dll` next to t
 | Debug options | `STE_RING_AUTO_GAP_MS`, `STE_RING_FIGHT_FROM`, draw-log windows and the OOB report are opt-in test switches, off by default | in, opt-in |
 
 ## Known issues
-- No keyboard typing on the profile name screen yet (use a pad, or map the keyboard as a pad); planned for 0.1.6.
 - The footer word BACK next to the B picture is not re-worded (it means "go back"); only START and the Xbox-only save texts are.
-- No keyboard typing on the profile name screen (the on-screen keyboard still needs a pad or the keyboard mapped as a pad).
-- Mechagodzilla 3's back missiles are invisible in flight (launch fireball and impacts show). Cause not found after probes through c366 (docs\ITEM_D_MISSILES.md): the particle step is a constant 1/60, so it is not frame-rate dependent; the head/trail art is not in the scene list. Investigation continues in 0.1.4. Mechagodzilla 2's finger rockets are untested.
+- Mechagodzilla 2's finger rockets were not specifically re-checked in 0.1.6 (the point-sprite fix is generic; the sampled frames of the effects sweep showed no defect). Mechagodzilla 3's missiles are fixed in 0.1.6 (older notes in docs\ITEM_D_MISSILES.md).
 - A rare freeze (no more frames, window stays open) was fixed in 0.1.3a (c370): the emulated vblank could wait for ever on an interrupt-status bit when another thread queued work at the same moment. It was seen three times in test runs, never in normal play reports.
 - Possible rare stall in the sound code: in two test runs of an earlier build (c367, debug frame-sleep on) the game stopped producing frames while its main thread sat in the DirectSound buffer routine (the game's audio set-up). Not reproduced since and not fixed in c370; if the game freezes, please send the log from `<logs>`.
 - Black Mamba (the owner's other PC) feedback is pending: two-monitor window test (c261) and the distance/performance test zip `ste-recomp-distance-perf.zip`.

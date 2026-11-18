@@ -655,15 +655,143 @@ static void scanout_present_frame_inner(D3D8DeviceState *s, ID3D11Texture2D *bb)
 void ste_overlay_frame(void *device, void *rtv, int w, int h);
 void ste_overlay_frame_none(void *device, void *rtv, int w, int h) { (void)device; (void)rtv; (void)w; (void)h; }
 #pragma comment(linker, "/alternatename:ste_overlay_frame=ste_overlay_frame_none")
+
+/* c404: opt-in gameplay recorder (STE_RECORD=<file.mkv>). The presented frame (the swap-chain back buffer after the upscale/blit, i.e. what the screenshots show, bars included; the in-game overlay is
+ * left out unless STE_RECORD_OVERLAY=1) is copied through a 3-deep ring of staging textures (no stall: a frame whose copy is not finished is skipped), memcpy'd into a pooled buffer and written by a worker
+ * thread to the stdin of an ffmpeg process (STE_FFMPEG = path to ffmpeg.exe, default "ffmpeg" on PATH). ffmpeg stamps the frames with the wall clock and writes a constant STE_RECORD_FPS (default 60) video,
+ * so dropped frames never change the speed of the clip. The game's own timing is untouched: the render thread only does a GPU copy and a memcpy, a full queue drops the frame ([RECORD] counts).
+ * STE_RECORD_CODEC = x264 (default, -crf 14) | nvenc (h264_nvenc -cq 16) | raw (no ffmpeg: <file>.rgba + <file>.txt with the geometry); STE_RECORD_ARGS = replacement encoder arguments.
+ * Audio: RECOMP_AUDIO_WAV=<file.wav> (apu_wav.h) is the mix; both start logging a GetTickCount64() ([RECORD] first frame tick= / [AUDIO-WAV] open tick=): audio_offset_s = (frame tick - wav tick) / 1000.
+ * Off (the default) it costs one static int test per presented frame. */
+#define REC_NBUF 10
+typedef struct {
+    int state;                                  /* 0 = not read yet, 1 = recording, -1 = off / failed */
+    HANDLE pipe, proc, thread, ev; CRITICAL_SECTION cs; volatile LONG quit;
+    unsigned char *buf[REC_NBUF]; int freeq[REC_NBUF], nfree; int ready[REC_NBUF], rh, rt, rn;   /* pooled frame buffers; queue of ready indices */
+    size_t fbytes; unsigned w, h; DXGI_FORMAT fmt; ID3D11Texture2D *st[3]; unsigned issued; int overlay; FILE *raw;
+    unsigned long long dropped, skipped, written, first_tick; double stop_age;
+} RecState;
+static RecState g_rec;
+static double rec_age(void)   /* seconds since the process was created (the same clock the pad scripts use) */
+{
+    FILETIME c, x, k, u, now; ULARGE_INTEGER cu, nu;
+    GetProcessTimes(GetCurrentProcess(), &c, &x, &k, &u); GetSystemTimeAsFileTime(&now);
+    cu.LowPart = c.dwLowDateTime; cu.HighPart = c.dwHighDateTime; nu.LowPart = now.dwLowDateTime; nu.HighPart = now.dwHighDateTime;
+    return (double)(nu.QuadPart - cu.QuadPart) / 1e7;
+}
+
+static DWORD WINAPI rec_worker(void *p)
+{
+    (void)p;
+    for (;;) {
+        int idx = -1; DWORD nw;
+        EnterCriticalSection(&g_rec.cs); if (g_rec.rn) { idx = g_rec.ready[g_rec.rh]; g_rec.rh = (g_rec.rh + 1) % REC_NBUF; g_rec.rn--; } LeaveCriticalSection(&g_rec.cs);
+        if (idx < 0) { if (g_rec.quit) break; WaitForSingleObject(g_rec.ev, 50); continue; }
+        if (g_rec.raw) fwrite(g_rec.buf[idx], 1, g_rec.fbytes, g_rec.raw);
+        else if (g_rec.pipe) WriteFile(g_rec.pipe, g_rec.buf[idx], (DWORD)g_rec.fbytes, &nw, NULL);
+        g_rec.written++;
+        EnterCriticalSection(&g_rec.cs); g_rec.freeq[g_rec.nfree++] = idx; LeaveCriticalSection(&g_rec.cs);
+    }
+    return 0;
+}
+
+static void rec_stop(void)
+{
+    if (g_rec.state != 1) return;
+    g_rec.state = -1; g_rec.quit = 1; SetEvent(g_rec.ev);
+    if (g_rec.thread) WaitForSingleObject(g_rec.thread, 8000);
+    if (g_rec.pipe) { CloseHandle(g_rec.pipe); g_rec.pipe = NULL; }
+    if (g_rec.proc) { WaitForSingleObject(g_rec.proc, 20000); CloseHandle(g_rec.proc); g_rec.proc = NULL; }
+    if (g_rec.raw) { fclose(g_rec.raw); g_rec.raw = NULL; }
+    fprintf(stderr, "[RECORD] stopped: %llu frames written, %llu dropped (queue full), %llu skipped (copy not ready)\n", g_rec.written, g_rec.dropped, g_rec.skipped); fflush(stderr);
+}
+
+static int rec_start(D3D8DeviceState *s, const D3D11_TEXTURE2D_DESC *bd)
+{
+    const char *path = getenv("STE_RECORD"), *codec = getenv("STE_RECORD_CODEC"), *ff = getenv("STE_FFMPEG"), *fps = getenv("STE_RECORD_FPS"), *xa = getenv("STE_RECORD_ARGS"), *ov = getenv("STE_RECORD_OVERLAY");
+    char cmd[2048], enc[512], logp[MAX_PATH + 16]; int i, raw; D3D11_TEXTURE2D_DESC sd; const char *pix;
+    if (!path || !*path) return 0;
+    if (bd->Format == DXGI_FORMAT_R8G8B8A8_UNORM || bd->Format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB) pix = "rgba";
+    else if (bd->Format == DXGI_FORMAT_B8G8R8A8_UNORM || bd->Format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB) pix = "bgra";
+    else { fprintf(stderr, "[RECORD] unsupported back buffer format %d, recording off\n", (int)bd->Format); return 0; }
+    g_rec.w = bd->Width; g_rec.h = bd->Height; g_rec.fmt = bd->Format; g_rec.fbytes = (size_t)bd->Width * bd->Height * 4u; g_rec.overlay = ov && ov[0] == '1';
+    InitializeCriticalSection(&g_rec.cs); g_rec.ev = CreateEventA(NULL, FALSE, FALSE, NULL);
+    for (i = 0; i < REC_NBUF; ++i) { g_rec.buf[i] = (unsigned char *)malloc(g_rec.fbytes); if (!g_rec.buf[i]) { fprintf(stderr, "[RECORD] out of memory\n"); return 0; } g_rec.freeq[i] = i; } g_rec.nfree = REC_NBUF;
+    sd = *bd; sd.Usage = D3D11_USAGE_STAGING; sd.BindFlags = 0; sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ; sd.MiscFlags = 0; sd.SampleDesc.Count = 1; sd.SampleDesc.Quality = 0;
+    for (i = 0; i < 3; ++i) if (FAILED(ID3D11Device_CreateTexture2D(s->scanout_device, &sd, NULL, &g_rec.st[i]))) { fprintf(stderr, "[RECORD] staging texture failed, recording off\n"); return 0; }
+    raw = codec && !_stricmp(codec, "raw");
+    if (raw) {
+        char tp[MAX_PATH + 8]; FILE *t; _snprintf(tp, sizeof tp, "%s.rgba", path); g_rec.raw = fopen(tp, "wb");
+        _snprintf(tp, sizeof tp, "%s.txt", path); t = fopen(tp, "w"); if (t) { fprintf(t, "raw %s frames, %ux%u, nominal %s fps\n", pix, g_rec.w, g_rec.h, fps ? fps : "60"); fclose(t); }
+        if (!g_rec.raw) return 0;
+    } else {
+        SECURITY_ATTRIBUTES sa; HANDLE rd = NULL, wr = NULL, lg; STARTUPINFOA si; PROCESS_INFORMATION pi; const char *f = fps && atoi(fps) > 0 ? fps : "60";
+        if (xa && *xa) _snprintf(enc, sizeof enc, "%s", xa);
+        else if (codec && !_stricmp(codec, "nvenc")) _snprintf(enc, sizeof enc, "-c:v h264_nvenc -preset p5 -cq 16 -pix_fmt yuv420p");
+        else _snprintf(enc, sizeof enc, "-c:v libx264 -preset veryfast -crf 14 -pix_fmt yuv420p");
+        _snprintf(cmd, sizeof cmd, "\"%s\" -y -hide_banner -loglevel warning -use_wallclock_as_timestamps 1 -f rawvideo -pix_fmt %s -video_size %ux%u -i - -fps_mode cfr -r %s -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2\" %s \"%s\"",
+                  ff && *ff ? ff : "ffmpeg", pix, g_rec.w, g_rec.h, f, enc, path);
+        memset(&sa, 0, sizeof sa); sa.nLength = sizeof sa; sa.bInheritHandle = TRUE;
+        if (!CreatePipe(&rd, &wr, &sa, 1 << 20)) { fprintf(stderr, "[RECORD] CreatePipe failed\n"); return 0; }
+        SetHandleInformation(wr, HANDLE_FLAG_INHERIT, 0);
+        _snprintf(logp, sizeof logp, "%s.ffmpeg.log", path); lg = CreateFileA(logp, GENERIC_WRITE, FILE_SHARE_READ, &sa, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        memset(&si, 0, sizeof si); si.cb = sizeof si; si.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW; si.wShowWindow = SW_HIDE; si.hStdInput = rd; si.hStdOutput = lg != INVALID_HANDLE_VALUE ? lg : NULL; si.hStdError = si.hStdOutput;
+        memset(&pi, 0, sizeof pi);
+        if (!CreateProcessA(NULL, cmd, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) { fprintf(stderr, "[RECORD] cannot start ffmpeg (%lu): set STE_FFMPEG=<path to ffmpeg.exe> or STE_RECORD_CODEC=raw\n", (unsigned long)GetLastError()); CloseHandle(rd); CloseHandle(wr); return 0; }
+        CloseHandle(rd); if (lg != INVALID_HANDLE_VALUE) CloseHandle(lg); CloseHandle(pi.hThread); g_rec.proc = pi.hProcess; g_rec.pipe = wr;
+    }
+    g_rec.thread = CreateThread(NULL, 0, rec_worker, NULL, 0, NULL);
+    atexit(rec_stop);
+    fprintf(stderr, "[RECORD] recording %ux%u (%s) to %s%s\n", g_rec.w, g_rec.h, pix, path, raw ? " (raw)" : ""); fflush(stderr);
+    return 1;
+}
+
+/* called once per presented frame on the render thread with the back buffer; when after_overlay is 0 it is the frame without the overlay */
+static void rec_frame(D3D8DeviceState *s, ID3D11Texture2D *bb, int after_overlay)
+{
+    D3D11_TEXTURE2D_DESC bd; D3D11_MAPPED_SUBRESOURCE m; unsigned cur, prev; int idx = -1; HRESULT hr; unsigned y;
+    if (g_rec.state < 0) return;
+    if (g_rec.overlay != after_overlay && g_rec.state == 1) return;
+    if (g_rec.state == 0) {
+        const char *from = getenv("STE_RECORD_FROM"), *secs = getenv("STE_RECORD_SECS");
+        ID3D11Texture2D_GetDesc(bb, &bd);
+        if (!getenv("STE_RECORD")) { g_rec.state = -1; return; }
+        if (from && atof(from) > 0.0 && rec_age() < atof(from)) return;   /* wait for the start age */
+        g_rec.state = rec_start(s, &bd) ? 1 : -1;
+        if (g_rec.state != 1) return;
+        g_rec.stop_age = secs && atof(secs) > 0.0 ? rec_age() + atof(secs) : 0.0;
+        fprintf(stderr, "[RECORD] started at process age %.2f s%s\n", rec_age(), g_rec.stop_age > 0.0 ? " (auto stop)" : ""); fflush(stderr);
+        if (g_rec.overlay != after_overlay) return;
+    }
+    if (g_rec.stop_age > 0.0 && rec_age() >= g_rec.stop_age) { rec_stop(); return; }
+    ID3D11Texture2D_GetDesc(bb, &bd);
+    if (bd.Width != g_rec.w || bd.Height != g_rec.h || bd.Format != g_rec.fmt) { static int warned; if (!warned++) fprintf(stderr, "[RECORD] back buffer changed size/format, frames skipped\n"); return; }
+    cur = g_rec.issued % 3u; ID3D11DeviceContext_CopyResource(s->scanout_context, (ID3D11Resource *)g_rec.st[cur], (ID3D11Resource *)bb); g_rec.issued++;
+    if (g_rec.issued < 3) return;
+    prev = (g_rec.issued - 3u) % 3u;   /* the copy made two frames ago */
+    memset(&m, 0, sizeof m);
+    hr = ID3D11DeviceContext_Map(s->scanout_context, (ID3D11Resource *)g_rec.st[prev], 0, D3D11_MAP_READ, D3D11_MAP_FLAG_DO_NOT_WAIT, &m);
+    if (FAILED(hr)) { g_rec.skipped++; return; }
+    EnterCriticalSection(&g_rec.cs); if (g_rec.nfree) idx = g_rec.freeq[--g_rec.nfree]; LeaveCriticalSection(&g_rec.cs);
+    if (idx < 0) { g_rec.dropped++; ID3D11DeviceContext_Unmap(s->scanout_context, (ID3D11Resource *)g_rec.st[prev], 0); return; }
+    for (y = 0; y < g_rec.h; ++y) memcpy(g_rec.buf[idx] + (size_t)y * g_rec.w * 4u, (const unsigned char *)m.pData + (size_t)y * m.RowPitch, (size_t)g_rec.w * 4u);
+    ID3D11DeviceContext_Unmap(s->scanout_context, (ID3D11Resource *)g_rec.st[prev], 0);
+    if (!g_rec.first_tick) { g_rec.first_tick = GetTickCount64(); fprintf(stderr, "[RECORD] first frame tick=%llu\n", g_rec.first_tick); fflush(stderr); }
+    EnterCriticalSection(&g_rec.cs); g_rec.ready[g_rec.rt] = idx; g_rec.rt = (g_rec.rt + 1) % REC_NBUF; g_rec.rn++; LeaveCriticalSection(&g_rec.cs);
+    SetEvent(g_rec.ev);
+}
+
 static void scanout_present_frame(D3D8DeviceState *s, ID3D11Texture2D *bb)
 {
     D3D11_TEXTURE2D_DESC bd; ID3D11RenderTargetView *ortv = NULL;
     scanout_present_frame_inner(s, bb);
+    rec_frame(s, bb, 0);   /* c404: STE_RECORD, the frame without the overlay */
     ID3D11Texture2D_GetDesc(bb, &bd);
     if (SUCCEEDED(ID3D11Device_CreateRenderTargetView(s->scanout_device, (ID3D11Resource *)bb, NULL, &ortv)) && ortv) {
         ste_overlay_frame(s->scanout_device, ortv, (int)bd.Width, (int)bd.Height);
         ID3D11RenderTargetView_Release(ortv);
     }
+    rec_frame(s, bb, 1);   /* c404: STE_RECORD_OVERLAY=1 */
 }
 
 static DWORD WINAPI d3d8_scanout_thread(void *opaque)
@@ -1009,6 +1137,44 @@ cleanup:
 void d3d8_capture_backbuffer_bmp_public(const char *path)
 {
     d3d8_capture_backbuffer_bmp(path);
+}
+
+/* c401: frame grab for the exe-side keyboard text entry (ste_textentry.c). Copies the rectangle (fx0,fy0)-(fx1,fy1) (fractions of the frame) of the scan-out render texture
+ * (what the screenshots show, before the window blit) into a library-owned RGBA buffer, valid until the next call. Call from the render/frame thread only. Returns 1 on success. */
+static unsigned char *g_grab_buf; static size_t g_grab_cap;
+int d3d8_grab_frame_rgba(float fx0, float fy0, float fx1, float fy1, const unsigned char **px, unsigned *w, unsigned *h)
+{
+    ID3D11Texture2D *src_tex = NULL, *staging = NULL; D3D11_TEXTURE2D_DESC desc; D3D11_MAPPED_SUBRESOURCE mapped;
+    ID3D11Device *dev = g_device_state.d3d11_device; ID3D11DeviceContext *ctx = g_device_state.d3d11_context;
+    unsigned x0, y0, x1, y1, yy; size_t need; int ok = 0;
+    if (g_device_state.scanout_ready && g_device_state.ready_texture) { src_tex = g_device_state.ready_texture; dev = g_device_state.scanout_device; ctx = g_device_state.scanout_context; }
+    else if (g_device_state.render_texture) src_tex = g_device_state.render_texture;
+    if (!src_tex || !dev || !ctx) return 0;
+    ID3D11Texture2D_GetDesc(src_tex, &desc);
+    if (desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM && desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB && desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM) return 0;
+    desc.Usage = D3D11_USAGE_STAGING; desc.BindFlags = 0; desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ; desc.MiscFlags = 0;
+    if (FAILED(ID3D11Device_CreateTexture2D(dev, &desc, NULL, &staging))) return 0;
+    ID3D11DeviceContext_CopyResource(ctx, (ID3D11Resource *)staging, (ID3D11Resource *)src_tex);
+    memset(&mapped, 0, sizeof mapped);
+    if (SUCCEEDED(ID3D11DeviceContext_Map(ctx, (ID3D11Resource *)staging, 0, D3D11_MAP_READ, 0, &mapped))) {
+        x0 = (unsigned)(fx0 * (float)desc.Width); x1 = (unsigned)(fx1 * (float)desc.Width); y0 = (unsigned)(fy0 * (float)desc.Height); y1 = (unsigned)(fy1 * (float)desc.Height);
+        if (x1 > desc.Width) x1 = desc.Width; if (y1 > desc.Height) y1 = desc.Height;
+        if (x1 > x0 + 8 && y1 > y0 + 8) {
+            need = (size_t)(x1 - x0) * (y1 - y0) * 4u;
+            if (need > g_grab_cap) { free(g_grab_buf); g_grab_buf = (unsigned char *)malloc(need); g_grab_cap = g_grab_buf ? need : 0; }
+            if (g_grab_buf) {
+                for (yy = y0; yy < y1; ++yy) {
+                    const unsigned char *s = (const unsigned char *)mapped.pData + (size_t)yy * mapped.RowPitch + (size_t)x0 * 4u; unsigned char *d = g_grab_buf + (size_t)(yy - y0) * (x1 - x0) * 4u;
+                    if (desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM) { unsigned xx; for (xx = 0; xx < x1 - x0; ++xx) { d[xx * 4u] = s[xx * 4u + 2u]; d[xx * 4u + 1u] = s[xx * 4u + 1u]; d[xx * 4u + 2u] = s[xx * 4u]; d[xx * 4u + 3u] = 255u; } }
+                    else memcpy(d, s, (size_t)(x1 - x0) * 4u);
+                }
+                *px = g_grab_buf; *w = x1 - x0; *h = y1 - y0; ok = 1;
+            }
+        }
+        ID3D11DeviceContext_Unmap(ctx, (ID3D11Resource *)staging, 0);
+    }
+    ID3D11Texture2D_Release(staging);
+    return ok;
 }
 
 void d3d8_video_pace(void)

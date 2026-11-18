@@ -177,6 +177,9 @@ void apu_wav_write(const int16_t *samples, int count)
     if (!s_fp || !samples || count <= 0)        /* unlocked fast path */
         return;
     wav_lock();
+#if defined(_WIN32)
+    if (s_fp && s_frames == 0) { fprintf(stderr, "[AUDIO-WAV] first samples tick=%llu (STE_RECORD: audio_offset_s = (video first frame tick - this) / 1000)\n", (unsigned long long)GetTickCount64()); fflush(stderr); }
+#endif
     while (s_fp && count > 0) {
         int n = count > 1024 ? 1024 : count, i;
         if (s_cap && s_frames + (uint64_t)n > s_cap)

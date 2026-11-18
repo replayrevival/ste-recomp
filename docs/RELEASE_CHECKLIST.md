@@ -14,3 +14,10 @@ Never publish or push: Miko publishes.
    - Hand the set to the launcher session.
 4. Docs: RELEASE_ALPHA.md known issues, LAUNCHER_INTERFACE.md, credits.
 5. Publish repo synced locally (author "Replay Revival", no push).
+6. **Trailer / YouTube Short footage (Miko's order, 2026-11-18; launcher session cuts the video with ffmpeg).**
+   - Request and formats: the launcher repo (docs/MEDIA_CLIPS_REQUEST.md). Raw clips go to `release/media/<version>/clips/` (outside any repo) with a `CLIPS.txt` (one row per clip: file, what it shows, resolution, fps, `audio_offset_s`). Clips are NEVER committed to any repo (game imagery in videos is for YouTube, not for git).
+   - Audio: `RECOMP_AUDIO_WAV=<file.wav>` (48 kHz 16-bit stereo, the APU mix handed to the host device; header valid every second). Put `<clip>.wav` next to `<clip>.mkv`; `audio_offset_s` = WAV time of the clip's first video frame (wav_time = video_time + audio_offset_s).
+   - Video: opt-in recorder `STE_RECORD=<path>` (see docs\RECORDING.md): the presented frames (same capture path as the screenshots, no overlay) are buffered and written by a worker thread so the game timing does not change; off by default and free when off.
+   - Scripted showcase runs (pad scripts in `tests\pads\showcase_*.pad.txt`): ultrawide Tokyo flyover at Unlimited; big fight with beams/explosions/hit flashes; Mechagodzilla missiles (a salvo from a few angles, 8-12 s); in-game menu opening/closing over a fight; Xbox vs PlayStation button prompts; 4:3 original vs 21:9 of the SAME scripted moment (same start frame); draw distance original vs unlimited; each new feature of the release (0.1.6: missile trails, keyboard name entry typing a name).
+   - Resolutions: 3440x1440 or 2560x1080 (21:9), 1920x1080 and 3840x2160 where possible.
+   - Send the launcher session a message when the clips are in place.

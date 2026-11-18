@@ -1788,12 +1788,13 @@ static float fog_factor(float coord)
 static void transform_vertex(const Vec4 v[16], OutVertex *o, const float tex_scale[4][2])
 {
     Vec4 pos, d0, d1, t[4];
-    float fogc = 0.0f;
+    float fogc = 0.0f, ptsz = -1.0f;   /* c387: ptsz = vertex-program point size output (oPts.x), -1 = not written */
     if (K.program_mode) {
         VshState s;
         vsh_run(v, &s);
         pos = s.o[0]; d0 = s.o[3]; d1 = s.o[4];
         fogc = (s.written & (1u << 5)) ? s.o[5].v[0] : 0.0f;
+        if (s.written & (1u << 6)) ptsz = s.o[6].v[0];
         /* Without combiner emulation a program that never writes oD0 would
          * modulate every texture by black; treat the colour as unused. */
         if (!(s.written & (1u << 3))) d0.v[0] = d0.v[1] = d0.v[2] = d0.v[3] = 1.0f;
@@ -1861,7 +1862,7 @@ static void transform_vertex(const Vec4 v[16], OutVertex *o, const float tex_sca
         o->tex[i][3] = 1.0f;
     }
     o->fogv[0] = K.program_mode && !g_no_fog ? fog_factor(fogc) : 1.0f;   /* carried to the host VS (flag 0x20) as o.fog */
-    o->fogv[1] = o->fogv[2] = o->fogv[3] = 0.0f;
+    o->fogv[1] = ptsz; o->fogv[2] = o->fogv[3] = 0.0f;   /* c387: fogv[1] carries the per-vertex point size to the point-sprite expansion (not uploaded) */
 }
 
 static OutVertex *g_verts;
@@ -2135,6 +2136,8 @@ static void fsquad_probe(const char *path, uint32_t n, uint32_t prim, float x0, 
 /* Pixel-side state for a Kelvin draw (render states, register combiners, textures, FVF) shared by the CPU and GPU vertex paths. */
 extern void d3d8_set_scissor(int on, int l, int t, int r, int b);
 unsigned g_kelvin_flash_hits;   /* c296: flash-shaped quads drawn (every aspect); the frame ring can auto-save on it (STE_RING_FLASH=1) */
+/* c383: STE_FLASH_NATURAL_OFF=1 turns off the renderer-side automatic ring triggers (flash quads, long point trails) so only an explicit bump from a hook saves the ring (salvo-synced captures). */
+static void kelvin_flash_hit(void) { static int off = -1; if (off < 0) { const char *e = getenv("STE_FLASH_NATURAL_OFF"); off = (e && e[0] == (char)49); } if (!off) g_kelvin_flash_hits++; }
 unsigned g_kelvin_add_draws;   /* c290: in-game additive-blend draws issued so far (the frame ring's auto trigger takes per-frame deltas: heavy fire = many additive draws) */
 static void setup_draw_state(IDirect3DDevice8 *dev, int textured[4], IDirect3DTexture8 *tex[4])
 {
@@ -2826,7 +2829,7 @@ static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
         }
     }
     {   static int rf_init; static uint32_t rf_from, rf_last; if (!rf_init) { const char *e = getenv("STE_RING_FROM_FRAME"); rf_init = 1; rf_from = e ? (uint32_t)atoi(e) : 0; }   /* c327: STE_RING_FROM_FRAME=<n>: from Kelvin frame n on, trigger the frame-ring auto-save (STE_RING_FLASH=1) every 90 frames */
-        if (rf_from && K.frame >= rf_from && (rf_last == 0 || K.frame - rf_last >= 90u)) { rf_last = K.frame; g_kelvin_flash_hits++; } }
+        if (rf_from && K.frame >= rf_from && (rf_last == 0 || K.frame - rf_last >= 90u)) { rf_last = K.frame; kelvin_flash_hit(); } }
     {   if (g_pf_on < 0) { const char *e = getenv("STE_PREFLASH_LOG"); g_pf_on = e && *e && *e != '0'; }
         if (g_pf_on > 0 && count <= 400 && K.frame > 100) {
             Vec4 v[16]; OutVertex o; PfRec *r = &g_pf[g_pf_w++ % 32768u]; float x0 = 1e30f, x1 = -1e30f, y0 = 1e30f, y1 = -1e30f, z0 = 1e30f; uint32_t nv = count < 24 ? count : 24, i;
@@ -3071,7 +3074,7 @@ static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
             {   float w = bx1 - bx0, h = by1 - by0, cx = 0.5f * (bx0 + bx1), cy = 0.5f * (by0 + by1);
                 if (!canon2d && full_vp && w >= 300.0f && w < 1e4f && h >= 225.0f && h < 1e4f && fabsf(w / h - 4.0f / 3.0f) < 0.05f && fabsf(cx - 320.5f) < 6.0f && fabsf(cy - 240.5f) < 6.0f) {
                     float k = vc->logical_w / 640.0f;
-                    g_kelvin_flash_hits++; preflash_dump();
+                    kelvin_flash_hit(); preflash_dump();
                     if (!off && vc->aspect == D3D8V_ASPECT_WIDE && vc->logical_w > 640.5f) for (uint32_t i = 0; i < count; ++i) { src[i].x = cx + (src[i].x - cx) * k; src[i].y = cy + (src[i].y - cy) * k; }
                 }
             }
@@ -3100,10 +3103,14 @@ static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
             s = den > 1e-9f ? 480.0f / sqrtf(den) : 8.0f;
             s *= g_ps_mul; if (s < 1.0f) s = 1.0f; if (s > 62.0f * g_ps_mul) s = 62.0f * g_ps_mul;
             { float h = 0.5f * s; OutVertex v[4]; int q; static const float u[4] = { 0, 1, 0, 1 }, vv[4] = { 0, 0, 1, 1 }, dx[4] = { -1, 1, -1, 1 }, dy[4] = { -1, -1, 1, 1 };
-              for (q = 0; q < 4; ++q) { v[q] = c; v[q].x = c.x + dx[q] * h; v[q].y = c.y + dy[q] * h; v[q].tex[0][0] = u[q]; v[q].tex[0][1] = vv[q]; }
+              for (q = 0; q < 4; ++q) { v[q] = c; v[q].x = c.x + dx[q] * h; v[q].y = c.y + dy[q] * h; { int ts; for (ts = 0; ts < 4; ++ts) { v[q].tex[ts][0] = u[q]; v[q].tex[ts][1] = vv[q]; } }   /* c397: NV2A generates the point coordinate for every texture stage; this title samples its sprite texture in stage 3 (combiner reads TEXTURE3) */ }
               dst[n++] = v[0]; dst[n++] = v[1]; dst[n++] = v[2]; dst[n++] = v[1]; dst[n++] = v[3]; dst[n++] = v[2]; }
-            if (i == 0 && count >= 8) { static uint32_t first_ps, last_ring; if (!first_ps) first_ps = K.frame; if (K.frame - first_ps > 2150u && K.frame - first_ps < 3300u && (last_ring == 0 || K.frame - last_ring > 150u)) { last_ring = K.frame; g_kelvin_flash_hits++; } }   /* a long point trail (a missile launch) also triggers the frame-ring auto-save (STE_RING_FLASH=1) */
-            if (i == 0 && count >= 6) { static uint32_t big_n, big_last; if (big_n < 80) { big_n++; fprintf(stderr, "[PSBIG] frame=%u points=%u w0=%.1f size0=%.1f\n", K.frame, count, (double)w, (double)s); } if (big_last == 0 || K.frame - big_last > 150u) { big_last = K.frame; g_kelvin_flash_hits++; } }
+            if (i == 0 && count >= 8) { static uint32_t first_ps, last_ring; if (!first_ps) first_ps = K.frame; if (K.frame - first_ps > 2150u && K.frame - first_ps < 3300u && (last_ring == 0 || K.frame - last_ring > 150u)) { last_ring = K.frame; kelvin_flash_hit(); } }   /* a long point trail (a missile launch) also triggers the frame-ring auto-save (STE_RING_FLASH=1) */
+            if (i == 0 && count >= 6) { static uint32_t big_n, big_last; if (big_n < 80) { big_n++; fprintf(stderr, "[PSBIG] frame=%u points=%u w0=%.1f size0=%.1f\n", K.frame, count, (double)w, (double)s); } if (big_last == 0 || K.frame - big_last > 150u) { big_last = K.frame; kelvin_flash_hit(); } }
+            if (i == 0 && count >= 30) {   /* c388: STE_RING_TRAIL=1 saves the frame ring 20 frames after a >=30-point trail first shows, then >150 frames apart (salvo-synced capture; use with STE_FLASH_NATURAL_OFF=1) */
+                static int on = -1; static uint32_t t0, tl; if (on < 0) { const char *e = getenv("STE_RING_TRAIL"); on = (e && e[0] == (char)49); }
+                if (on) { if (!t0) t0 = K.frame; if (K.frame - t0 >= 20u && (tl == 0 || K.frame - tl > 150u)) { tl = K.frame; g_kelvin_flash_hits++; fprintf(stderr, "[RINGTRAIL] frame=%u\n", K.frame); } }
+            }
             if (g_ps_logged < 6 && i == 0) { g_ps_logged++; fprintf(stderr, "[POINTSPRITE] frame=%u points=%u first: w=%.1f size=%.1f px (A=%g B=%g C=%g)\n", K.frame, count, (double)w, (double)s, (double)a, (double)b, (double)k); }
         }
         draw = dst;
