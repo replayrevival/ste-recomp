@@ -1,0 +1,709 @@
+# FUNCTION_NAMES_FROM_PS2.tsv (2026-11-19): Xbox script-native descriptors of default.xbe joined to the PS2 game's script-native table.
+# Columns: xbox_descriptor_va = address of the native's descriptor record in default.xbe (NOT the handler: the handler table is not located yet), xbox_native_id, name (the game's own native name, a string in default.xbe),
+# ps2_class_method (the same game string on the PS2 side), ps2_body_address (address of the native's body in the PS2 SLUS_208.09; a fact about the PS2 binary), confidence, method.
+# Source of the PS2 side: ANILORAK's Save the Earth modding pack, program-map/script-natives.tsv (used locally; credited in docs\CREDITS_AND_SOURCES.md). Only the game's own native names and PS2 addresses are kept here; his invented function
+# names (program-map/functions.tsv) and any of his text/code are NOT copied. Made by tools\mods\map_ps2_natives.py. Native ids are the same numbers on both platforms (e.g. startRage = 115 = 0x73).
+xbox_descriptor_va	xbox_native_id	name	ps2_class_method	ps2_body_address	confidence	method
+002E10B0	18	pauseGame	DamApp.pauseGame	00178FF0	high (name and id equal)	script-native name+id
+002E10E8	16	setGamma	DamApp.setGamma	0017C6F8	high (name and id equal)	script-native name+id
+002E1104	15	dumpResources	DamApp.dumpResources	0017C6F0	high (name and id equal)	script-native name+id
+002E1188	11	setDebugMessage	DamApp.setDebugMessage	0017C530	high (name and id equal)	script-native name+id
+002E11A8	10	writeDebugSettings	DamApp.writeDebugSettings	0017C528	high (name and id equal)	script-native name+id
+002E11CC	9	setDebugSetting	DamApp.setDebugSetting	0017C520	high (name and id equal)	script-native name+id
+002E1224	6	fxStats	DamApp.fxStats	0017C4C0	high (name and id equal)	script-native name+id
+002E12B4	1	screenCap	DamApp.screenCap	0017C380	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+002E12D0	0	reboot	DamApp.reboot	0017C350	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+002E20C8	2	toInt	number.toInt	002A6C20	high (name and id equal)	script-native name+id
+002E2138	13	rightTrim	string.rightTrim	002A5DE0	high (name and id equal)	script-native name+id
+002E2154	12	leftTrim	string.leftTrim	0016BE18	high (name and id equal)	script-native name+id
+002E21B8	8	setAt	string.setAt	002A5A10	high (name and id equal)	script-native name+id
+002E2248	2	makeUpper	string.makeUpper	00171708	high (name and id equal)	script-native name+id
+002E2264	1	makeLower	string.makeLower	0016FAC8	high (name and id equal)	script-native name+id
+002E2308	11	set	Point3.set	002A4CE8	high (name and id equal)	script-native name+id
+002E2334	9	fastNormalize	Point3.fastNormalize	001438F0	high (name and id equal)	script-native name+id
+002E2354	8	normalize	Point3.normalize	002A4BE8	high (name and id equal)	script-native name+id
+002E23C4	4	scale	Point3.scale	002A4A38	high (name and id equal)	script-native name+id
+002E24E8	10	set255	Color.set255	002A39A0	high (name and id equal)	script-native name+id
+002E2500	9	setAlpha	Color.setAlpha	002A3960	high (name and id equal)	script-native name+id
+002E251C	8	setBlue	Color.setBlue	002A3920	high (name and id equal)	script-native name+id
+002E2534	7	setGreen	Color.setGreen	002A38E0	high (name and id equal)	script-native name+id
+002E2550	6	setRed	Color.setRed	002A38A0	high (name and id equal)	script-native name+id
+002E9A60	3	increment	color_array.increment	00143A50	medium (name and id equal, 8 PS2 candidates)	script-native name+id
+002E9A7C	2	resize	color_array.resize	00143A50	medium (name and id equal, 8 PS2 candidates)	script-native name+id
+002ED830	56	setCausticScale	Railer.setCausticScale	00480188	high (name and id equal)	script-native name+id
+002ED850	55	setCausticColor	Railer.setCausticColor	00480110	high (name and id equal)	script-native name+id
+002ED870	54	applyCaustics	Railer.applyCaustics	00446190	high (name and id equal)	script-native name+id
+002ED890	53	restart	Railer.restart	004800E0	high (name and id equal)	script-native name+id
+002ED8A8	52	enableControls	Railer.enableControls	00450B50	high (name and id equal)	script-native name+id
+002ED944	46	queueHudMessage	Railer.queueHudMessage	0044AE50	high (name and id equal)	script-native name+id
+002ED964	45	hudMessage	Railer.hudMessage	0047FE68	high (name and id equal)	script-native name+id
+002ED980	44	removeHudString	Railer.removeHudString	0047FE28	high (name and id equal)	script-native name+id
+002ED9A0	43	addHudString	Railer.addHudString	0047FDF8	high (name and id equal)	script-native name+id
+002ED9C0	42	addTimeTrigger	Railer.addTimeTrigger	0044AF70	high (name and id equal)	script-native name+id
+002EDA04	40	createAIGroup	Railer.createAIGroup	0044B120	high (name and id equal)	script-native name+id
+002EDA24	39	destroyGroupOfObjects	Railer.destroyGroupOfObjects	0044B260	high (name and id equal)	script-native name+id
+002EDA4C	38	createGroupOfObjects	Railer.createGroupOfObjects	0044B2A0	high (name and id equal)	script-native name+id
+002EDA74	37	createRoutedObject	Railer.createRoutedObject	0044B570	high (name and id equal)	script-native name+id
+002EDA98	36	setScrapingMask	Railer.setScrapingMask	0047FC98	high (name and id equal)	script-native name+id
+002EDAB8	35	setDebrisState	Railer.setDebrisState	00447B20	high (name and id equal)	script-native name+id
+002EDAD8	34	setDebrisDef	Railer.setDebrisDef	00447A60	high (name and id equal)	script-native name+id
+002EDAF8	33	setMaxFracturedEscapeVelocity	Railer.setMaxFracturedEscapeVelocity	0047FC38	high (name and id equal)	script-native name+id
+002EDB28	32	setLightAmbient	Railer.setLightAmbient	00449DC0	high (name and id equal)	script-native name+id
+002EDB48	31	setLightColor	Railer.setLightColor	00449F40	high (name and id equal)	script-native name+id
+002EDB68	30	setLightDir	Railer.setLightDir	0044A0C0	high (name and id equal)	script-native name+id
+002EDC14	24	disableEmitterLimits	Railer.disableEmitterLimits	0047F9B8	high (name and id equal)	script-native name+id
+002EDC3C	23	enableEmitterLimits	Railer.enableEmitterLimits	0047F9A8	high (name and id equal)	script-native name+id
+002EDC60	22	disableParticleLimits	Railer.disableParticleLimits	0047F998	high (name and id equal)	script-native name+id
+002EDC88	21	enableParticleLimits	Railer.enableParticleLimits	0047F988	high (name and id equal)	script-native name+id
+002EDCB0	20	disableFXLimits	Railer.disableFXLimits	0047F970	high (name and id equal)	script-native name+id
+002EDCD0	19	enableFXLimits	Railer.enableFXLimits	0047F958	high (name and id equal)	script-native name+id
+002EDCF0	18	setSkyFogEnable	Railer.setSkyFogEnable	004497C0	high (name and id equal)	script-native name+id
+002EDD10	17	getFogMode	Railer.getFogMode	00449540	high (name and id equal)	script-native name+id
+002EDD2C	16	setFogMode	Railer.setFogMode	00449650	high (name and id equal)	script-native name+id
+002EDD48	15	setCameraPlanes	Railer.setCameraPlanes	00449470	high (name and id equal)	script-native name+id
+002EDD68	14	setCameraExpansion	Railer.setCameraExpansion	00445910	high (name and id equal)	script-native name+id
+002EDD8C	13	setCameraDirection	Railer.setCameraDirection	00445910	high (name and id equal)	script-native name+id
+002EDDB0	12	setCameraOffset	Railer.setCameraOffset	00445910	high (name and id equal)	script-native name+id
+002EDDD0	11	setScriptRoll	Railer.setScriptRoll	00445910	high (name and id equal)	script-native name+id
+002EDDF0	10	setLookAheadTime	Railer.setLookAheadTime	00445910	high (name and id equal)	script-native name+id
+002EDE14	9	setDashDistance	Railer.setDashDistance	0047F210	high (name and id equal)	script-native name+id
+002EDE34	8	setPathVelocity	Railer.setPathVelocity	00445910	high (name and id equal)	script-native name+id
+002EDE54	7	setNextSegment	Railer.setNextSegment	00447570	high (name and id equal)	script-native name+id
+002EDE74	6	setInitialSegment	Railer.setInitialSegment	004474D0	high (name and id equal)	script-native name+id
+002EDEB4	4	preloadFile	Railer.preloadFile	0044A6F0	high (name and id equal)	script-native name+id
+002EDED0	3	loadSkyBundle	Railer.loadSkyBundle	00465310	high (name and id equal)	script-native name+id
+002EDEF0	2	loadBundle	Railer.loadBundle	0047F118	high (name and id equal)	script-native name+id
+002EDF0C	1	loadLevel	Railer.loadLevel	00447690	high (name and id equal)	script-native name+id
+002EDF28	0	loadPlayer	Railer.loadPlayer	0016F7F8	high (name and id equal)	script-native name+id
+002EDF88	4	setFOV	CameraMgr@rail.setFOV	00450460	high (name and id equal)	script-native name+id
+002EDFA0	3	setTrackCamParms	CameraMgr@rail.setTrackCamParms	0044FA60	high (name and id equal)	script-native name+id
+002EDFC4	2	setPrevCamMode	CameraMgr@game.setPrevCamMode	00355090	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+002EDFE4	1	setCamMode	CameraMgr@game.setCamMode	003141E0	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+002EE000	0	loadCameras	CameraMgr@game.loadCameras	00355BC0	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+002EE034	10	setDashAcceleration	Player.setDashAcceleration	0047EA88	high (name and id equal)	script-native name+id
+002EE058	9	setDashVelocity	Player.setDashVelocity	0047EA68	high (name and id equal)	script-native name+id
+002EE078	8	setOffset	Player.setOffset	00455560	high (name and id equal)	script-native name+id
+002EE0E8	3	getScoreInfo	Player.getScoreInfo	00477960	high (name and id equal)	script-native name+id
+002EE174	5	setDuration	Object.setDuration	00454D30	high (name and id equal)	script-native name+id
+002EE190	4	setPingPong	Object.setPingPong	00454D30	high (name and id equal)	script-native name+id
+002EE1AC	3	setLooping	Object.setLooping	00454D30	high (name and id equal)	script-native name+id
+002EE1C8	2	pauseAnim	Object.pauseAnim	00454D30	high (name and id equal)	script-native name+id
+002EE250	4	deActivateChunk	Segment.deActivateChunk	0044C8F0	high (name and id equal)	script-native name+id
+002EE270	3	activateChunk	Segment.activateChunk	0044C900	high (name and id equal)	script-native name+id
+002EE290	2	addScriptTriggerEx	Segment.addScriptTriggerEx	00143A00	high (name and id equal)	script-native name+id
+002EE2B4	1	addScriptTrigger	Segment.addScriptTrigger	00143A00	high (name and id equal)	script-native name+id
+002EE2D8	0	addChunkRenderTrigger	Segment.addChunkRenderTrigger	00143A00	high (name and id equal)	script-native name+id
+002EE31C	18	setFunctionClass	AIGroupDesc.setFunctionClass	0047DA20	high (name and id equal)	script-native name+id
+002EE340	17	setFormFlags	AIGroupDesc.setFormFlags	0047D9E8	high (name and id equal)	script-native name+id
+002EE360	16	setFormBlendTime	AIGroupDesc.setFormBlendTime	0047D9B8	high (name and id equal)	script-native name+id
+002EE384	15	setFormId	AIGroupDesc.setFormId	0047D980	high (name and id equal)	script-native name+id
+002EE3A0	14	setNForms	AIGroupDesc.setNForms	0047D960	high (name and id equal)	script-native name+id
+002EE3BC	13	setExplodeDef	AIGroupDesc.setExplodeDef	002785A0	high (name and id equal)	script-native name+id
+002EE3DC	12	setWeapon	AIGroupDesc.setWeapon	0046B8F0	high (name and id equal)	script-native name+id
+002EE3F8	11	setAIClass	AIGroupDesc.setAIClass	00454A20	high (name and id equal)	script-native name+id
+002EE414	10	setScoreType	AIGroupDesc.setScoreType	0047D880	high (name and id equal)	script-native name+id
+002EE434	9	setFetalDistance	AIGroupDesc.setFetalDistance	0047D868	high (name and id equal)	script-native name+id
+002EE458	8	setRouteTime	AIGroupDesc.setRouteTime	0047D850	high (name and id equal)	script-native name+id
+002EE478	7	setCollisionOffset	AIGroupDesc.setCollisionOffset	0047D818	high (name and id equal)	script-native name+id
+002EE49C	6	setCollisionRadius	AIGroupDesc.setCollisionRadius	0047D800	high (name and id equal)	script-native name+id
+002EE4C0	5	setTurnRate	AIGroupDesc.setTurnRate	0047D7E8	high (name and id equal)	script-native name+id
+002EE4DC	4	setTravelRate	AIGroupDesc.setTravelRate	0047D7D0	high (name and id equal)	script-native name+id
+002EE4FC	3	setPattern	AIGroupDesc.setPattern	0047D7B0	high (name and id equal)	script-native name+id
+002EE518	2	setNoElements	AIGroupDesc.setNoElements	0047D790	high (name and id equal)	script-native name+id
+002EE538	1	setStyleFlags	AIGroupDesc.setStyleFlags	0047D770	high (name and id equal)	script-native name+id
+002EE558	0	setTemplateName	AIGroupDesc.setTemplateName	0047D730	high (name and id equal)	script-native name+id
+002EE598	16	clearFlags	AIWeaponDesc.clearFlags	0047D370	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+002EE5B4	15	setFlags	AIWeaponDesc.setFlags	0047D348	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+002EE5D0	14	setType	AIWeaponDesc.setType	0047D328	high (name and id equal)	script-native name+id
+002EE5E8	13	setShockwave	AIWeaponDesc.setShockwave	0047D2B0	high (name and id equal)	script-native name+id
+002EE608	12	setImpactDef	AIWeaponDesc.setImpactDef	002785A0	high (name and id equal)	script-native name+id
+002EE628	11	setFireDef	AIWeaponDesc.setFireDef	002785A0	high (name and id equal)	script-native name+id
+002EE644	10	setChargeDef	AIWeaponDesc.setChargeDef	002785A0	high (name and id equal)	script-native name+id
+002EE664	9	setBeamRadius	AIWeaponDesc.setBeamRadius	0047D188	high (name and id equal)	script-native name+id
+002EE684	8	setDir	AIWeaponDesc.setDir	0047D168	high (name and id equal)	script-native name+id
+002EE69C	7	setMobility	AIWeaponDesc.setMobility	0047D150	high (name and id equal)	script-native name+id
+002EE6C8	5	setVelocityDPS	AIWeaponDesc.setVelocityDPS	0047D120	high (name and id equal)	script-native name+id
+002EE6E8	4	setChargeTime	AIWeaponDesc.setChargeTime	0047D108	high (name and id equal)	script-native name+id
+002EE708	3	setFiringOffset	AIWeaponDesc.setFiringOffset	0047D0F0	high (name and id equal)	script-native name+id
+002EE728	2	setRefireDelay	AIWeaponDesc.setRefireDelay	0047D0D8	high (name and id equal)	script-native name+id
+002EE748	1	setImpactDamage	AIWeaponDesc.setImpactDamage	0047D0C0	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+002EE768	0	setWeaponName	AIWeaponDesc.setWeaponName	0047D080	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+002EE7A4	0	addPoint	Formation.addPoint	0047CE30	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+002EE7FC	19	setAmbientLighting	RailBossTarget.setAmbientLighting	0047C9F0	high (name and id equal)	script-native name+id
+002EE820	18	setShockwaveDamage	RailBossTarget.setShockwaveDamage	0047C9C8	high (name and id equal)	script-native name+id
+002EE844	17	setExplosionEffect	RailBossTarget.setExplosionEffect	00482CF0	high (name and id equal)	script-native name+id
+002EE868	16	setHitEffect	RailBossTarget.setHitEffect	00482DA0	high (name and id equal)	script-native name+id
+002EE8C4	13	clearBossFlags	RailBossTarget.clearBossFlags	0047C8A8	high (name and id equal)	script-native name+id
+002EE8E4	12	setBossFlags	RailBossTarget.setBossFlags	0047C850	high (name and id equal)	script-native name+id
+002EE914	10	setHitPoints	RailBossTarget.setHitPoints	0047C808	high (name and id equal)	script-native name+id
+002EE934	9	setRadius	RailBossTarget.setRadius	00482E10	high (name and id equal)	script-native name+id
+002EE950	8	clearObjectFlags	RailBossTarget.clearObjectFlags	00482E40	high (name and id equal)	script-native name+id
+002EE974	7	setObjectFlags	RailBossTarget.setObjectFlags	00482E60	high (name and id equal)	script-native name+id
+002EE994	6	setGeneratorWeapon	RailBossTarget.setGeneratorWeapon	00482E80	high (name and id equal)	script-native name+id
+002EEA00	2	setState	RailBossTarget.setState	00482F50	high (name and id equal)	script-native name+id
+002EEA1C	1	setAnimSpeed	RailBossTarget.setAnimSpeed	00482F30	high (name and id equal)	script-native name+id
+002EEA5C	33	ceaseFiringWeapon	RailBoss.ceaseFiringWeapon	00483B40	high (name and id equal)	script-native name+id
+002EEA80	32	fireWeapon	RailBoss.fireWeapon	00483C00	high (name and id equal)	script-native name+id
+002EEA9C	31	attachWeapon	RailBoss.attachWeapon	00483C70	high (name and id equal)	script-native name+id
+002EEABC	30	stopEffect	RailBoss.stopEffect	00483F80	high (name and id equal)	script-native name+id
+002EEAD8	29	startEffect	RailBoss.startEffect	00484030	high (name and id equal)	script-native name+id
+002EEAF4	28	attachEffect	RailBoss.attachEffect	004840E0	high (name and id equal)	script-native name+id
+002EEB74	24	removeTarget	RailBoss.removeTarget	00484510	high (name and id equal)	script-native name+id
+002EEBB0	22	stopSound	RailBoss.stopSound	004850E0	high (name and id equal)	script-native name+id
+002EEBCC	21	startSound	RailBoss.startSound	004851C0	high (name and id equal)	script-native name+id
+002EEBE8	20	attachSound	RailBoss.attachSound	004852C0	high (name and id equal)	script-native name+id
+002EEC24	17	setHealthBar	RailBoss.setHealthBar	00485500	high (name and id equal)	script-native name+id
+002EECF8	9	setSequence	RailBoss.setSequence	00486400	high (name and id equal)	script-native name+id
+002EED14	8	addSequence	RailBoss.addSequence	00486EE0	high (name and id equal)	script-native name+id
+002EED30	7	createMode	RailBoss.createMode	004871F0	high (name and id equal)	script-native name+id
+002EED4C	6	loadShape	RailBoss.loadShape	00487340	high (name and id equal)	script-native name+id
+002EED68	5	loadSkinnedShape	RailBoss.loadSkinnedShape	00487410	high (name and id equal)	script-native name+id
+002EEDB4	2	setSeekOffset	RailBoss.setSeekOffset	0047B830	high (name and id equal)	script-native name+id
+002EEE1C	1	setPause	RailHud.setPause	0016F7F8	high (name and id equal)	script-native name+id
+002EEE38	0	setSummary	RailHud.setSummary	0016F7F8	high (name and id equal)	script-native name+id
+002EEE70	9	setParent	PropertySet.setParent	0047B3B0	high (name and id equal)	script-native name+id
+002EEEE8	5	findStringProp	PropertySet.findStringProp	0047B330	high (name and id equal)	script-native name+id
+002EEF08	4	findFloatProp	PropertySet.findFloatProp	0047B328	high (name and id equal)	script-native name+id
+002EEF28	3	findIntProp	PropertySet.findIntProp	0047B320	high (name and id equal)	script-native name+id
+002EEF44	2	setStringProp	PropertySet.setStringProp	0047B310	high (name and id equal)	script-native name+id
+002EEF64	1	setFloatProp	PropertySet.setFloatProp	0047B300	high (name and id equal)	script-native name+id
+002EEF84	0	setIntProp	PropertySet.setIntProp	0047B2F0	high (name and id equal)	script-native name+id
+002F2754	7	setFloat	ShellEvent.setFloat	002F2CB0	high (name and id equal)	script-native name+id
+002F2770	6	setInt	ShellEvent.setInt	002F2CC0	high (name and id equal)	script-native name+id
+002F2788	5	setController	ShellEvent.setController	002F2CE0	high (name and id equal)	script-native name+id
+002F27A8	4	setId	ShellEvent.setId	002F2D00	high (name and id equal)	script-native name+id
+002F2850	66	removeController			none	ambiguous name
+002F29A8	56	lockProfiles	ShellScript.lockProfiles	002F13B0	medium (name equal, id differs: PS2 57)	script-native name
+002F2B38	44	bootupCheck	ShellScript.bootupCheck	002F19A0	high (name and id equal)	script-native name+id
+002F2B54	43	informAutoSave	ShellScript.informAutoSave	002F19E0	high (name and id equal)	script-native name+id
+002F2B74	42	checkStorage	ShellScript.checkStorage	002F1A20	high (name and id equal)	script-native name+id
+002F2BB4	40	writeGlobalStorage	ShellScript.writeGlobalStorage	002F1A80	high (name and id equal)	script-native name+id
+002F2BD8	39	setGlobalStorage	ShellScript.setGlobalStorage	002F1AE0	high (name and id equal)	script-native name+id
+002F2C40	36	writeStorage	ShellScript.writeStorage	002F1C00	high (name and id equal)	script-native name+id
+002F2C60	35	setStorage	ShellScript.setStorage	002F1C70	high (name and id equal)	script-native name+id
+002F2CB4	32	removeNetworkRef	ShellScript.removeNetworkRef	002F1D90	high (name and id equal)	script-native name+id
+002F2CD8	31	addNetworkRef	ShellScript.addNetworkRef	002F1DC0	high (name and id equal)	script-native name+id
+002F2D58	27	launchGame	ShellScript.launchGame	002F1EE0	high (name and id equal)	script-native name+id
+002F2DD4	23	skipPlayerIntro	ShellScript.skipPlayerIntro	002F2270	high (name and id equal)	script-native name+id
+002F2EB4	16	screenFinished	ShellScript.screenFinished	002F2530	high (name and id equal)	script-native name+id
+002F2ED4	15	createGame	ShellScript.createGame	002F2580	high (name and id equal)	script-native name+id
+002F2F5C	8	setFocus	ShellScript.setFocus	002F28C0	high (name and id equal)	script-native name+id
+002F2FD4	4	setCameraMode	ShellScript.setCameraMode	002F29D0	high (name and id equal)	script-native name+id
+002F3084	48	setPulse	ShellObject.setPulse	002EF8D0	high (name and id equal)	script-native name+id
+002F30A0	47	setFunction	ShellObject.setFunction	002EFD90	high (name and id equal)	script-native name+id
+002F30BC	46	updateTree	ShellObject.updateTree	002EFDE0	high (name and id equal)	script-native name+id
+002F30D8	45	update	ShellObject.update	002EFE10	high (name and id equal)	script-native name+id
+002F3164	40	setIdentity	ShellObject.setIdentity	002F02F0	high (name and id equal)	script-native name+id
+002F319C	38	setRow	ShellObject.setRow	002EFFD0	high (name and id equal)	script-native name+id
+002F31CC	36	#			none	no PS2 row with this name
+002F31DC	35	roll	ShellObject.roll	002F0300	high (name and id equal)	script-native name+id
+002F31F4	34	pitch	ShellObject.pitch	002F0310	high (name and id equal)	script-native name+id
+002F320C	33	yaw	ShellObject.yaw	002F0320	high (name and id equal)	script-native name+id
+002F3220	32	rotateZ	ShellObject.rotateZ	002F0380	high (name and id equal)	script-native name+id
+002F3238	31	rotateY	ShellObject.rotateY	002F0390	high (name and id equal)	script-native name+id
+002F3250	30	rotateX	ShellObject.rotateX	002F03A0	high (name and id equal)	script-native name+id
+002F3268	29	rotateAxis	ShellObject.rotateAxis	002F0330	high (name and id equal)	script-native name+id
+002F3284	28	setTreeColor	ShellObject.setTreeColor	002F03B0	high (name and id equal)	script-native name+id
+002F32A4	27	setScale	ShellObject.setScale	002F03F0	high (name and id equal)	script-native name+id
+002F32DC	25	setPositionXYZ	ShellObject.setPositionXYZ	002F0480	high (name and id equal)	script-native name+id
+002F32FC	24	setPosition	ShellObject.setPosition	002F04B0	high (name and id equal)	script-native name+id
+002F334C	21	setFade	ShellObject.setFade	002F0540	high (name and id equal)	script-native name+id
+002F33A0	18	addChild	ShellObject.addChild	002F0720	high (name and id equal)	script-native name+id
+002F341C	13	setName	ShellObject.setName	002F0870	high (name and id equal)	script-native name+id
+002F3470	10	deleteObject	ShellObject.deleteObject	002EFE50	high (name and id equal)	script-native name+id
+002F34C8	7	showChildren	ShellObject.showChildren	002F09B0	high (name and id equal)	script-native name+id
+002F34E8	6	hideChildren	ShellObject.hideChildren	002F09E0	high (name and id equal)	script-native name+id
+002F3508	5	hideObject	ShellObject.hideObject	002F0A10	high (name and id equal)	script-native name+id
+002F3524	4	showObject	ShellObject.showObject	002F0A20	high (name and id equal)	script-native name+id
+002F3568	1	nullify	ShellObject.nullify	002F0AC0	high (name and id equal)	script-native name+id
+002F35C0	51	2			none	no PS2 row with this name
+002F37A4	59	setJustifyY	ShellText.setJustifyY	002EEBF0	high (name and id equal)	script-native name+id
+002F37C0	58	setJustifyX	ShellText.setJustifyX	002EEC60	high (name and id equal)	script-native name+id
+002F3850	53	setColor	ShellText.setColor	002EEEB0	high (name and id equal)	script-native name+id
+002F386C	52	setFont	ShellText.setFont	002EEDD0	high (name and id equal)	script-native name+id
+002F3884	51	2			none	no PS2 row with this name
+002F38A4	49	setText	ShellText.setText	002EEF90	high (name and id equal)	script-native name+id
+002F38D8	64	setVideo	ShellQuad.setVideo	002EDF50	high (name and id equal)	script-native name+id
+002F390C	62	=			none	no PS2 row with this name
+002F391C	61	pause	ShellQuad.pause	002EE040	high (name and id equal)	script-native name+id
+002F3934	60	play	ShellQuad.play	002EE050	high (name and id equal)	script-native name+id
+002F394C	59	loop	ShellQuad.loop	002EE060	high (name and id equal)	script-native name+id
+002F3974	57	8			none	no PS2 row with this name
+002F39E8	52	copyTexture	ShellQuad.copyTexture	002EE250	high (name and id equal)	script-native name+id
+002F3A20	50	resetTexture	ShellQuad.resetTexture	002EE260	high (name and id equal)	script-native name+id
+002F3A40	49	setTexture	ShellQuad.setTexture	002EE2A0	high (name and id equal)	script-native name+id
+002F3ABC	67	clearAttributes	ShellListBox.clearAttributes	002ED170	high (name and id equal)	script-native name+id
+002F3ADC	66	setAttributes	ShellListBox.setAttributes	002ED190	high (name and id equal)	script-native name+id
+002F3AFC	65	setHighlightPulse	ShellListBox.setHighlightPulse	002ED0F0	high (name and id equal)	script-native name+id
+002F3B20	64	showAll	ShellListBox.showAll	002ED1B0	high (name and id equal)	script-native name+id
+002F3B38	63	hideAll	ShellListBox.hideAll	002ED230	high (name and id equal)	script-native name+id
+002F3B60	61	<			none	no PS2 row with this name
+002F3B8C	59	deactivate	ShellListBox.deactivate	002ED300	high (name and id equal)	script-native name+id
+002F3BA8	58	activate	ShellListBox.activate	002ED330	high (name and id equal)	script-native name+id
+002F3BE0	56	enableItem	ShellListBox.enableItem	002ED470	high (name and id equal)	script-native name+id
+002F3C4C	52	selectItem	ShellListBox.selectItem	002ED660	high (name and id equal)	script-native name+id
+002F3C68	51	incrementSelection	ShellListBox.incrementSelection	002ED6F0	high (name and id equal)	script-native name+id
+002F3C8C	50	setSelection	ShellListBox.setSelection	002ED790	high (name and id equal)	script-native name+id
+002F3D08	63	setMaskColor	ShellSlider.setMaskColor	002EB340	high (name and id equal)	script-native name+id
+002F3D48	61	setThumbColor	ShellSlider.setThumbColor	002EB3F0	high (name and id equal)	script-native name+id
+002F3D8C	59	setBackgroundColor	ShellSlider.setBackgroundColor	002EB4A0	high (name and id equal)	script-native name+id
+002F3DCC	57	setBarColor	ShellSlider.setBarColor	002EB540	high (name and id equal)	script-native name+id
+002F3DE8	56	setPercentage	ShellSlider.setPercentage	002EB6A0	high (name and id equal)	script-native name+id
+002F3E08	55	setRange	ShellSlider.setRange	002EB700	high (name and id equal)	script-native name+id
+002F3E24	54	setValue	ShellSlider.setValue	002EB710	high (name and id equal)	script-native name+id
+002F3E60	52	getRange	ShellSlider.getRange	002EB750	high (name and id equal)	script-native name+id
+002F3E7C	51	decrement	ShellSlider.decrement	002EB580	high (name and id equal)	script-native name+id
+002F3E98	50	1			none	no PS2 row with this name
+002F3EE0	86	setTextVertBias	ShellRect.setTextVertBias	002EC6E0	high (name and id equal)	script-native name+id
+002F3F00	85	setTextAtTop	ShellRect.setTextAtTop	002EC6F0	high (name and id equal)	script-native name+id
+002F3F20	84	setTextMargin	ShellRect.setTextMargin	002EC740	high (name and id equal)	script-native name+id
+002F3F40	83	setCornerTexture	ShellRect.setCornerTexture	002EC750	high (name and id equal)	script-native name+id
+002F3F64	82	setSideTexture	ShellRect.setSideTexture	002EC790	high (name and id equal)	script-native name+id
+002F3F84	81	setBkgdTexture	ShellRect.setBkgdTexture	002EC7D0	high (name and id equal)	script-native name+id
+002F3FA4	80	setBorderColor	ShellRect.setBorderColor	002EC810	high (name and id equal)	script-native name+id
+002F3FC4	79	setBkgdColor	ShellRect.setBkgdColor	002EC850	high (name and id equal)	script-native name+id
+002F3FE4	78	setBorderWidth	ShellRect.setBorderWidth	002EC890	high (name and id equal)	script-native name+id
+002F4004	77	setWidth	ShellRect.setWidth	002EC8A0	high (name and id equal)	script-native name+id
+002F4020	76	setHeight	ShellRect.setHeight	002EC8F0	high (name and id equal)	script-native name+id
+002F4110	88	scrollY	ShellScrolledRect.scrollY	002EC400	high (name and id equal)	script-native name+id
+002F4128	87	scrollX	ShellScrolledRect.scrollX	002EC410	high (name and id equal)	script-native name+id
+002F41B0	50	setRowHeight	ShellTable.setRowHeight	002ECDA0	high (name and id equal)	script-native name+id
+002F4230	94	]			none	no PS2 row with this name
+002F4240	93	\			none	no PS2 row with this name
+002F4274	91	setAddedSeperation	ShellSpinner.setAddedSeperation	002EBAF0	high (name and id equal)	script-native name+id
+002F4298	90	setEndOfListRight	ShellSpinner.setEndOfListRight	002EBB00	high (name and id equal)	script-native name+id
+002F42BC	89	setEndOfListLeft	ShellSpinner.setEndOfListLeft	002EBB50	high (name and id equal)	script-native name+id
+002F42E0	88	setEndOfListColor	ShellSpinner.setEndOfListColor	002EBBA0	high (name and id equal)	script-native name+id
+002F4328	86	setIndicatorColor	ShellSpinner.setIndicatorColor	002EBC40	high (name and id equal)	script-native name+id
+002F43CC	80	O			none	no PS2 row with this name
+002F43DC	79	N			none	no PS2 row with this name
+002F43EC	78	M			none	no PS2 row with this name
+002F43FC	77	removeIndex	ShellSpinner.removeIndex	002EBF10	high (name and id equal)	script-native name+id
+002F4418	76	removeString	ShellSpinner.removeString	002EBF30	high (name and id equal)	script-native name+id
+002F4438	75	addIdentifier	ShellSpinner.addIdentifier	002EBF70	high (name and id equal)	script-native name+id
+002F4458	74	addString	ShellSpinner.addString	002EBFB0	high (name and id equal)	script-native name+id
+002F4490	51	2			none	no PS2 row with this name
+002F44A0	50	1			none	no PS2 row with this name
+002F44B0	49	setEffect	ShellEffect.setEffect	002EAF70	high (name and id equal)	script-native name+id
+002F44F8	56	7			none	no PS2 row with this name
+002F4508	55	6			none	no PS2 row with this name
+002F4518	54	setSegment	ShellLine.setSegment	002EAB30	high (name and id equal)	script-native name+id
+002F4534	53	setEndCap	ShellLine.setEndCap	002EAB70	high (name and id equal)	script-native name+id
+002F4550	52	setEndPointXYZ	ShellLine.setEndPointXYZ	002EABB0	high (name and id equal)	script-native name+id
+002F4570	51	setEndPoint	ShellLine.setEndPoint	002EABD0	high (name and id equal)	script-native name+id
+002F458C	50	setStartPointXYZ	ShellLine.setStartPointXYZ	002EABF0	high (name and id equal)	script-native name+id
+002F45B0	49	setStartPoint	ShellLine.setStartPoint	002EAC10	high (name and id equal)	script-native name+id
+002F46CC	17	assignPlayer	ControllerMap.assignPlayer	002E9FC0	high (name and id equal)	script-native name+id
+002F4730	14	swapControllers	ControllerMap.swapControllers	002EA090	high (name and id equal)	script-native name+id
+002F4750	13	resetMapping	ControllerMap.resetMapping	002EA0E0	high (name and id equal)	script-native name+id
+002F4794	11	setMasterController	ControllerMap.setMasterController	002EA170	high (name and id equal)	script-native name+id
+002F4848	5	unlockMapping	ControllerMap.unlockMapping	002EA420	high (name and id equal)	script-native name+id
+002F4868	4	lockMapping	ControllerMap.lockMapping	002EA450	high (name and id equal)	script-native name+id
+002F4884	3	updateMapping	ControllerMap.updateMapping	002EA480	high (name and id equal)	script-native name+id
+002F48CC	1	mapController	ControllerMap.mapController	002EA500	high (name and id equal)	script-native name+id
+002F491C	13	stopRumble	MenuController.stopRumble	002E9820	high (name and id equal)	script-native name+id
+002F4938	12	startRumble	MenuController.startRumble	002E9830	high (name and id equal)	script-native name+id
+002F4954	11	disableRumble	MenuController.disableRumble	002E9850	high (name and id equal)	script-native name+id
+002F4974	10	enableRumble	MenuController.enableRumble	002E9860	high (name and id equal)	script-native name+id
+002F4A78	1	enableAnalog	MenuController.enableAnalog	002E9B70	high (name and id equal)	script-native name+id
+002F4A98	0	setRepeat	MenuController.setRepeat	002E9BD0	high (name and id equal)	script-native name+id
+002F4C00	4	setReverse	ShellSequence.setReverse	002E9170	high (name and id equal)	script-native name+id
+002F4C3C	1	setNext	ShellSequence.setNext	002E9210	high (name and id equal)	script-native name+id
+002F4CD0	3	remove	ShellSequencer.remove	002E8B60	high (name and id equal)	script-native name+id
+002F4DF8	28	setColorizeMonster	PlayerData@shell.setColorizeMonster	002E7D50	high (name and id equal)	script-native name+id
+002F4E60	24	setDisplayLives	PlayerData@shell.setDisplayLives	002E7DD0	high (name and id equal)	script-native name+id
+002F4EA0	22	setExecuteIntro	PlayerData@shell.setExecuteIntro	002E7E30	high (name and id equal)	script-native name+id
+002F4EE0	20	setDisplayRounds	PlayerData@shell.setDisplayRounds	002E7E90	high (name and id equal)	script-native name+id
+002F4F28	18	setDisplayPoints	PlayerData@shell.setDisplayPoints	002E7EF0	high (name and id equal)	script-native name+id
+002F4FF0	11	setIsAI	PlayerData@shell.setIsAI	002E7F70	high (name and id equal)	script-native name+id
+002F5020	9	setUpgradeInfo	PlayerData@shell.setUpgradeInfo	002E7FD0	high (name and id equal)	script-native name+id
+002F5060	7	setTeamNumber	PlayerData@game.setTeamNumber	00391C00	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+002F50A0	5	setPlayerName	PlayerData@shell.setPlayerName	002E80A0	high (name and id equal)	script-native name+id
+002F50E0	3	setMonsterFileName	PlayerData@game.setMonsterFileName	0016F7F8	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+002F5128	1	setMonsterName	PlayerData@game.setMonsterName	0016F7F8	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+002F5188	53	setAttractCounter	ShellGameInfo@shell.setAttractCounter	002E6DC0	high (name and id equal)	script-native name+id
+002F51D0	51	setPlayerResults	ShellGameInfo@shell.setPlayerResults	002E6E00	high (name and id equal)	script-native name+id
+002F5238	48	setNetworkFlags	ShellGameInfo@shell.setNetworkFlags	002E7000	high (name and id equal)	script-native name+id
+002F5268	46	clearGameCheats1	ShellGameInfo@shell.clearGameCheats1	002E7090	high (name and id equal)	script-native name+id
+002F528C	45	setGameCheats1	ShellGameInfo@shell.setGameCheats1	002E70F0	high (name and id equal)	script-native name+id
+002F52CC	43	clearGameCheats0	ShellGameInfo@shell.clearGameCheats0	002E7190	high (name and id equal)	script-native name+id
+002F52F0	42	setGameCheats0	ShellGameInfo@shell.setGameCheats0	002E71F0	high (name and id equal)	script-native name+id
+002F5330	40	clearShellCheats	ShellGameInfo@shell.clearShellCheats	002E7290	high (name and id equal)	script-native name+id
+002F5354	39	setShellCheats	ShellGameInfo@shell.setShellCheats	002E72F0	high (name and id equal)	script-native name+id
+002F53B0	36	setSessionName	ShellGameInfo@shell.setSessionName	002E73D0	high (name and id equal)	script-native name+id
+002F53F0	34	setGameScript	ShellGameInfo@shell.setGameScript	002E7420	high (name and id equal)	script-native name+id
+002F5410	33	setMission	ShellGameInfo@shell.setMission	002E7460	high (name and id equal)	script-native name+id
+002F5448	31	setAttractMode	ShellGameInfo@shell.setAttractMode	002E74A0	high (name and id equal)	script-native name+id
+002F5488	29	setResetArenas	ShellGameInfo@shell.setResetArenas	002E7500	high (name and id equal)	script-native name+id
+002F54C8	27	setDifficultyLevel	ShellGameInfo@shell.setDifficultyLevel	002E7570	high (name and id equal)	script-native name+id
+002F5510	25	setDisplayWinner	ShellGameInfo@shell.setDisplayWinner	002E75B0	high (name and id equal)	script-native name+id
+002F5558	23	setDisplayElapsedTime	ShellGameInfo@shell.setDisplayElapsedTime	002E7610	high (name and id equal)	script-native name+id
+002F55A8	21	setRespawnWhenKnockedOut	ShellGameInfo@game.setRespawnWhenKnockedOut	00390AB0	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+002F5600	19	setElapsedTime	ShellGameInfo@game.setElapsedTime	00390A48	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+002F5640	17	setMatches	ShellGameInfo@shell.setMatches	002E76F0	high (name and id equal)	script-native name+id
+002F5678	15	setRounds	ShellGameInfo@shell.setRounds	002E7730	high (name and id equal)	script-native name+id
+002F56B0	13	setShowRoundTime	ShellGameInfo@shell.setShowRoundTime	002E7770	high (name and id equal)	script-native name+id
+002F56F8	11	setRoundTime	ShellGameInfo@shell.setRoundTime	002E77D0	high (name and id equal)	script-native name+id
+002F5738	9	setPlayers	ShellGameInfo@shell.setPlayers	002E77F0	high (name and id equal)	script-native name+id
+002F5770	7	setDaylight	ShellGameInfo@shell.setDaylight	002E7830	high (name and id equal)	script-native name+id
+002F57A8	5	setCityName	ShellGameInfo@shell.setCityName	002E78A0	high (name and id equal)	script-native name+id
+002F57E0	3	setGameType	ShellGameInfo@shell.setGameType	002E78F0	high (name and id equal)	script-native name+id
+002F5818	1	createRandomSeed	ShellGameInfo@shell.createRandomSeed	002E7930	high (name and id equal)	script-native name+id
+002F5888	13	fadeFromColor	ShellScreen.fadeFromColor	002E6710	high (name and id equal)	script-native name+id
+002F58A8	12	fadeToColor	ShellScreen.fadeToColor	002E6680	high (name and id equal)	script-native name+id
+002F58C4	11	setTimeout	ShellScreen.setTimeout	002E67A0	high (name and id equal)	script-native name+id
+002F58E0	10	allowTimeout	ShellScreen.allowTimeout	002E67E0	high (name and id equal)	script-native name+id
+002F5920	7	setCompletionFunction	ShellScreen.setCompletionFunction	002E6910	high (name and id equal)	script-native name+id
+002F5968	5	loadInterface	ShellScreen.loadInterface	002E69C0	high (name and id equal)	script-native name+id
+002F5988	4	registerStream	ShellScreen.registerStream	002E6A10	high (name and id equal)	script-native name+id
+002F59A8	3	streamBundle	ShellScreen.streamBundle	002E6A50	high (name and id equal)	script-native name+id
+002F59C8	2	unloadBundle	ShellScreen.unloadBundle	002E6AE0	high (name and id equal)	script-native name+id
+002F5A24	29	finalizeParameters	ShellLobby.finalizeParameters	002E5A00	high (name and id equal)	script-native name+id
+002F5A48	28	advertiseLobby	ShellLobby.advertiseLobby	002E59C0	high (name and id equal)	script-native name+id
+002F5AAC	25	reopenLobby	ShellLobby.reopenLobby	002E5B20	high (name and id equal)	script-native name+id
+002F5AE8	23	closeLobby	ShellLobby.closeLobby	002E5BD0	high (name and id equal)	script-native name+id
+002F5B04	22	setPlayerData	ShellLobby.setPlayerData	002E5C10	high (name and id equal)	script-native name+id
+002F5B24	21	setScriptNotification	ShellLobby.setScriptNotification	002E5C50	high (name and id equal)	script-native name+id
+002F5B70	19	joinGame	ShellLobby.joinGame	002E5D10	high (name and id equal)	script-native name+id
+002F5C18	13	resetGame	ShellLobby.resetGame	002E5FA0	high (name and id equal)	script-native name+id
+002F5C54	11	cancelGamePlayer	ShellLobby.cancelGamePlayer	002E6050	high (name and id equal)	script-native name+id
+002F5C78	10	cancelGame	ShellLobby.cancelGame	002E6090	high (name and id equal)	script-native name+id
+002F5C94	9	recreateGame	ShellLobby.recreateGame	002E60D0	high (name and id equal)	script-native name+id
+002F5D20	4	hostGame	ShellLobby.hostGame	002E6270	high (name and id equal)	script-native name+id
+002F5D5C	2	disconnect	ShellLobby.disconnect	002E6310	high (name and id equal)	script-native name+id
+002F5DF4	13	erase	ShellSaveFile.erase	002E5280	high (name and id equal)	script-native name+id
+002F5E0C	12	create	ShellSaveFile.create	002E5310	high (name and id equal)	script-native name+id
+002F5E24	11	precreate	ShellSaveFile.precreate	002E53A0	high (name and id equal)	script-native name+id
+002F5E80	7	setDefaultDeviceID	ShellSaveFile.setDefaultDeviceID	002E55E0	high (name and id equal)	script-native name+id
+002F5EA4	6	setDeviceSID	ShellSaveFile.setDeviceSID	002E55F0	high (name and id equal)	script-native name+id
+002F5EC4	5	setDeviceIID	ShellSaveFile.setDeviceIID	002E5630	high (name and id equal)	script-native name+id
+002F5F00	3	setSaveName	ShellSaveFile.setSaveName	002E5690	high (name and id equal)	script-native name+id
+002F5F38	1	destroy	ShellSaveFile.destroy	002E5710	high (name and id equal)	script-native name+id
+002F6BC8	133	shutdownVoiceForVoiceMailOnly	OnlinePlay.shutdownVoiceForVoiceMailOnly	002F82B0	high (name and id equal)	script-native name+id
+002F6BF8	132	initVoiceForVoiceMailOnly	OnlinePlay.initVoiceForVoiceMailOnly	002F82C0	high (name and id equal)	script-native name+id
+002F6CEC	126	setVoiceOverSpeakersOverride	OnlinePlay.setVoiceOverSpeakersOverride	002F8BC0	high (name and id equal)	script-native name+id
+002F6DB4	121	setAppearOnline	OnlinePlay.setAppearOnline	002F8C40	high (name and id equal)	script-native name+id
+002F6DD4	120	sendFeedback	OnlinePlay.sendFeedback	002F8C50	high (name and id equal)	script-native name+id
+002F6DF4	119	bootPlayer	OnlinePlay.bootPlayer	002F8C60	high (name and id equal)	script-native name+id
+002F6ED4	112	setVoiceState	OnlinePlay.setVoiceState	002F8CC0	high (name and id equal)	script-native name+id
+002F6FD0	104	refreshReceivedVoiceMessages	OnlinePlay.refreshReceivedVoiceMessages	002F9320	high (name and id equal)	script-native name+id
+002F7078	100	sendMessageFeedbackOffensive	OnlinePlay.sendMessageFeedbackOffensive	002F8300	high (name and id equal)	script-native name+id
+002F70A8	99	sendMessageFeedbackInappropiate	OnlinePlay.sendMessageFeedbackInappropiate	002F8310	high (name and id equal)	script-native name+id
+002F70D8	98	sendMessageFeedbackSpam	OnlinePlay.sendMessageFeedbackSpam	002F8320	high (name and id equal)	script-native name+id
+002F7100	97	sendMessageFeedbackHarrasment	OnlinePlay.sendMessageFeedbackHarrasment	002F8330	high (name and id equal)	script-native name+id
+002F7150	95	setInvitingSelf	OnlinePlay.setInvitingSelf	002F8D70	high (name and id equal)	script-native name+id
+002F7170	94	joinFriendInAnotherGame	OnlinePlay.joinFriendInAnotherGame	002F8D90	high (name and id equal)	script-native name+id
+002F71BC	92	setJoinFriendName	OnlinePlay.setJoinFriendName	002F8DE0	high (name and id equal)	script-native name+id
+002F7250	88	acknowledgeInvite	OnlinePlay.acknowledgeInvite	002F8E90	high (name and id equal)	script-native name+id
+002F7274	87	playGameInviteMessage	OnlinePlay.playGameInviteMessage	002F8E50	high (name and id equal)	script-native name+id
+002F72BC	85	cancelInvite	OnlinePlay.cancelInvite	002F8EA0	high (name and id equal)	script-native name+id
+002F72DC	84	sendInviteVoice	OnlinePlay.sendInviteVoice	002F8EB0	high (name and id equal)	script-native name+id
+002F72FC	83	sendInvite	OnlinePlay.sendInvite	002F8EC0	high (name and id equal)	script-native name+id
+002F7318	82	removeFriend	OnlinePlay.removeFriend	002F8ED0	high (name and id equal)	script-native name+id
+002F7338	81	playFriendRequestMessage	OnlinePlay.playFriendRequestMessage	002F8E60	high (name and id equal)	script-native name+id
+002F738C	79	acknowledgeFriendRequest	OnlinePlay.acknowledgeFriendRequest	002F8EE0	high (name and id equal)	script-native name+id
+002F73B8	78	cancelFriendRequest	OnlinePlay.cancelFriendRequest	002F8EF0	high (name and id equal)	script-native name+id
+002F73DC	77	sendFriendRequestVoice	OnlinePlay.sendFriendRequestVoice	002F8F00	high (name and id equal)	script-native name+id
+002F7404	76	sendFriendRequest	OnlinePlay.sendFriendRequest	002F8F10	high (name and id equal)	script-native name+id
+002F7448	74	deleteVoiceMessage	OnlinePlay.deleteVoiceMessage	002F8350	high (name and id equal)	script-native name+id
+002F7494	72	downloadAndPlayVoiceMessage	OnlinePlay.downloadAndPlayVoiceMessage	002F8360	high (name and id equal)	script-native name+id
+002F74E4	70	playRecordedMessage	OnlinePlay.playRecordedMessage	002F8B90	high (name and id equal)	script-native name+id
+002F7508	69	sendMessage	OnlinePlay.sendMessage	002F8BA0	high (name and id equal)	script-native name+id
+002F7524	68	recordMessage	OnlinePlay.recordMessage	002F8BB0	high (name and id equal)	script-native name+id
+002F7674	58	setPlayerAndFriendFocus	OnlinePlay.setPlayerAndFriendFocus	002F8FA0	high (name and id equal)	script-native name+id
+002F769C	57	doReadMessages	OnlinePlay.doReadMessages	002F8FD0	high (name and id equal)	script-native name+id
+002F76BC	56	doGameUpdate	OnlinePlay.doGameUpdate	002F8FE0	high (name and id equal)	script-native name+id
+002F76DC	55	doNetworkTroubleShooter	OnlinePlay.doNetworkTroubleShooter	002F8FF0	high (name and id equal)	script-native name+id
+002F7704	54	cancelJoinGame	OnlinePlay.cancelJoinGame	002F9020	high (name and id equal)	script-native name+id
+002F7744	52	joinQueryGame	OnlinePlay.joinQueryGame	002F9040	high (name and id equal)	script-native name+id
+002F77A4	49	cancelQuery	OnlinePlay.cancelQuery	002F9070	high (name and id equal)	script-native name+id
+002F77C0	48	startQuery	OnlinePlay.startQuery	002F9080	high (name and id equal)	script-native name+id
+002F77DC	47	.			none	no PS2 row with this name
+002F77FC	45	registerLocalVoices	OnlinePlay.registerLocalVoices	002F9000	high (name and id equal)	script-native name+id
+002F7830	43	*			none	no PS2 row with this name
+002F7850	41	rebootToLobby	OnlinePlay.rebootToLobby	002F82A0	high (name and id equal)	script-native name+id
+002F7870	40	setPendingInvite	OnlinePlay.setPendingInvite	002F9330	high (name and id equal)	script-native name+id
+002F78D8	37	setPasscodeFailure	OnlinePlay.setPasscodeFailure	002F9310	high (name and id equal)	script-native name+id
+002F7924	35	shutdownVoice	OnlinePlay.shutdownVoice	002F8C20	high (name and id equal)	script-native name+id
+002F79FC	29	assignPrimaryGamer	OnlinePlay.assignPrimaryGamer	002F91A0	high (name and id equal)	script-native name+id
+002F7ADC	23	setPlayerController	OnlinePlay.setPlayerController	002F9240	high (name and id equal)	script-native name+id
+002F7BBC	17	cancelSignOn	OnlinePlay.cancelSignOn	002F93B0	high (name and id equal)	script-native name+id
+002F7BDC	16	signOff	OnlinePlay.signOff	002F9400	high (name and id equal)	script-native name+id
+002F7BF4	15	signOn	OnlinePlay.signOn	002F9480	high (name and id equal)	script-native name+id
+002F7C50	12	silentSignOn	OnlinePlay.silentSignOn	002F9460	high (name and id equal)	script-native name+id
+002F7C70	11	createOnlineAccount	OnlinePlay.createOnlineAccount	002F94B0	high (name and id equal)	script-native name+id
+002F7D1C	6	setLiveMultiplayer	OnlinePlay.setLiveMultiplayer	002F9530	high (name and id equal)	script-native name+id
+002F7D90	3	setActiveState	OnlinePlay.setActiveState	002F90E0	high (name and id equal)	script-native name+id
+002F7DD0	1	updateOnlinePlay	OnlinePlay.updateOnlinePlay	002F94C0	high (name and id equal)	script-native name+id
+002F7DF4	0	initOnlinePlay	OnlinePlay.initOnlinePlay	002F94D0	high (name and id equal)	script-native name+id
+002F7E34	6	setPassed	DNAS.setPassed	002F8A00	high (name and id equal)	script-native name+id
+002F7EC4	1	free	DNAS.free	002F8990	high (name and id equal)	script-native name+id
+002F8050	1	setNextScreen	NetConfig.setNextScreen	002F8710	high (name and id equal)	script-native name+id
+00306154	18	setSfxFilter	SoundDevice.setSfxFilter	002372D0	high (name and id equal)	script-native name+id
+00306174	17	setVoiceVolume	SoundDevice.setVoiceVolume	00235EF0	high (name and id equal)	script-native name+id
+00306194	16	setSfxVolume	SoundDevice.setSfxVolume	00235EF0	high (name and id equal)	script-native name+id
+003061B4	15	setMusicVolume	SoundDevice.setMusicVolume	00235EF0	high (name and id equal)	script-native name+id
+003061D4	14	setReverb	SoundDevice.setReverb	002378D0	high (name and id equal)	script-native name+id
+00306214	12	setVelocityScalar	SoundDevice.setVelocityScalar	002360D0	high (name and id equal)	script-native name+id
+00306238	11	set3DData	SoundDevice.set3DData	00237590	high (name and id equal)	script-native name+id
+00306254	10	enable3DSfx	SoundDevice.enable3DSfx	00237550	high (name and id equal)	script-native name+id
+00306270	9	enableSfx	SoundDevice.enableSfx	00237320	high (name and id equal)	script-native name+id
+0030628C	8	enableMusic	SoundDevice.enableMusic	002365A0	high (name and id equal)	script-native name+id
+003062A8	7	killSound	SoundDevice.killSound	00236150	high (name and id equal)	script-native name+id
+003062C4	6	killVoice	SoundDevice.killVoice	00236DA0	high (name and id equal)	script-native name+id
+00306300	4	playSound	SoundDevice.playSound	00237360	high (name and id equal)	script-native name+id
+0030631C	3	playVoice	SoundDevice.playVoice	00237040	high (name and id equal)	script-native name+id
+00306338	2	replaceMusic	SoundDevice.replaceMusic	00235E80	high (name and id equal)	script-native name+id
+00306358	1	playMusic	SoundDevice.playMusic	00236B00	high (name and id equal)	script-native name+id
+003063B0	7	setVelPoint	SoundEffect.setVelPoint	002A45E0	high (name and id equal)	script-native name+id
+003063CC	6	setVelocity	AIWeaponDescription.setVelocity	003850F8	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+00306404	4	setPoint	SoundEffect.setPoint	002A45E0	high (name and id equal)	script-native name+id
+00306440	1	stop	SoundEffect.stop	00237850	high (name and id equal)	script-native name+id
+0030DF20	83	testDoubleKO	GameScript.testDoubleKO	00360500	high (name and id equal)	script-native name+id
+0030DF40	82	dumpEffects	GameScript.dumpEffects	00396BE0	high (name and id equal)	script-native name+id
+0030DF5C	81	dumpNames	GameScript.dumpNames	00396BD8	high (name and id equal)	script-native name+id
+0030DFD8	75	setGameRules	GameScript.setGameRules	0031E3F0	high (name and id equal)	script-native name+id
+0030E064	71	F			none	no PS2 row with this name
+0030E084	69	callShellFunctionS	GameScript.callShellFunctionS	002D3B90	high (name and id equal)	script-native name+id
+0030E108	65	@			none	no PS2 row with this name
+0030E118	64	getLightMode	GameScript.getLightMode	00396698	high (name and id equal)	script-native name+id
+0030E138	63	setLightMode	GameScript.setLightMode	00248ED0	high (name and id equal)	script-native name+id
+0030E158	62	=			none	no PS2 row with this name
+0030E168	61	<			none	no PS2 row with this name
+0030E178	60	;			none	no PS2 row with this name
+0030E2D0	48	setAIWeaponsEnable	GameScript.setAIWeaponsEnable	00395CD0	high (name and id equal)	script-native name+id
+0030E2F4	47	skipIntroMoves	GameScript.skipIntroMoves	00395CC0	high (name and id equal)	script-native name+id
+0030E314	46	setDoProcessingInScript	GameScript.setDoProcessingInScript	00395C98	high (name and id equal)	script-native name+id
+0030E33C	45	setAdventureModeRailerFlag	GameScript.setAdventureModeRailerFlag	00395C40	high (name and id equal)	script-native name+id
+0030E394	43	*			none	no PS2 row with this name
+0030E4D8	31	queueGameDelay	GameScript.queueGameDelay	00360520	high (name and id equal)	script-native name+id
+0030E518	29	setGameTime	GameScript.setGameTime	003957D8	high (name and id equal)	script-native name+id
+0030E570	25	setGameProgress	GameScript.setGameProgress	003956C0	high (name and id equal)	script-native name+id
+0030E590	24	getGameProgress	GameScript.getGameProgress	00395690	high (name and id equal)	script-native name+id
+0030E5D4	22	removeTimer	GameScript.removeTimer	003A3A40	high (name and id equal)	script-native name+id
+0030E644	18	startMusic	GameScript.startMusic	0036A520	high (name and id equal)	script-native name+id
+0030E660	17	recordJournal	GameScript.recordJournal	003954F8	high (name and id equal)	script-native name+id
+0030E680	16	unhideMonster	GameScript.unhideMonster	00313840	high (name and id equal)	script-native name+id
+0030E6A0	15	hideMonster	GameScript.hideMonster	00313960	high (name and id equal)	script-native name+id
+0030E6BC	14	deleteMonster	GameScript.deleteMonster	00313E50	high (name and id equal)	script-native name+id
+0030E6DC	13	createMonster	GameScript.createMonster	00313E90	high (name and id equal)	script-native name+id
+0030E6FC	12	createMonsterEx	GameScript.createMonsterEx	003A1D90	high (name and id equal)	script-native name+id
+0030E71C	11	finalizeMonsterDataStream	GameScript.finalizeMonsterDataStream	00353960	high (name and id equal)	script-native name+id
+0030E770	9	streamMonsterData	GameScript.streamMonsterData	00353B90	high (name and id equal)	script-native name+id
+0030E794	8	loadMonsterData	GameScript.loadMonsterData	003536F0	high (name and id equal)	script-native name+id
+0030E7B4	7	loadLevelData	GameScript.loadLevelData	00353DE0	high (name and id equal)	script-native name+id
+0030E7E4	5	setupMemoryEx	GameScript.setupMemoryEx	00354080	high (name and id equal)	script-native name+id
+0030E804	4	setupMemory	GameScript.setupMemory	00354080	high (name and id equal)	script-native name+id
+0030E820	3	setMetalGroundVariant	GameScript.setMetalGroundVariant	001F24A0	high (name and id equal)	script-native name+id
+0030E848	2	set60Hz	GameScript.set60Hz	00315240	high (name and id equal)	script-native name+id
+0030E914	9	setMeleeMonsters	CameraMgr@game.setMeleeMonsters	0035E6C0	high (name and id equal)	script-native name+id
+0030E980	5	getIgnoredMask	CameraMgr@game.getIgnoredMask	00394CA0	high (name and id equal)	script-native name+id
+0030E9A0	4	addAllowedCams	CameraMgr@game.addAllowedCams	00394C00	high (name and id equal)	script-native name+id
+0030E9C0	3	addIgnoredCams	CameraMgr@game.addIgnoredCams	00394B98	high (name and id equal)	script-native name+id
+0030EA30	12	enableBuildingFade	ScriptCamera.enableBuildingFade	003947C8	high (name and id equal)	script-native name+id
+0030EA54	11	clearCallback	ScriptCamera.clearCallback	00358FB0	high (name and id equal)	script-native name+id
+0030EA74	10	setCallback	ScriptCamera.setCallback	002AD690	high (name and id equal)	script-native name+id
+0030EA90	9	setFovParms	ScriptCamera.setFovParms	003590C0	high (name and id equal)	script-native name+id
+0030EAAC	8	setRotParms	ScriptCamera.setRotParms	003590D0	high (name and id equal)	script-native name+id
+0030EAC8	7	setPosParms	ScriptCamera.setPosParms	003590E0	high (name and id equal)	script-native name+id
+0030EAE4	6	setSmoothingFactor	ScriptCamera.setSmoothingFactor	003590F0	high (name and id equal)	script-native name+id
+0030EB08	5	setFovTarg	ScriptCamera.setFovTarg	00359150	high (name and id equal)	script-native name+id
+0030EB24	4	enableInertia	ScriptCamera.enableInertia	00359170	high (name and id equal)	script-native name+id
+0030EB44	3	cut	ScriptCamera.cut	00359100	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+0030EB58	2	unlinkPos	ScriptCamera.unlinkPos	00359110	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+0030EB74	1	setLocation	ScriptCamera.setLocation	00359180	high (name and id equal)	script-native name+id
+0030EB90	0	setTarget	ScriptCamera.setTarget	003591C0	medium (name and id equal, 2 PS2 candidates)	script-native name+id
+0030EC20	10	setAngParms	ScriptOrbitCamera.setAngParms	00358180	high (name and id equal)	script-native name+id
+0030EC3C	9	setDistParms	ScriptOrbitCamera.setDistParms	00358180	high (name and id equal)	script-native name+id
+0030EC5C	8	setRotRateParms	ScriptOrbitCamera.setRotRateParms	00358190	high (name and id equal)	script-native name+id
+0030EC8C	6	setAngTarg	ScriptOrbitCamera.setAngTarg	003581B0	high (name and id equal)	script-native name+id
+0030ECA8	5	setDistTarg	ScriptOrbitCamera.setDistTarg	003581C0	high (name and id equal)	script-native name+id
+0030ECC4	4	setRotRateTarg	ScriptOrbitCamera.setRotRateTarg	003581D0	high (name and id equal)	script-native name+id
+0030ED04	1	setAzimuth	ScriptOrbitCamera.setAzimuth	00358290	high (name and id equal)	script-native name+id
+0030ED8C	3	clearTarget	TrackCamera.clearTarget	0035C5B0	high (name and id equal)	script-native name+id
+0030EDB8	1	setBaseObject	TrackCamera.setBaseObject	0035C670	high (name and id equal)	script-native name+id
+0030EDD8	0	setCamera	TrackCamera.setCamera	00380220	high (name and id equal)	script-native name+id
+0030EE2C	5	setPlayerFlag	Region.setPlayerFlag	003A0980	high (name and id equal)	script-native name+id
+0030EE4C	4	setActivation	Region.setActivation	003A0AE0	high (name and id equal)	script-native name+id
+0030EF00	3	setBuilding	ScriptMessage.setBuilding	00393430	high (name and id equal)	script-native name+id
+0030EF38	1	setMonster	ScriptMessage.setMonster	003933A8	high (name and id equal)	script-native name+id
+0030EF84	1	monsterMessage	HudMsgProcessor.monsterMessage	00393200	high (name and id equal)	script-native name+id
+0030EFA4	0	onIntrosFinished	HudMsgProcessor.onIntrosFinished	003931E0	high (name and id equal)	script-native name+id
+0030EFE4	2	turnOff	PlayerHud.turnOff	00393028	high (name and id equal)	script-native name+id
+0030EFFC	1	turnOn	PlayerHud.turnOn	00393000	high (name and id equal)	script-native name+id
+0030F038	14	setFadeOutValue	Hud.setFadeOutValue	00392C38	high (name and id equal)	script-native name+id
+0030F058	13	fadeOutBkgd	Hud.fadeOutBkgd	00392C10	high (name and id equal)	script-native name+id
+0030F074	12	setBannerFont	Hud.setBannerFont	00437120	high (name and id equal)	script-native name+id
+0030F0A4	10	setOverlay	Hud.setOverlay	00392B68	high (name and id equal)	script-native name+id
+0030F0C0	9	setSurface	Hud.setSurface	00392B48	high (name and id equal)	script-native name+id
+0030F0DC	8	setPauseScreen	Hud.setPauseScreen	00437770	high (name and id equal)	script-native name+id
+0030F0FC	7	voiceDialog	Hud.voiceDialog	00392AF0	high (name and id equal)	script-native name+id
+0030F118	6	createOverlay	Hud.createOverlay	00392AC8	high (name and id equal)	script-native name+id
+0030F138	5	messageProperties	Hud.messageProperties	00392AA0	high (name and id equal)	script-native name+id
+0030F15C	4	actionMessage	Hud.actionMessage	00392A50	high (name and id equal)	script-native name+id
+0030F17C	3	disableClock	Hud.disableClock	00392A30	high (name and id equal)	script-native name+id
+0030F19C	2	enableClock	Hud.enableClock	00392A10	high (name and id equal)	script-native name+id
+0030F218	4	setVictory	PlayerResults.setVictory	00162C30	high (name and id equal)	script-native name+id
+0030F234	3	awardPoints	PlayerResults.awardPoints	003158F0	high (name and id equal)	script-native name+id
+0030F250	2	setScore	PlayerResults.setScore	00392728	high (name and id equal)	script-native name+id
+0030F2E4	1	setVictoryAchieved	GameResults.setVictoryAchieved	00162C30	high (name and id equal)	script-native name+id
+0030F4C8	41	(			none	no PS2 row with this name
+0030F4D8	40	'			none	no PS2 row with this name
+0030F4F8	38	%			none	no PS2 row with this name
+0030F508	37	$			none	no PS2 row with this name
+0030F528	35	""""			none	no PS2 row with this name
+0030F538	34	!			none	no PS2 row with this name
+0030F5A8	28	setDisplayPointsBanner	ShellGameInfo@game.setDisplayPointsBanner	00390C18	high (name and id equal)	script-native name+id
+0030F5D0	27	setTrackPointsForBuildingDestruction	ShellGameInfo@game.setTrackPointsForBuildingDestruction	00390BF0	high (name and id equal)	script-native name+id
+0030F648	22	setFirstKOWins	ShellGameInfo@game.setFirstKOWins	00390AD8	high (name and id equal)	script-native name+id
+0030F85C	26	setScriptVariable	DObject.setScriptVariable	0038FE58	high (name and id equal)	script-native name+id
+0030FB80	37	installNotificationFunction	GameObject.installNotificationFunction	0031EC30	high (name and id equal)	script-native name+id
+0030FBAC	36	#			none	no PS2 row with this name
+0030FC48	28	unhideObject	GameObject.unhideObject	0038E930	high (name and id equal)	script-native name+id
+0030FC98	47	setIgnoreObjectMatrix	FollowEffect.setIgnoreObjectMatrix	0038E578	high (name and id equal)	script-native name+id
+0030FCC0	46	setNoDeleteFx	FollowEffect.setNoDeleteFx	0038E500	high (name and id equal)	script-native name+id
+0030FCE0	45	setTurnOffWhenObjectDies	FollowEffect.setTurnOffWhenObjectDies	0038E488	high (name and id equal)	script-native name+id
+0030FD0C	44	+			none	no PS2 row with this name
+0030FD1C	43	createAndStartAttachedToMonsterNode	FollowEffect.createAndStartAttachedToMonsterNode	0031D980	high (name and id equal)	script-native name+id
+0030FD50	42	createAndStartAttachedWithOffset	FollowEffect.createAndStartAttachedWithOffset	0039E190	high (name and id equal)	script-native name+id
+0030FD84	41	createAndStartAttached	FollowEffect.createAndStartAttached	0031D980	high (name and id equal)	script-native name+id
+0030FDAC	40	createAndStartAtLocationWithOffset	FollowEffect.createAndStartAtLocationWithOffset	0039E2C0	high (name and id equal)	script-native name+id
+0030FDE0	39	createAndStartAtLocation	FollowEffect.createAndStartAtLocation	00380220	medium (name and id equal, 3 PS2 candidates)	script-native name+id
+0030FE0C	38	createAndStart	FollowEffect.createAndStart	0039E3F0	medium (name and id equal, 4 PS2 candidates)	script-native name+id
+0030FE70	50	setTimeoutEffect	PowerupObject.setTimeoutEffect	00401740	high (name and id equal)	script-native name+id
+0030FEB0	48	setLifespan	PowerupObject.setLifespan	0038DC28	high (name and id equal)	script-native name+id
+0030FECC	47	activateGravity	PowerupObject.activateGravity	004017E0	high (name and id equal)	script-native name+id
+0030FEEC	46	setPhysicalRad	PowerupObject.setPhysicalRad	0038DB40	high (name and id equal)	script-native name+id
+0030FF0C	45	setWobble	PowerupObject.setWobble	0038DA80	high (name and id equal)	script-native name+id
+0030FF44	43	setAmount	PowerupObject.setAmount	0038D980	high (name and id equal)	script-native name+id
+0030FF70	41	(			none	no PS2 row with this name
+0030FF80	40	'			none	no PS2 row with this name
+0030FF90	39	&			none	no PS2 row with this name
+0030FFD0	50	clearSWFlags	ShockwaveObject.clearSWFlags	0038D2B0	high (name and id equal)	script-native name+id
+0030FFF0	49	setSWFlags	ShockwaveObject.setSWFlags	0038D250	high (name and id equal)	script-native name+id
+0031000C	48	setMaxRadius	ShockwaveObject.setMaxRadius	0038D208	high (name and id equal)	script-native name+id
+0031002C	47	setExplosionDamage	ShockwaveObject.setExplosionDamage	0038D1C0	high (name and id equal)	script-native name+id
+00310050	46	setBuildingDamageMul	ShockwaveObject.setBuildingDamageMul	0038D178	high (name and id equal)	script-native name+id
+00310078	45	setDamagePerSecond	ShockwaveObject.setDamagePerSecond	0038D130	high (name and id equal)	script-native name+id
+0031009C	44	setStunTime	ShockwaveObject.setStunTime	0038D0E8	high (name and id equal)	script-native name+id
+003100B8	43	setPushBackVel	ShockwaveObject.setPushBackVel	0038D0A0	high (name and id equal)	script-native name+id
+003100D8	42	setLifetime	ShockwaveObject.setLifetime	0038D058	high (name and id equal)	script-native name+id
+003100F4	41	setGrowthRate	ShockwaveObject.setGrowthRate	0038D010	high (name and id equal)	script-native name+id
+00310114	40	'			none	no PS2 row with this name
+00310124	39	&			none	no PS2 row with this name
+00310164	45	setMonsterElasticity	ThrowableObject.setMonsterElasticity	0038CB38	high (name and id equal)	script-native name+id
+0031018C	44	setThrowerTimeout	ThrowableObject.setThrowerTimeout	0038CAF0	high (name and id equal)	script-native name+id
+003101E8	41	(			none	no PS2 row with this name
+003101F8	40	propelVelocity	ThrowableObject.propelVelocity	002A45E0	high (name and id equal)	script-native name+id
+00310218	39	propel	ThrowableObject.propel	0038C8A8	high (name and id equal)	script-native name+id
+00310260	39	setImpactFunction	Rocket.setImpactFunction	003439A0	high (name and id equal)	script-native name+id
+00310284	38	createAndLaunch	Rocket.createAndLaunch	0039CE10	high (name and id equal)	script-native name+id
+00310310	64	setWeaponRefireScale	AIObject.setWeaponRefireScale	0038BE18	high (name and id equal)	script-native name+id
+00310338	63	setWeaponDamageScale	AIObject.setWeaponDamageScale	0038BDA0	high (name and id equal)	script-native name+id
+00310380	61	setAnimScale	AIObject.setAnimScale	0038BCE8	high (name and id equal)	script-native name+id
+003103A0	60	addCallback	AIObject.addCallback	003F5B90	high (name and id equal)	script-native name+id
+003103BC	59	executeRoute	AIObject.executeRoute	0038BC00	high (name and id equal)	script-native name+id
+003103DC	58	setAIRemoveWhenNonVisible	AIObject.setAIRemoveWhenNonVisible	0038BBB8	high (name and id equal)	script-native name+id
+00310408	57	setAIWeaponsEnableByGroup	AIObject.setAIWeaponsEnableByGroup	0038BAA0	high (name and id equal)	script-native name+id
+00310434	56	7			none	no PS2 row with this name
+00310444	55	6			none	no PS2 row with this name
+00310454	54	5			none	no PS2 row with this name
+00310464	53	clearPropulsionFlags	AIObject.clearPropulsionFlags	0038B8A0	high (name and id equal)	script-native name+id
+003104B0	51	setPropulsionFlags	AIObject.setPropulsionFlags	0038B778	high (name and id equal)	script-native name+id
+003104D4	50	setRouteRepeat	AIObject.setRouteRepeat	0038B6F0	high (name and id equal)	script-native name+id
+0031053C	47	setRoutePrecision	AIObject.setRoutePrecision	0038B590	high (name and id equal)	script-native name+id
+00310560	46	setRoutePosition	AIObject.setRoutePosition	0038B540	high (name and id equal)	script-native name+id
+003105CC	43	setRouteFromCurrentPos	AIObject.setRouteFromCurrentPos	0038B3E8	high (name and id equal)	script-native name+id
+003105F4	42	setRoute	AIObject.setRoute	0038B388	high (name and id equal)	script-native name+id
+00310610	41	setAcceleration	AIObject.setAcceleration	0038B330	high (name and id equal)	script-native name+id
+00310630	40	setSpeed	AIObject.setSpeed	0038B2D8	high (name and id equal)	script-native name+id
+0031064C	39	&			none	no PS2 row with this name
+003106A4	6	setMonsterTarget	AIGroup.setMonsterTarget	003FC650	high (name and id equal)	script-native name+id
+00310764	46	destroyBuilding	Building.destroyBuilding	00302480	high (name and id equal)	script-native name+id
+003107B0	44	+			none	no PS2 row with this name
+003108F8	9	setVarRangeEx	MonsterAIGoal.setVarRangeEx	00389FB0	high (name and id equal)	script-native name+id
+00310944	6	setVarRange	MonsterAIGoal.setVarRange	00389EB0	high (name and id equal)	script-native name+id
+00310960	5	setThreatMask	MonsterAIGoal.setThreatMask	00389E60	high (name and id equal)	script-native name+id
+00310980	4	removeFlags	MonsterAIGoal.removeFlags	00389E00	high (name and id equal)	script-native name+id
+0031099C	3	addFlags	MonsterAIGoal.addFlags	00389DA8	high (name and id equal)	script-native name+id
+00310A04	153	setSlot	Monster.setSlot	003709F0	high (name and id equal)	script-native name+id
+00310A54	150	loseStolenWeapon	Monster.loseStolenWeapon	003C1B10	high (name and id equal)	script-native name+id
+00310A78	149	stealWeapon	Monster.stealWeapon	0039A820	high (name and id equal)	script-native name+id
+00310A94	148	lockEnergyMod	Monster.lockEnergyMod	0039A880	high (name and id equal)	script-native name+id
+00310AB4	147	setEnergyMod	Monster.setEnergyMod	0039A8E0	high (name and id equal)	script-native name+id
+00310B04	144	disablePlayerMove	Monster.disablePlayerMove	0039AD10	high (name and id equal)	script-native name+id
+00310B28	143	enablePlayerMove	Monster.enablePlayerMove	0039AD70	high (name and id equal)	script-native name+id
+00310B4C	142	stopChoking	Monster.stopChoking	0039A5D0	high (name and id equal)	script-native name+id
+00310B68	141	startChoking	Monster.startChoking	003B91D0	high (name and id equal)	script-native name+id
+00310B88	140	setTargetingIgnoresImmoveables	Monster.setTargetingIgnoresImmoveables	00399600	high (name and id equal)	script-native name+id
+00310BB8	139	setStorageValue	Monster.setStorageValue	003996E0	high (name and id equal)	script-native name+id
+00310C14	136	setUpgrade	Monster.setUpgrade	00399A00	high (name and id equal)	script-native name+id
+00310C30	135	refillAmmo	Monster.refillAmmo	003C9CF0	high (name and id equal)	script-native name+id
+00310C4C	134	addAmmo	Monster.addAmmo	003C9DB0	high (name and id equal)	script-native name+id
+00310C64	133	setEnergy	Monster.setEnergy	00399AD0	high (name and id equal)	script-native name+id
+00310C80	132	setDirection	Monster.setDirection	00399750	high (name and id equal)	script-native name+id
+00310CC0	129	installDamageFunction	Monster.installDamageFunction	0039A570	high (name and id equal)	script-native name+id
+00310CE8	128	setTargetOffset	Monster.setTargetOffset	0039AC30	high (name and id equal)	script-native name+id
+00310D08	127	setUnfaceable	Monster.setUnfaceable	0039ACB0	high (name and id equal)	script-native name+id
+00310D28	126	setSpeedScale	Monster.setSpeedScale	0039A620	high (name and id equal)	script-native name+id
+00310D48	125	setDynamicScale	Monster.setDynamicScale	0039A680	high (name and id equal)	script-native name+id
+00310D68	124	putDownHeldObject	Monster.putDownHeldObject	003AA830	high (name and id equal)	script-native name+id
+00310D8C	123	setOTSRodDir	Monster.setOTSRodDir	0039A9F0	high (name and id equal)	script-native name+id
+00310DAC	122	setAutoTarget	Monster.setAutoTarget	0039AA60	high (name and id equal)	script-native name+id
+00310DF0	120	setTargetLossOffset	Monster.setTargetLossOffset	0039AAC0	high (name and id equal)	script-native name+id
+00310E14	119	installCalcFireAtPos	Monster.installCalcFireAtPos	0039AB10	high (name and id equal)	script-native name+id
+00310E3C	118	installTargetChangedFunction	Monster.installTargetChangedFunction	0039AB70	high (name and id equal)	script-native name+id
+00310E6C	117	installNamedMoveFunction	Monster.installNamedMoveFunction	0039A6E0	high (name and id equal)	script-native name+id
+00310E98	116	installMoveFunction	Monster.installMoveFunction	0039ABD0	high (name and id equal)	script-native name+id
+00310EBC	115	startRage	Monster.startRage	003CA680	high (name and id equal)	script-native name+id
+00310ED8	114	turnOffTentacle	Monster.turnOffTentacle	0039ADD0	high (name and id equal)	script-native name+id
+00310EF8	113	burrowToTentacle	Monster.burrowToTentacle	0039AE50	high (name and id equal)	script-native name+id
+00310F1C	112	retractTentacle	Monster.retractTentacle	0039AEC0	high (name and id equal)	script-native name+id
+00310F3C	111	emergeTentacle	Monster.emergeTentacle	0039AF40	high (name and id equal)	script-native name+id
+00310F5C	110	burrowTentacleTo	Monster.burrowTentacleTo	0039B040	high (name and id equal)	script-native name+id
+00310F80	109	burrowTentacle	Monster.burrowTentacle	0039AFC0	high (name and id equal)	script-native name+id
+00310FA0	108	transformIntoMothra	Monster.transformIntoMothra	0039B2B0	high (name and id equal)	script-native name+id
+00310FC4	107	setJumpParams	Monster.setJumpParams	00399580	high (name and id equal)	script-native name+id
+00310FE4	106	setReflectionShieldParams	Monster.setReflectionShieldParams	0039B0E0	high (name and id equal)	script-native name+id
+00311010	105	setReflectionShield	Monster.setReflectionShield	0039B1D0	high (name and id equal)	script-native name+id
+00311034	104	setRageMode	Monster.setRageMode	003D0420	high (name and id equal)	script-native name+id
+00311050	103	f			none	no PS2 row with this name
+003111B8	91	setIgnoreDynamicScaling	Monster.setIgnoreDynamicScaling	00398D30	high (name and id equal)	script-native name+id
+003111E0	90	setAllowDyingObjectPickup	Monster.setAllowDyingObjectPickup	00398D90	high (name and id equal)	script-native name+id
+0031120C	89	setInvulnerable	Monster.setInvulnerable	00398DF0	high (name and id equal)	script-native name+id
+0031122C	88	setSkipIntroMove	Monster.setSkipIntroMove	00387ED0	high (name and id equal)	script-native name+id
+003112C8	83	doIntroInterrupt	Monster.doIntroInterrupt	003B9470	high (name and id equal)	script-native name+id
+003112EC	82	setReaction	Monster.setReaction	003B91D0	high (name and id equal)	script-native name+id
+00311328	80	respawnInFx	Monster.respawnInFx	00321260	high (name and id equal)	script-native name+id
+00311344	79	respawnOutFx	Monster.respawnOutFx	00321310	high (name and id equal)	script-native name+id
+00311364	78	respawn	Monster.respawn	003B9980	high (name and id equal)	script-native name+id
+0031139C	76	setEffectiveClub	Monster.setEffectiveClub	003AEA10	high (name and id equal)	script-native name+id
+003114F0	64	startRespawn	Monster.startRespawn	003BB1C0	high (name and id equal)	script-native name+id
+00311510	63	addHitPoints	Monster.addHitPoints	003AF650	high (name and id equal)	script-native name+id
+00311530	62	setRageMeter	Monster.setRageMeter	00399530	high (name and id equal)	script-native name+id
+00311800	38	moveToStartLocation	Monster.moveToStartLocation	0039B3B0	high (name and id equal)	script-native name+id
+00311840	43	setThreatVarRange	MonsterAI.setThreatVarRange	00386B80	high (name and id equal)	script-native name+id
+00311864	42	addThreatHandler	MonsterAI.addThreatHandler	003D7920	high (name and id equal)	script-native name+id
+00311888	41	setMashLevel	MonsterAI.setMashLevel	00386B28	high (name and id equal)	script-native name+id
+003118A8	40	setDynamicDifficultyParams	MonsterAI.setDynamicDifficultyParams	003D7F90	high (name and id equal)	script-native name+id
+003118E4	38	%			none	no PS2 row with this name
+003118F4	37	setAIMoveBias	MonsterAI.setAIMoveBias	003D4170	high (name and id equal)	script-native name+id
+00311914	36	disableAIMove	MonsterAI.disableAIMove	003D4070	high (name and id equal)	script-native name+id
+00311934	35	enableAIMove	MonsterAI.enableAIMove	003D4070	high (name and id equal)	script-native name+id
+00311970	33	removeAllGoals	MonsterAI.removeAllGoals	003D6DA0	high (name and id equal)	script-native name+id
+00311990	32	removeGoal	MonsterAI.removeGoal	003D7A10	high (name and id equal)	script-native name+id
+003119AC	31	setGoal	MonsterAI.setGoal	003D6EA0	high (name and id equal)	script-native name+id
+00311DB8	27	setElectrocuteTime	AIWeaponDescription.setElectrocuteTime	00385420	high (name and id equal)	script-native name+id
+00311DDC	26	setFreezeTime	AIWeaponDescription.setFreezeTime	00385408	high (name and id equal)	script-native name+id
+00311E0C	24	setAccel	AIWeaponDescription.setAccel	003853D8	high (name and id equal)	script-native name+id
+00311E28	23	setInitialVelocityPct	AIWeaponDescription.setInitialVelocityPct	003853C0	high (name and id equal)	script-native name+id
+00311E50	22	setReactionLevel	AIWeaponDescription.setReactionLevel	003853A0	high (name and id equal)	script-native name+id
+00311E74	21	setDamageType	AIWeaponDescription.setDamageType	00385380	high (name and id equal)	script-native name+id
+00311E94	20	setWaterImpactDef	AIWeaponDescription.setWaterImpactDef	002785A0	high (name and id equal)	script-native name+id
+00311F08	14	setAmmo	AIWeaponDescription.setAmmo	003851B8	high (name and id equal)	script-native name+id
+00311F20	13	setMaxEffectiveRange	AIWeaponDescription.setMaxEffectiveRange	003851A0	high (name and id equal)	script-native name+id
+00311F68	10	setMaxFiringRange	AIWeaponDescription.setMaxFiringRange	00385158	high (name and id equal)	script-native name+id
+00311F8C	9	setExpansionRate	AIWeaponDescription.setExpansionRate	00385140	high (name and id equal)	script-native name+id
+00311FB0	8	setLift	AIWeaponDescription.setLift	00385128	high (name and id equal)	script-native name+id
+00311FC8	7	setGravity	AIWeaponDescription.setGravity	00385110	high (name and id equal)	script-native name+id
+00312024	2	setDPS	AIWeaponDescription.setDPS	00385098	high (name and id equal)	script-native name+id
