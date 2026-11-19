@@ -43,10 +43,11 @@ static int in_match(void) { return guest_rd(0x003562B4u) == 4u; }   /* the game-
  * the fallback. Only the name string is written; nothing else in the game is touched. */
 static int char_to_key(char c, int *row, int *idx);
 #define TE_MAXNAME 10
+static int g_in_tries;
 static int g_in_fresh;   /* the buffer still holds the two dummy letters "AA" */
 static uint32_t g_in_addr; static int g_in_off, g_in_dummy; static unsigned g_in_scan_at; static char g_in_name[TE_MAXNAME + 2]; static unsigned g_in_len;
 static int in_enabled(void) { static int v = -1; if (v < 0) { const char *e = getenv("STE_TEXT_ENTRY"); v = !(e && (e[0] == 'w' || e[0] == 'W')); } return v && !g_in_off; }
-static void in_reset(void) { g_in_fresh = 0; g_in_addr = 0; g_in_dummy = 0; g_in_scan_at = 0; g_in_len = 0; g_in_name[0] = 0; }
+static void in_reset(void) { g_in_tries = 0; g_in_fresh = 0; g_in_addr = 0; g_in_dummy = 0; g_in_scan_at = 0; g_in_len = 0; g_in_name[0] = 0; }
 static uint32_t in_scan(void)
 {
     static unsigned char buf[65536 + 16]; uint32_t a, hit = 0; int n = 0;
@@ -236,6 +237,7 @@ void ste_te_frame(unsigned frame)
         if (frame < g_in_scan_at) return;
         g_in_scan_at = 0; g_in_addr = in_scan();
         if (g_in_addr) { g_in_len = 2; g_in_name[0] = 'A'; g_in_name[1] = 'A'; g_in_name[2] = 0; g_in_fresh = 1; fprintf(stderr, "[TEXTENTRY] name buffer at %08X: typing is instant now" "\n", g_in_addr); fflush(stderr); }
+        else if (++g_in_tries < 6) { g_in_scan_at = frame + 3u; g_in_addr = 0; }   /* too early (the game has not stored the letters yet): look again */
         else { g_in_off = 1; in_reset(); }
         return;
     }
@@ -261,7 +263,7 @@ void ste_te_frame(unsigned frame)
         for (r = 0; r < 4; ++r) for (k = 0; k < G.cnt[r]; ++k) if (G.white[r][k]) { crow = r; cidx = k; }
         if (crow < 0) { if ((g_stuck % 10) == 0) { fprintf(stderr, "[TEXTENTRY] f=%u no highlighted key found (try %d)\n", frame, g_stuck); fflush(stderr); } if (++g_stuck > 40) { g_stuck = 0; q_clear(); } return; }   /* the highlight blinks: look again */
         g_stuck = 0;
-        if (crow == trow && cidx == tidx) { abtn = 1; if (dummy) { if (++g_in_dummy == 2) g_in_scan_at = frame + 12u; } else q_pop(); }
+        if (crow == trow && cidx == tidx) { abtn = 1; if (dummy) { if (++g_in_dummy == 2) g_in_scan_at = frame + 4u;   /* c429: look for the buffer 4 frames after the second dummy letter (was 12): the "AA" is on screen for about 0.1 s */ } else q_pop(); }
         else if (crow == trow) {
             int n = G.cnt[crow], d = (tidx - cidx + n) % n;   /* steps to the right with wrap */
             dir = (d <= n - d) ? BTN_RIGHT : BTN_LEFT;

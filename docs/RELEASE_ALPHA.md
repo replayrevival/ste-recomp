@@ -6,6 +6,14 @@ Draft prepared 2026-11-10, 0.1.4 section added 2026-11-14, 0.1.5 section 2026-11
 
 **Credit:** the "G:STEM-inspired options" (Monster size, Footstep camera shake, Rage meter, More traffic, No juggle limit, No knockback scaling, No minimum health, Weapon-independent vertical knockback, No results-screen dimming, Empty arena) are based on G:STEM's gameplay options: credit to Gojirex, Shame Devs, GR8GODZILLAGOD and the STEM community (docs\CREDITS_AND_SOURCES.md, docs\community\STEM_TOGGLES.md). Each is re-created from the STEM patch notes as a separate toggle, default off.
 
+## 0.2.1 (draft, 2026-11-19)
+| Area | Change | Status |
+|---|---|---|
+| Keyboard name entry | the name you type on the profile name screen appears at once (about a third of a second after the first key), up to the game's own limit of 10 characters; Backspace works; the old walking method stays as `STE_TEXT_ENTRY=walk` | in |
+| Rage announcer line | investigated: the announcer voice plays after a monster enters rage in our build; the reported missing "RAGE" line was not reproduced (human-player pickup not tested) | known issue |
+| Tokyo UFO out of bounds, Unlimited pop-in | not resolved / not verified (see REPORT_0.2) | known issue |
+| Version | exe resource and `--version` say 0.2.1 | in |
+
 ## 0.2.0 (draft, 2026-11-19)
 | Area | Change | Status |
 |---|---|---|
