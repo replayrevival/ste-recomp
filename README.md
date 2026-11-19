@@ -55,7 +55,8 @@
 ## What's new in v0.1.8
 
 - **The in-game menu works with a controller alone.** Hold Back and Start for a second (or press F1) to open it. Move with the D-pad or left stick, A chooses, B goes back, **LB and RB switch between the Video, Enhancements and Controllers pages**, and Start closes it. Holding a direction keeps moving. The three pages show as a strip at the top.
-- **Fullscreen is now borderless fullscreen.** It covers the whole screen without switching the display mode. The old true full screen is still there, called "Exclusive fullscreen (advanced)" in the launcher's Video tab; it is new and little tested. If you had Fullscreen set, you now get the borderless kind.
+- **Fullscreen is now borderless fullscreen.** It covers the whole screen without switching the display mode. The old true full screen is still there, called "Exclusive fullscreen (advanced)" in the launcher's Video tab; it is new and less tested than the other modes. If you had Fullscreen set, you now get the borderless kind.
+- **The in-game menu no longer looks frozen in true full screen.** It did not redraw or react in "Exclusive fullscreen" or with variable refresh rate off. Now it works in every window mode.
 - **Typing your name is about twice as fast** with the on-screen keyboard.
 - When the game is busy at the highest draw-distance quality step (x4), the far skyline no longer shrinks below x3.
 
