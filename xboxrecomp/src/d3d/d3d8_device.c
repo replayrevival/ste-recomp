@@ -657,6 +657,11 @@ static void scanout_present_frame_inner(D3D8DeviceState *s, ID3D11Texture2D *bb)
 void ste_overlay_frame(void *device, void *rtv, int w, int h);
 void ste_overlay_frame_none(void *device, void *rtv, int w, int h) { (void)device; (void)rtv; (void)w; (void)h; }
 #pragma comment(linker, "/alternatename:ste_overlay_frame=ste_overlay_frame_none")
+/* c424: true exclusive fullscreen (and any non-flip chain) froze with the menu open: the overlay is drawn, and its pad / keyboard / mouse input pumped, only inside scanout_present_frame, and that ran only for a NEW game frame
+ * (or on every present of a flip-model chain). The game is held while the menu is open, so no new frame ever came and the menu neither updated nor reacted. Now every present redraws while the overlay is visible. */
+int ste_overlay_visible(void);
+int ste_overlay_visible_none(void) { return 0; }
+#pragma comment(linker, "/alternatename:ste_overlay_visible=ste_overlay_visible_none")
 
 /* c404/0.1.7: opt-in gameplay recorder (STE_RECORD=<file.mkv>). The presented frame (the swap-chain back buffer after the upscale/blit, i.e. what the screenshots show, bars included; the in-game overlay is
  * left out unless STE_RECORD_OVERLAY=1) is copied on the GPU into a ring of REC_SLOTS staging textures (the render thread only issues the copy and, a few frames later, a non-blocking Map), and a worker thread
@@ -925,7 +930,7 @@ static DWORD WINAPI d3d8_scanout_thread(void *opaque)
                 }
                 scanout_present_frame(state, back_buffer);
                 copied_generation = generation;
-            } else if (g_scan_flip) scanout_present_frame(state, back_buffer);   /* flip model: the buffers rotate, so every present is drawn again */
+            } else if (g_scan_flip || ste_overlay_visible()) scanout_present_frame(state, back_buffer);   /* flip model: the buffers rotate, so every present is drawn again */
             {   /* c133 probe: STE_SWAPCHAIN_DUMP=<dir>: every 3 s write what is really presented (the swap-chain back buffer, i.e. window client size incl. letterbox bars) as sc_<n>_<w>x<h>.bmp */
                 static const char *dd = (const char *)1; static ULONGLONG last; static unsigned n;
                 if (dd == (const char *)1) dd = getenv("STE_SWAPCHAIN_DUMP");

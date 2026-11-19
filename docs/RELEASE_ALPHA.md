@@ -7,7 +7,7 @@ Draft prepared 2026-11-10, 0.1.4 section added 2026-11-14, 0.1.5 section 2026-11
 ## 0.1.8 (draft, 2026-11-19)
 | Area | Change | Status |
 |---|---|---|
-| Fullscreen | the "Fullscreen" video mode is now borderless fullscreen (flip-model swap chain on a borderless window over the monitor); true exclusive fullscreen is `mode=exclusive`, advanced and opt-in. Tested here: menu open, Alt+Tab, close, V-Sync on/off, a 21:9-sized window. The reported menu freeze in true fullscreen could not be reproduced on the test PC | in |
+| Fullscreen | the "Fullscreen" video mode is now borderless fullscreen (flip-model swap chain on a borderless window over the monitor); true exclusive fullscreen is `mode=exclusive`, advanced and opt-in. Root cause of the menu freeze in true fullscreen found and fixed: the menu was only redrawn and read when a new game frame arrived, and the game is held while the menu is open (affects every non-flip swap chain). Tested: menu open, close, Alt+Tab, V-Sync on/off, a 21:9-sized window, exclusive | in |
 | Menu with a controller | the in-game menu now follows the controller: D-pad / left stick (with hold-repeat), A confirm, B back, LB/RB tabs, Start closes. Cause: the pad state was only refreshed by the game, which is paused behind the menu. Needs the matching menu library (launcher) | in |
 | Keyboard name entry | about twice as fast (6 frames per key press instead of 12); not instant: the game's own routine could not be reached without overriding game logic | partly |
 | Draw distance | the showcase clips had been recorded with the query volume not widened (x1), which is the buildings popping in; the load governor no longer shrinks the skyline below x3 (`query_scale_floor`) | in |
