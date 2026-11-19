@@ -52,13 +52,13 @@
 - A graphics card that supports **DirectX 11**.
 - A controller is recommended. The keyboard works too.
 
-## What's new in v0.1.8
+## What's new in v0.2.0
 
-- **The in-game menu works with a controller alone.** Hold Back and Start for a second (or press F1) to open it. Move with the D-pad or left stick, A chooses, B goes back, **LB and RB switch between the Video, Enhancements and Controllers pages**, and Start closes it. Holding a direction keeps moving. The three pages show as a strip at the top.
-- **Fullscreen is now borderless fullscreen.** It covers the whole screen without switching the display mode. The old true full screen is still there, called "Exclusive fullscreen (advanced)" in the launcher's Video tab; it is new and less tested than the other modes. If you had Fullscreen set, you now get the borderless kind.
-- **The in-game menu no longer looks frozen in true full screen.** It did not redraw or react in "Exclusive fullscreen" or with variable refresh rate off. Now it works in every window mode.
-- **Typing your name is about twice as fast** with the on-screen keyboard.
-- When the game is busy at the highest draw-distance quality step (x4), the far skyline no longer shrinks below x3.
+- **Play straight from your disc image.** Choose your .iso in the launcher and press Play. The game reads the image directly and read-only: nothing is unpacked and your image is never changed. Saves and settings stay next to the launcher. An extracted game folder still works, and is needed for mods that change the game's own files. Disc images with an extra video partition in front are recognised too; images dumped from a real disc have not been tested yet.
+- **The in-game menu works with a controller alone.** Hold Back and Start for a second (or press F1) to open it. Move with the D-pad or left stick, A chooses, B goes back, **LB and RB switch between the Video, Enhancements and Controllers pages**, and Start closes it. The three pages show as a strip at the top. The menu no longer looks frozen in true full screen.
+- **Fullscreen is now borderless fullscreen.** The old true full screen is still there as "Exclusive fullscreen (advanced)" in the launcher's Video tab; it is less tested than the other modes.
+- **Typing your name is about three times as fast as in 0.1.7** with the on-screen keyboard.
+- **Credit:** the gameplay options in the Enhancements settings that come from G:STEM are grouped under "G:STEM-inspired options". Based on G:STEM's gameplay options — credit to Gojirex, Shame Devs, GR8GODZILLAGOD and the STEM community.
 
 <table>
 <tr>
@@ -71,9 +71,11 @@
 </tr>
 </table>
 
+**Known issues:** Unlimited draw distance can still show buildings popping in and out at the far skyline; in Tokyo a UFO can leave the playing area; the announcer's "RAGE" line is missing. The full list is in the release notes.
+
 Earlier: 0.1.7 made cheats from the in-game menu work at once, even in the middle of a fight. 0.1.6 brought back Mechagodzilla 3's missile trails and typing your name with the keyboard. 0.1.5a fixed a freeze when opening the in-game menu. 0.1.5 added the menu and made the text follow your button style ("PRESS START" becomes "PRESS MENU"). 0.1.4 made the game start about 20 seconds sooner and made mods that change the game's own files work. 0.1.3 brought unlimited draw distance at a smooth 60 fps, a big performance boost, Xbox / PlayStation / original Xbox button pictures, the Mods tab and Save crash report.
 
-[Read the full release notes](https://github.com/replayrevival/ste-recomp/releases/tag/v0.1.8-alpha).
+[Read the full release notes](https://github.com/replayrevival/ste-recomp/releases/tag/v0.2.0-alpha).
 
 **Coming next:** more checks of the game's effects, a beta, then 1.0. Linux and Mac come later.
 
@@ -144,7 +146,9 @@ Windows 10/11, Visual Studio 2022 Build Tools, CMake, Python 3, and your own ext
 Details, expected output and the validation steps are in [BUILD.md](BUILD.md).
 
 ## Running from the command line
-`ste-recomp.exe --game <folder that contains default.xbe>`; options are read from `ste_video.ini` / `ste_enhance.ini` (see [docs/LAUNCHER_INTERFACE.md](docs/LAUNCHER_INTERFACE.md)). Disc images (.iso) are unpacked by the launcher; the game program itself reads folders.
+`ste-recomp.exe --game <folder that contains default.xbe>`; options are read from `ste_video.ini` / `ste_enhance.ini` (see [docs/LAUNCHER_INTERFACE.md](docs/LAUNCHER_INTERFACE.md)). A disc image (`--game <file.iso>` or `.xiso`) is mounted read-only by the game program itself (nothing is unpacked); a folder works too.
 
 ## Licence and credits
+The gameplay options grouped as "G:STEM-inspired options" in the Enhancements settings are based on G:STEM's gameplay options: credit to Gojirex, Shame Devs, GR8GODZILLAGOD and the STEM community.
+
 Own code: **GPL-2.0-or-later** (see [LICENSE](LICENSE)). Third-party components keep their own licences ([THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), [CREDITS.md](CREDITS.md), `xboxrecomp/NOTICE`). Binary releases are published together with the matching source from this repository.
