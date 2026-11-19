@@ -31,3 +31,6 @@ The manifest must carry `credits` (source and licence of every imported texture)
 - PS2 / PCSX2 hash names (`<hash>.dds` replacement sets) cannot be keyed directly: those hashes are of the PS2's texture memory; the route is **name based** (the PS2 and Xbox games share the texture names): see `docs\COLLAB_GODZILLA_ULTRA.md`.
 - Cubemaps and volume textures are indexed (they have keys) but their replacement semantics are untested.
 - Texture chunks in the `New_*` city bundles that share one name across day/night variants map to several keys (`ambiguous`).
+
+## End-to-end proof (2026-11-19, c430)
+Two synthetic checkerboard PNGs named `Gigan_G2_512_C` and `Gigan_G2_512_B` went through `import_texture_set.py import` (both `matched`, keys 859899229af9d2ce / 31710ceea1a8eab8) into a pack; a Tokyo Godzilla 2000 vs Gigan fight with `STE_TEXTUREPACKS=<folder>` logged `[TEXPACK] gigan-synthetic ... ACTIVE ... 2 texture file(s)`, `replacement textures uploaded so far: 2`, and Gigan is drawn with the checkerboard in the recorded frames (F:\GodzillaSTE_work\clips_try\texpack_gigan.mkv, not in a repo). No crash. So name -> offline key -> pack -> game works.
