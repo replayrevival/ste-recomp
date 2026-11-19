@@ -36,6 +36,56 @@ static int te_enabled(void) { if (g_on < 0) { const char *e = getenv("STE_TEXT_E
 static uint32_t guest_rd(uint32_t a) { return *(volatile uint32_t *)((uintptr_t)a + (uintptr_t)g_xbox_mem_offset); }
 static int in_match(void) { return guest_rd(0x003562B4u) == 4u; }   /* the game-mode word the shot harness uses for "a fight is running" */
 
+/* c428: instant typing (STE_TEXT_ENTRY=walk keeps the 0.1.7..0.2.0 walking method). The profile name is an ordinary NUL-terminated string in the heap that the keyboard screen shows every frame and that END
+ * saves. The game's own rules: at most 10 characters, the grid's characters only (A-Z, 0-9, space). Method: the first two letters are typed the old way (two A presses at the start cursor: about 0.1 s,
+ * they are "AA"), then the buffer is found by its content ("AA", NUL, 0xCD fill: exactly one place in RAM, else the module falls back to walking for the session) and from then on every typed letter is written
+ * into the buffer at once (Backspace removes the last one). Before each write the buffer is checked to still hold what we last wrote; if not, the module starts over. The pad-walking code stays for END and as
+ * the fallback. Only the name string is written; nothing else in the game is touched. */
+static int char_to_key(char c, int *row, int *idx);
+#define TE_MAXNAME 10
+static int g_in_fresh;   /* the buffer still holds the two dummy letters "AA" */
+static uint32_t g_in_addr; static int g_in_off, g_in_dummy; static unsigned g_in_scan_at; static char g_in_name[TE_MAXNAME + 2]; static unsigned g_in_len;
+static int in_enabled(void) { static int v = -1; if (v < 0) { const char *e = getenv("STE_TEXT_ENTRY"); v = !(e && (e[0] == 'w' || e[0] == 'W')); } return v && !g_in_off; }
+static void in_reset(void) { g_in_fresh = 0; g_in_addr = 0; g_in_dummy = 0; g_in_scan_at = 0; g_in_len = 0; g_in_name[0] = 0; }
+static uint32_t in_scan(void)
+{
+    static unsigned char buf[65536 + 16]; uint32_t a, hit = 0; int n = 0;
+    for (a = 0x00100000u; a < 0x04000000u; a += 65536u) {
+        SIZE_T got = 0; uint32_t i;
+        memset(buf, 0, sizeof buf);
+        if (!ReadProcessMemory(GetCurrentProcess(), (LPCVOID)((uintptr_t)a + (uintptr_t)g_xbox_mem_offset), buf, sizeof buf, &got) || got < 16) continue;
+        for (i = 0; i + 8u <= 65536u; ++i) if (buf[i] == 'A' && buf[i + 1] == 'A' && buf[i + 2] == 0 && buf[i + 3] == 0xCD && buf[i + 4] == 0xCD && buf[i + 5] == 0xCD && buf[i + 6] == 0xCD && buf[i + 7] == 0xCD) { if (!hit) hit = a + i; n++; }
+    }
+    fprintf(stderr, "[TEXTENTRY] name buffer scan: %d candidate(s)%s" "\n", n, n == 1 ? "" : " (instant typing off for this session)"); fflush(stderr);
+    return n == 1 ? hit : 0;
+}
+static int in_content_ok(void)   /* the buffer still holds exactly what we last wrote */
+{
+    unsigned i; for (i = 0; i <= g_in_len; ++i) if (*(volatile unsigned char *)((uintptr_t)g_in_addr + i + (uintptr_t)g_xbox_mem_offset) != (unsigned char)g_in_name[i]) return 0;
+    return 1;
+}
+static void in_write(void)
+{
+    unsigned i; for (i = 0; i <= g_in_len; ++i) *(volatile unsigned char *)((uintptr_t)g_in_addr + i + (uintptr_t)g_xbox_mem_offset) = (unsigned char)g_in_name[i];
+}
+/* the head of the queue is c. 0 = not handled (walk it), 1 = handled (pop it), 2 = wait */
+static int in_step(char c, unsigned frame)
+{
+    int r, k;
+    if (!in_enabled() || c == '\t') return 0;
+    if (!g_in_addr) {
+        if (c == 8) return 1;   /* nothing typed yet */
+        return 0;               /* the caller types the dummy "AA" (in_dummy) */
+    }
+    if (!in_content_ok()) { fprintf(stderr, "[TEXTENTRY] name buffer changed under us: starting over" "\n"); fflush(stderr); in_reset(); return 0; }
+    if (g_in_fresh) { g_in_fresh = 0; g_in_len = 0; g_in_name[0] = 0; }   /* the first real character replaces the dummy letters */
+    if (c == 8) { if (g_in_len) g_in_name[--g_in_len] = 0; in_write(); return 1; }
+    if (!char_to_key(c, &r, &k)) return 1;
+    if (g_in_len < TE_MAXNAME) { g_in_name[g_in_len++] = c; g_in_name[g_in_len] = 0; in_write(); }
+    (void)frame;
+    return 1;
+}
+
 static char vk_to_char(int vk)
 {
     if (vk >= 'A' && vk <= 'Z') return (char)vk;
@@ -43,6 +93,7 @@ static char vk_to_char(int vk)
     if (vk >= VK_NUMPAD0 && vk <= VK_NUMPAD9) return (char)('0' + (vk - VK_NUMPAD0));
     if (vk == VK_SPACE) return ' ';
     if (vk == VK_TAB) return '\t';   /* END */
+    if (vk == VK_BACK) return 8;     /* c428: delete the last typed letter (instant mode only) */
     return 0;
 }
 static void q_push(char c) { LONG t = g_qt; if (((t + 1) & 63) == g_qh) return; g_q[t & 63] = c; g_qt = (t + 1) & 63; }
@@ -181,6 +232,13 @@ void ste_te_frame(unsigned frame)
     if (g_hold) { if (--g_hold == 0) { g_btn_mask = 0; g_btn_a = 0; g_rel = g_slow() == 1 ? 5u : g_slow() == 2 ? 2u : 1u; } return; }
     if (g_rel) { --g_rel; return; }
     if (g_wait) { --g_wait; return; }
+    if (g_in_scan_at) {
+        if (frame < g_in_scan_at) return;
+        g_in_scan_at = 0; g_in_addr = in_scan();
+        if (g_in_addr) { g_in_len = 2; g_in_name[0] = 'A'; g_in_name[1] = 'A'; g_in_name[2] = 0; g_in_fresh = 1; fprintf(stderr, "[TEXTENTRY] name buffer at %08X: typing is instant now" "\n", g_in_addr); fflush(stderr); }
+        else { g_in_off = 1; in_reset(); }
+        return;
+    }
     if (!g_pend && g_qh == g_qt && !(g_test[0] && !g_test_done)) return;
     { static unsigned dn; int gok = d3d8_grab_frame_rgba(0.0f, 0.0f, 0.75f, 0.72f, &px, &w, &h); int fg = gok && find_grid(px, w, h, &G);
       { static int dumped; static unsigned lastd; const char *dd = getenv("STE_TE_DUMP"); if (gok && dd && dumped < 4 && frame > 10400u && frame - lastd > 700u) { char fn[MAX_PATH]; FILE *f; dumped++; lastd = frame; _snprintf(fn, sizeof fn, "%s\\te_look_%u.ppm", dd, frame); f = fopen(fn, "wb"); if (f) { unsigned yy, xx; fprintf(f, "P6\n%u %u\n255\n", w, h); for (yy = 0; yy < h; ++yy) for (xx = 0; xx < w; ++xx) fwrite(px + ((size_t)yy * w + xx) * 4u, 1, 3, f); fclose(f); fprintf(stderr, "[TEXTENTRY] dumped %s\n", fn); } } }
@@ -189,7 +247,7 @@ void ste_te_frame(unsigned frame)
         /* no keyboard on screen: give the held-back key to the game and drop what was queued */
         int vk = g_pend; int was_vis = g_vis_until != 0; g_vis_until = 0;
         if (was_vis && gok && getenv("STE_TE_DUMP")) { static int fd; if (fd < 3) { char fn[MAX_PATH]; FILE *f; fd++; _snprintf(fn, sizeof fn, "%s\\te_fail_%u.ppm", getenv("STE_TE_DUMP"), frame); f = fopen(fn, "wb"); if (f) { unsigned yy, xx; fprintf(f, "P6\n%u %u\n255\n", w, h); for (yy = 0; yy < h; ++yy) for (xx = 0; xx < w; ++xx) fwrite(px + ((size_t)yy * w + xx) * 4u, 1, 3, f); fclose(f); fprintf(stderr, "[TEXTENTRY] grid lost, dumped %s counts=%d,%d,%d,%d bands=%d\n", fn, g_dbg_c[0], g_dbg_c[1], g_dbg_c[2], g_dbg_c[3], g_dbg_nb); } } }
-        q_clear();
+        q_clear(); in_reset();
         if (vk) { g_pend = 0; if (g_phys[vk]) { g_fwd[vk] = 1; xbox_InputKeySet(vk, 1); } }
         return;
       } }
@@ -197,12 +255,13 @@ void ste_te_frame(unsigned frame)
     if (g_pend) { int vk = g_pend; char cc = vk_to_char(vk); g_pend = 0; if (cc) q_push(cc); }
     if (g_test[0] && !g_test_done) { size_t i; for (i = 0; g_test[i]; ++i) q_push(g_test[i]); g_test_done = 1; fprintf(stderr, "[TEXTENTRY] test string \"%s\" queued\n", g_test); fflush(stderr); }
     if (!q_peek(&c)) return;
-    {   int trow, tidx, crow = -1, cidx = -1, r, k, dir = 0, abtn = 0;
-        if (!char_to_key(c, &trow, &tidx)) { q_pop(); return; }
+    { int h = in_step(c, frame); if (h == 1) { q_pop(); return; } }
+    {   int trow, tidx, crow = -1, cidx = -1, r, k, dir = 0, abtn = 0; int dummy = in_enabled() && !g_in_addr && c != '\t' && c != 8; char wc = dummy ? 'A' : c;
+        if (!char_to_key(wc, &trow, &tidx)) { q_pop(); return; }
         for (r = 0; r < 4; ++r) for (k = 0; k < G.cnt[r]; ++k) if (G.white[r][k]) { crow = r; cidx = k; }
         if (crow < 0) { if ((g_stuck % 10) == 0) { fprintf(stderr, "[TEXTENTRY] f=%u no highlighted key found (try %d)\n", frame, g_stuck); fflush(stderr); } if (++g_stuck > 40) { g_stuck = 0; q_clear(); } return; }   /* the highlight blinks: look again */
         g_stuck = 0;
-        if (crow == trow && cidx == tidx) { abtn = 1; q_pop(); }
+        if (crow == trow && cidx == tidx) { abtn = 1; if (dummy) { if (++g_in_dummy == 2) g_in_scan_at = frame + 12u; } else q_pop(); }
         else if (crow == trow) {
             int n = G.cnt[crow], d = (tidx - cidx + n) % n;   /* steps to the right with wrap */
             dir = (d <= n - d) ? BTN_RIGHT : BTN_LEFT;
