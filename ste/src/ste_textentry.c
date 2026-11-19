@@ -30,7 +30,7 @@ static unsigned g_hold, g_rel, g_wait;                     /* frame counters of 
 static int g_last_row = -1, g_last_idx = -1, g_stuck;
 static char g_test[64]; static int g_test_done;
 
-static int g_slow(void) { static int v = -1; if (v < 0) { const char *e = getenv("STE_TE_SLOW"); v = e && e[0] == (char)49; } return v; }
+static int g_slow(void) { static int v = -1; if (v < 0) { const char *e = getenv("STE_TE_SLOW"), *f = getenv("STE_TE_SPEED"); v = (e && e[0] == (char)49) ? 1 : (f && f[0] == (char)50) ? 2 : 3; } return v; }
 static int te_enabled(void) { if (g_on < 0) { const char *e = getenv("STE_TEXT_ENTRY"); g_on = !(e && e[0] == '0'); if (g_on) { const char *t = getenv("STE_TE_TEST"); if (t) strncpy(g_test, t, sizeof g_test - 1); } } return g_on; }
 
 static uint32_t guest_rd(uint32_t a) { return *(volatile uint32_t *)((uintptr_t)a + (uintptr_t)g_xbox_mem_offset); }
@@ -178,7 +178,7 @@ void ste_te_frame(unsigned frame)
     if (g_on <= 0) return;
     g_fr = (LONG)frame;
     /* press state machine: hold the injected button, then release, then wait for the game to settle */
-    if (g_hold) { if (--g_hold == 0) { g_btn_mask = 0; g_btn_a = 0; g_rel = g_slow() ? 5u : 2u; } return; }
+    if (g_hold) { if (--g_hold == 0) { g_btn_mask = 0; g_btn_a = 0; g_rel = g_slow() == 1 ? 5u : g_slow() == 2 ? 2u : 1u; } return; }
     if (g_rel) { --g_rel; return; }
     if (g_wait) { --g_wait; return; }
     if (!g_pend && g_qh == g_qt && !(g_test[0] && !g_test_done)) return;
@@ -211,6 +211,6 @@ void ste_te_frame(unsigned frame)
         g_last_row = crow; g_last_idx = cidx;
         fprintf(stderr, "[TEXTENTRY] f=%u char=%d cursor=(%d,%d) target=(%d,%d) -> %s\n", frame, (int)c, crow, cidx, trow, tidx, abtn ? "A" : dir == BTN_RIGHT ? "R" : dir == BTN_LEFT ? "L" : dir == BTN_DOWN ? "D" : "U");
         if (abtn) g_btn_a = 1; else g_btn_mask = dir;
-        g_hold = g_slow() ? 4u : 3u; g_wait = g_slow() ? 3u : 1u;   /* c421: 12 -> 6 frames per press (every move is still checked against the screen); STE_TE_SLOW=1 = the 0.1.7 timing */
+        g_hold = g_slow() == 1 ? 4u : g_slow() == 2 ? 3u : 2u; g_wait = g_slow() == 1 ? 3u : g_slow() == 2 ? 1u : 0u;   /* c425: default fast = 3 frames per press; STE_TE_SPEED=2 the c421 6 frames, STE_TE_SLOW=1 the 0.1.7 12 frames */   /* c421: 12 -> 6 frames per press (every move is still checked against the screen); STE_TE_SLOW=1 = the 0.1.7 timing */
     }
 }

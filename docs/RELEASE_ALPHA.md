@@ -4,6 +4,16 @@
 **Early alpha. Work in progress, development continues.** Not affiliated with or endorsed by Toho, Atari or Pipeworks. You must own the game; no game data is included or distributed. Windows only for now.
 Draft prepared 2026-11-10, 0.1.4 section added 2026-11-14, 0.1.5 section 2026-11-15. Nothing here is published; the owner publishes.
 
+## 0.2.0 (draft, 2026-11-19)
+| Area | Change | Status |
+|---|---|---|
+| Play from a disc image | the game mounts an Xbox disc image (.iso / .xiso, plain or redump-style with a video partition in front) read-only; the launcher passes the image path (capability `disc_image`) so no extraction step is needed. Patch mods still need a folder | in (tested with built images; a real redump is untested) |
+| Keyboard name entry | about 3.5x faster than 0.1.7 (a name in about 2 s); not instant | partly |
+| Low-end preset | target and settings documented (docs/LOW_END_PRESET.md); CPU side measured, weak-GPU side estimated only | partly |
+| Version | exe resource and `--version` say 0.2.0 | in |
+
+Not in this release: the stuck Tokyo UFO, the missing "RAGE" announcer line, verified pop-free Unlimited clips.
+
 ## 0.1.8 (draft, 2026-11-19)
 | Area | Change | Status |
 |---|---|---|
