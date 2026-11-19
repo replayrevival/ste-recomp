@@ -187,6 +187,8 @@ static int step(Rep *r, int now, ULONGLONG t)
 }
 static void feed_nav(int nav) { ste_overlay_input in; memset(&in, 0, sizeof in); in.type = STE_INPUT_NAV; in.nav = nav; g_api.feed(g_ov, &in); }
 static void feed_release(int nav) { ste_overlay_input in; memset(&in, 0, sizeof in); in.type = STE_INPUT_NAV_RELEASE; in.nav = nav; g_api.feed(g_ov, &in); }   /* c420: after the first release the overlay repeats held directions itself */
+static int g_dev_cur = -1;   /* c423: device kind last told to the overlay (hint bar pictures); -1 = not set since the menu opened */
+static void set_dev(int kind) { if (kind != g_dev_cur) { g_api.set_input_device(g_ov, kind); g_dev_cur = kind; } }
 static void feed_source(const char *s) { ste_overlay_input in; memset(&in, 0, sizeof in); in.type = STE_INPUT_SOURCE; in.source = s; g_api.feed(g_ov, &in); }
 static const char *key_source(unsigned vk, char *b, size_t n)
 {
@@ -209,6 +211,7 @@ static void pump_input(ULONGLONG t)
         if (g_kq_r == w) break;
         vk = (unsigned)g_keyq[g_kq_r % 64]; g_kq_r++;
         if (g_api.listening(g_ov)) { const char *n = vk == VK_ESCAPE ? "cancel" : key_source(vk, nb, sizeof nb); if (n) feed_source(n); continue; }
+        set_dev(STE_DEVICE_KEYBOARD);
         switch (vk) {
             case VK_UP: feed_nav(STE_NAV_UP); feed_release(STE_NAV_UP); break; case VK_DOWN: feed_nav(STE_NAV_DOWN); feed_release(STE_NAV_DOWN); break; case VK_LEFT: feed_nav(STE_NAV_LEFT); feed_release(STE_NAV_LEFT); break; case VK_RIGHT: feed_nav(STE_NAV_RIGHT); feed_release(STE_NAV_RIGHT); break;
             case VK_PRIOR: feed_nav(STE_NAV_PREV_TAB); break; case VK_NEXT: feed_nav(STE_NAV_NEXT_TAB); break;
@@ -226,6 +229,7 @@ static void pump_input(ULONGLONG t)
     }
     if (!g_api.listening(g_ov)) {
         /* c420: first press only + release on let-go (the overlay repeats held directions itself); A confirm, B back, LB/RB tabs, Start closes */
+        if ((U | D | L | R | A | B | LB | RB | ST) && !(pu | pd | pl | pr | pa | pb | plb | prb | pst)) set_dev(STE_DEVICE_XBOX);   /* c423: the last device used decides the hint bar */
         if (U != pu) { if (U) feed_nav(STE_NAV_UP); else feed_release(STE_NAV_UP); pu = U; }
         if (D != pd) { if (D) feed_nav(STE_NAV_DOWN); else feed_release(STE_NAV_DOWN); pd = D; }
         if (L != pl) { if (L) feed_nav(STE_NAV_LEFT); else feed_release(STE_NAV_LEFT); pl = L; }
@@ -300,7 +304,7 @@ void ste_overlay_frame(void *device, void *rtv, int w, int h)
     }
     if (w != g_w || h != g_h) { g_w = w; g_h = h; g_api.resize(g_ov, w, h, 1.0f); }
     t = GetTickCount64();
-    while (ste_overlay_poll(&why, &port)) { if (g_api.visible(g_ov)) g_api.hide(g_ov); else { set_pads(); g_api.show(g_ov); } }
+    while (ste_overlay_poll(&why, &port)) { if (g_api.visible(g_ov)) g_api.hide(g_ov); else { set_pads(); g_dev_cur = -1; g_api.show(g_ov); } }
     if (g_api.visible(g_ov)) pump_input(t);
     {   /* test aid: STE_OVERLAY_TEST_NAV="down,down,confirm,back,up,left,right" feeds one navigation step every 900 ms while the overlay is open (scripted pads never reach the overlay) */
         static int idx; static ULONGLONG nxt; const char *l = getenv("STE_OVERLAY_TEST_NAV");
