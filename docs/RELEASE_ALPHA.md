@@ -4,6 +4,18 @@
 **Early alpha. Work in progress, development continues.** Not affiliated with or endorsed by Toho, Atari or Pipeworks. You must own the game; no game data is included or distributed. Windows only for now.
 Draft prepared 2026-11-10, 0.1.4 section added 2026-11-14, 0.1.5 section 2026-11-15. Nothing here is published; the owner publishes.
 
+## 0.1.8 (draft, 2026-11-19)
+| Area | Change | Status |
+|---|---|---|
+| Fullscreen | the "Fullscreen" video mode is now borderless fullscreen (flip-model swap chain on a borderless window over the monitor); true exclusive fullscreen is `mode=exclusive`, advanced and opt-in. Tested here: menu open, Alt+Tab, close, V-Sync on/off, a 21:9-sized window. The reported menu freeze in true fullscreen could not be reproduced on the test PC | in |
+| Menu with a controller | the in-game menu now follows the controller: D-pad / left stick (with hold-repeat), A confirm, B back, LB/RB tabs, Start closes. Cause: the pad state was only refreshed by the game, which is paused behind the menu. Needs the matching menu library (launcher) | in |
+| Keyboard name entry | about twice as fast (6 frames per key press instead of 12); not instant: the game's own routine could not be reached without overriding game logic | partly |
+| Draw distance | the showcase clips had been recorded with the query volume not widened (x1), which is the buildings popping in; the load governor no longer shrinks the skyline below x3 (`query_scale_floor`) | in |
+| Out-of-bounds UFO (Tokyo), missing "RAGE" announcer | investigated, not fixed (findings in REPORT_0.1.8) | slipped |
+| Version | exe resource and `--version` say 0.1.8 | in |
+
+Known: the Black Mamba fullscreen freeze is unconfirmed (no evidence arrived, not reproduced); x4 Unlimited cannot be recorded at 1080p60 on the test PC (x2 clip made).
+
 ## 0.1.7 (draft, 2026-11-19)
 | Area | Change | Status |
 |---|---|---|

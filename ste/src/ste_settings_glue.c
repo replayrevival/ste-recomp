@@ -26,6 +26,7 @@ extern const char *ste_sdl_slot_guid(int slot);
 extern int ste_sdl_raw_buttons(int slot, unsigned *mask, int *lx, int *ly);
 extern const char *ste_sdl_poll_source(void);
 extern void ste_sdl_keys_clear(void);
+extern void ste_sdl_update(void);   /* c419: refresh the pad state ourselves while the overlay is open (the game thread, which normally polls, is held) */
 extern void ste_sdl_rumble(int slot, int port, unsigned lo, unsigned hi);
 
 /* ---------------- cursor ---------------- */
@@ -185,6 +186,7 @@ static int step(Rep *r, int now, ULONGLONG t)
     return 0;
 }
 static void feed_nav(int nav) { ste_overlay_input in; memset(&in, 0, sizeof in); in.type = STE_INPUT_NAV; in.nav = nav; g_api.feed(g_ov, &in); }
+static void feed_release(int nav) { ste_overlay_input in; memset(&in, 0, sizeof in); in.type = STE_INPUT_NAV_RELEASE; in.nav = nav; g_api.feed(g_ov, &in); }   /* c420: after the first release the overlay repeats held directions itself */
 static void feed_source(const char *s) { ste_overlay_input in; memset(&in, 0, sizeof in); in.type = STE_INPUT_SOURCE; in.source = s; g_api.feed(g_ov, &in); }
 static const char *key_source(unsigned vk, char *b, size_t n)
 {
@@ -200,30 +202,39 @@ static const char *key_source(unsigned vk, char *b, size_t n)
 }
 static void pump_input(ULONGLONG t)
 {
-    static Rep up, dn, lf, rt, ra, rb; static int lmb, mx = -1, my = -1;
-    int U = 0, D = 0, L = 0, R = 0, A = 0, B = 0, s; char nb[16];
+    static int pu, pd, pl, pr, pa, pb, plb, prb, pst, lmb, mx = -1, my = -1;
+    int U = 0, D = 0, L = 0, R = 0, A = 0, B = 0, LB = 0, RB = 0, ST = 0, s; char nb[16];
     for (;;) {   /* keyboard */
         LONG w = g_kq_w; unsigned vk;
         if (g_kq_r == w) break;
         vk = (unsigned)g_keyq[g_kq_r % 64]; g_kq_r++;
         if (g_api.listening(g_ov)) { const char *n = vk == VK_ESCAPE ? "cancel" : key_source(vk, nb, sizeof nb); if (n) feed_source(n); continue; }
         switch (vk) {
-            case VK_UP: feed_nav(STE_NAV_UP); break; case VK_DOWN: feed_nav(STE_NAV_DOWN); break; case VK_LEFT: feed_nav(STE_NAV_LEFT); break; case VK_RIGHT: feed_nav(STE_NAV_RIGHT); break;
+            case VK_UP: feed_nav(STE_NAV_UP); feed_release(STE_NAV_UP); break; case VK_DOWN: feed_nav(STE_NAV_DOWN); feed_release(STE_NAV_DOWN); break; case VK_LEFT: feed_nav(STE_NAV_LEFT); feed_release(STE_NAV_LEFT); break; case VK_RIGHT: feed_nav(STE_NAV_RIGHT); feed_release(STE_NAV_RIGHT); break;
+            case VK_PRIOR: feed_nav(STE_NAV_PREV_TAB); break; case VK_NEXT: feed_nav(STE_NAV_NEXT_TAB); break;
             case VK_RETURN: case VK_SPACE: feed_nav(STE_NAV_CONFIRM); break;
             case VK_ESCAPE: case VK_BACK: case VK_F1: feed_nav(STE_NAV_BACK); break;
             default: break;
         }
     }
+    ste_sdl_update();
     for (s = 0; s < 8; ++s) {   /* pads */
         unsigned m = 0; int lx = 0, ly = 0;
         if (!ste_sdl_raw_buttons(s, &m, &lx, &ly)) continue;
-        U |= (m & 1u) || ly < -16000; D |= (m & 2u) || ly > 16000; L |= (m & 4u) || lx < -16000; R |= (m & 8u) || lx > 16000; A |= (m & 16u) != 0; B |= (m & 32u) != 0;
+        U |= (m & 1u) || ly < -16000; D |= (m & 2u) || ly > 16000; L |= (m & 4u) || lx < -16000; R |= (m & 8u) || lx > 16000; A |= (m & 16u) != 0; B |= (m & 32u) != 0; ST |= (m & 64u) != 0; LB |= (m & 256u) != 0; RB |= (m & 512u) != 0;
         if (g_api.listening(g_ov)) { const char *n = ste_sdl_poll_source(); if (n) feed_source(n); }
     }
     if (!g_api.listening(g_ov)) {
-        if (step(&up, U, t)) feed_nav(STE_NAV_UP);   if (step(&dn, D, t)) feed_nav(STE_NAV_DOWN);
-        if (step(&lf, L, t)) feed_nav(STE_NAV_LEFT); if (step(&rt, R, t)) feed_nav(STE_NAV_RIGHT);
-        if (step(&ra, A, t)) feed_nav(STE_NAV_CONFIRM); if (step(&rb, B, t)) feed_nav(STE_NAV_BACK);
+        /* c420: first press only + release on let-go (the overlay repeats held directions itself); A confirm, B back, LB/RB tabs, Start closes */
+        if (U != pu) { if (U) feed_nav(STE_NAV_UP); else feed_release(STE_NAV_UP); pu = U; }
+        if (D != pd) { if (D) feed_nav(STE_NAV_DOWN); else feed_release(STE_NAV_DOWN); pd = D; }
+        if (L != pl) { if (L) feed_nav(STE_NAV_LEFT); else feed_release(STE_NAV_LEFT); pl = L; }
+        if (R != pr) { if (R) feed_nav(STE_NAV_RIGHT); else feed_release(STE_NAV_RIGHT); pr = R; }
+        if (A != pa) { if (A) feed_nav(STE_NAV_CONFIRM); pa = A; }
+        if (B != pb) { if (B) feed_nav(STE_NAV_BACK); pb = B; }
+        if (LB != plb) { if (LB) feed_nav(STE_NAV_PREV_TAB); plb = LB; }
+        if (RB != prb) { if (RB) feed_nav(STE_NAV_NEXT_TAB); prb = RB; }
+        if (ST != pst) { if (ST) g_api.hide(g_ov); pst = ST; }
     }
     find_window();
     if (g_wnd && GetForegroundWindow() == g_wnd) {   /* mouse: position in back-buffer pixels, left button */
@@ -300,6 +311,21 @@ void ste_overlay_frame(void *device, void *rtv, int w, int h)
                 if (!strcmp(w, "up")) nav = STE_NAV_UP; else if (!strcmp(w, "down")) nav = STE_NAV_DOWN; else if (!strcmp(w, "left")) nav = STE_NAV_LEFT; else if (!strcmp(w, "right")) nav = STE_NAV_RIGHT;
                 else if (!strcmp(w, "confirm")) nav = STE_NAV_CONFIRM; else if (!strcmp(w, "back")) nav = STE_NAV_BACK;
                 if (nav >= 0) feed_nav(nav); fprintf(stderr, "[OVERLAY] test nav %s" "\n", w); fflush(stderr); } idx++; nxt = t + 900; }
+        }
+    }
+    {   /* c420 test aid: STE_OVERLAY_TEST_VPAD="down,down,rb,a,lb,b,start" presses a virtual SDL pad (700 ms held 150 ms) while the overlay is open: a controller-only pass through the real SDL path */
+        static int idx; static ULONGLONG nxt, rel; static int held = -1; const char *l = getenv("STE_OVERLAY_TEST_VPAD");
+        extern void ste_sdl_testpad(int btn, int down);
+        if (l && *l && g_api.visible(g_ov)) {
+            if (held >= 0 && t >= rel) { ste_sdl_testpad(held, 0); held = -1; }
+            if (held < 0 && t >= nxt) {
+                const char *q = l; int k = 0; char w[16];
+                while (*q && k < idx) { const char *c = strchr(q, ','); if (!c) { q = NULL; break; } q = c + 1; k++; }
+                if (q && *q) { size_t n = strcspn(q, ","); if (n > 0 && n < sizeof w) { int b = -1; memcpy(w, q, n); w[n] = 0;
+                    if (!strcmp(w, "a")) b = 0; else if (!strcmp(w, "b")) b = 1; else if (!strcmp(w, "back")) b = 4; else if (!strcmp(w, "start")) b = 6; else if (!strcmp(w, "lb")) b = 9; else if (!strcmp(w, "rb")) b = 10;
+                    else if (!strcmp(w, "up")) b = 11; else if (!strcmp(w, "down")) b = 12; else if (!strcmp(w, "left")) b = 13; else if (!strcmp(w, "right")) b = 14;
+                    if (b >= 0) { ste_sdl_testpad(b, 1); held = b; rel = t + 150; } fprintf(stderr, "[OVERLAY] test pad %s" "\n", w); fflush(stderr); } idx++; nxt = t + 700; }
+            }
         }
     }
     g_api.update(g_ov, (double)(t - g_last) / 1000.0); g_last = t;

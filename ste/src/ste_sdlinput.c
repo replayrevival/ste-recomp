@@ -115,9 +115,26 @@ int ste_sdl_raw_buttons(int slot, unsigned *mask, int *lx, int *ly)
     if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_LEFT)) m |= 4u; if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_RIGHT)) m |= 8u;
     if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_SOUTH)) m |= 16u;    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_EAST)) m |= 32u;
     if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_START)) m |= 64u;    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_BACK)) m |= 128u;
+    if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER)) m |= 256u; if (SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER)) m |= 512u;   /* c420: LB / RB = overlay tabs */
     *mask = m; *lx = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFTX); *ly = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFTY);
     LeaveCriticalSection(&g_cs);
     return 1;
+}
+/* c420: STE_OVERLAY_TEST_VPAD: a virtual SDL gamepad pressed by the test aid in ste_settings_glue.c (button n = SDL_GamepadButton n, standard layout), so a pad-only pass goes through the real SDL path. */
+void ste_sdl_update(void); int ste_sdl_pad_count(void);
+void ste_sdl_testpad(int btn, int down)
+{
+    static SDL_Joystick *js; static SDL_JoystickID vid;
+    if (!g_backend_sdl) { ste_sdl_init(); if (!g_backend_sdl) return; }   /* the scripted-pad harness runs without the SDL backend: start it for this test aid */
+    if (!js) {
+        SDL_VirtualJoystickDesc d; SDL_INIT_INTERFACE(&d);
+        d.type = SDL_JOYSTICK_TYPE_GAMEPAD; d.naxes = 6; d.nbuttons = 15; d.vendor_id = 0x045E; d.product_id = 0x02FF; d.name = "STE overlay test pad";
+        vid = SDL_AttachVirtualJoystick(&d); if (!vid) return;
+        js = SDL_OpenJoystick(vid); if (!js) return;
+        { int i; for (i = 0; i < 20; ++i) { Sleep(30); ste_sdl_update(); } }
+        fprintf(stderr, "[OVERLAY] test pad attached (slots open: %d)\n", ste_sdl_pad_count()); fflush(stderr);
+    }
+    SDL_SetJoystickVirtualButton(js, btn, down != 0); SDL_UpdateJoysticks(); ste_sdl_update();
 }
 /* c375: a button or trigger that was just pressed on any open pad, in SDL3's names (for the overlay's remapping screen); NULL when nothing new. Guide is never reported. */
 const char *ste_sdl_poll_source(void)

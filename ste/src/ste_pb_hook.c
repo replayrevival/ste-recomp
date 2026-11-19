@@ -873,7 +873,7 @@ static unsigned long long ste_cyc(void) { ULONG64 c = 0; QueryThreadCycleTime(Ge
  * buffer writing) and the render thread (Kelvin translation). Every frame the game thread's CPU time (thread cycles, calibrated once against the QPC) and the render thread's busy time (g_ste_render_busy_ms,
  * set in ste_rft) are smoothed; if the larger of the two exceeds the budget (query_budget_ms, default 14 ms of the 16.7 ms frame) the cap g_ste_qv_auto_cap that ste_hook_qvol_pre applies to the scale is lowered
  * quickly, and it creeps back up (about +0.4% per frame) while the load stays below 90% of the budget. Heavy moments therefore shorten the draw distance for a while instead of dropping frames. */
-volatile int g_ste_qv_auto_on, g_ste_qv_guard_on; volatile float g_ste_qv_auto_cap = 16.0f, g_ste_qv_budget_ms = 14.0f, g_ste_qv_max = 4.0f; volatile float g_ste_render_busy_ms, g_ste_pb_fill, g_ste_pb_outst, g_ste_qv_ramp = 5.0f;   /* g_ste_qv_ramp: largest change of the effective scale, percent per second (both directions) */
+volatile int g_ste_qv_auto_on, g_ste_qv_guard_on; volatile float g_ste_qv_auto_cap = 16.0f, g_ste_qv_budget_ms = 14.0f, g_ste_qv_max = 4.0f; volatile float g_ste_render_busy_ms, g_ste_pb_fill, g_ste_pb_outst, g_ste_qv_ramp = 5.0f, g_ste_qv_floor = 3.0f;   /* c417: the LOAD governor never trims below this scale (the pushbuffer guard may, it prevents ring overruns); a smaller scale shrinks the drawn skyline visibly (pop-in) */   /* g_ste_qv_ramp: largest change of the effective scale, percent per second (both directions) */
 #define QV_FILL_HI 0.80   /* c322: pushbuffer data in flight (this frame + the unconsumed rest of the previous one) above this share of the ring: the writer is about to lap the reader */
 #define QV_FILL_AIM 0.68
 static void ste_qv_governor(unsigned long long dcyc)
@@ -892,7 +892,7 @@ static void ste_qv_governor(unsigned long long dcyc)
         }
         { double ms = (double)dcyc / cyc_per_ms; if (ms > 100.0) ms = 100.0; game_ms = game_ms == 0.0 ? ms : game_ms * 0.8 + ms * 0.2; }
         load = game_ms > (double)g_ste_render_busy_ms ? game_ms : (double)g_ste_render_busy_ms;
-        if (load > budget) { double f = pow(budget / load, 0.30); if (f < 0.97) f = 0.97; cap *= f; over = 1; }   /* at most 3% per frame */
+        if (load > budget) { double f = pow(budget / load, 0.30), c2, lf = (double)g_ste_qv_floor < mx ? (double)g_ste_qv_floor : mx; if (f < 0.97) f = 0.97; c2 = cap * f; if (c2 < lf) c2 = cap < lf ? cap : lf; cap = c2; over = 1; }   /* c417: floor */   /* at most 3% per frame */
         if (load > 0.9 * budget) calm = 0;
     }
     if (fill > QV_FILL_HI && g_ste_pb_snap_on <= 0) { double f = pow(QV_FILL_AIM / fill, 0.6); if (f < 0.97) f = 0.97; cap *= f; over = 1; }   /* only without the private frame copies */   /* pushbuffer guard: always while the query is widened; at most 3% per frame */

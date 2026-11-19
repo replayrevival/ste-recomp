@@ -1,0 +1,11 @@
+# NOTE FOR THE LAUNCHER SESSION: 0.1.8 promoted = c422
+Exe: mission-l6\artifacts\ste_recomp_mission_l6_candidate422.exe, SHA-256 BD96D5870EB572F56C9DB84B261E14CA8C2C16085048149287D78E900042183C, version resource 0.1.8.422 / 0.1.8+c422 (`--version` 0.1.8). Validator PASS (candidate86). Not published; Miko publishes.
+In the game exe since 0.1.7:
+- Video mode: ste_video.ini [video] mode = window | borderless | fullscreen | exclusive. `fullscreen` is now BORDERLESS fullscreen (flip-model chain, log window_mode=borderless); `exclusive` = true exclusive fullscreen, advanced and unproven (opt-in). Suggested labels: Window / Fullscreen (borderless) / Exclusive fullscreen (advanced). Existing mode=fullscreen files keep working (now borderless).
+- Overlay pad navigation (needs your overlay dll with STE_NAV_PREV/NEXT_TAB + STE_INPUT_NAV_RELEASE, F:\GodzillaSTE_work\ov_dll_018): D-pad/left stick, A confirm, B back, LB/RB tabs, Start closes; the game refreshes the SDL pad itself while the menu is open (the 0.1.7 menu ignored pads because only the held game thread refreshed them). Pad-only pass logged in docs\REPORT_0.1.8.md. Keyboard: arrows/Enter/Esc as before, PageUp/PageDown tabs.
+- Keyboard name entry about 2x faster (6 frames per press); NOT instant.
+- Query-scale governor floor (query_scale_floor, default 3.0): at x4 the load governor no longer shrinks the skyline below x3.
+- ste_overlay_c.h in the game tree is your new header.
+Cosmetic, yours: in the overlay's title bar the three tab names run together ("VIDEOENHANCEMENTSOCONTROLLERS") in the clip menu_controller.mkv at 1080p; check the tab spacing/lit-tab overlap.
+NOT in 0.1.8 (slipped): the out-of-bounds Tokyo UFO and the missing "RAGE" announcer line (findings in REPORT_0.1.8.md), a verified pop-free x4 Unlimited clip.
+Clips: E:\GodzillaSTE\release\media\0.1.8\clips\ with CLIPS.txt (menu_controller, keyboard_typing_fast, draw_distance_unlimited_x2, draw_distance_orig). Screenshots (4, JPEG) in publish\ste-recomp\docs\screenshots\0.1.8_*; the 0.1.7 shots stay where they are because the README links them (your call to archive).

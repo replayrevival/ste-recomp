@@ -72,12 +72,16 @@ typedef struct ste_overlay_init {
 #define STE_INPUT_MOUSE_WHEEL 3  /* wheel: notches, positive = up */
 #define STE_INPUT_SOURCE 4       /* only while ste_overlay_listening(): `source` = SDL3 name of the pressed button ("a", "leftshoulder",
                                     "lefttrigger", "key:<SDL_GetKeyName>", "cancel"). Do not also send it as NAV. */
+#define STE_INPUT_NAV_RELEASE 5  /* nav = STE_NAV_*: that button/key was released (0.1.8). Once the game sends one, the overlay repeats a held
+                                    NAV itself (after 400 ms, every 90 ms) and the game must send only the first press, not its own repeats. */
 #define STE_NAV_UP 0
 #define STE_NAV_DOWN 1
 #define STE_NAV_LEFT 2
 #define STE_NAV_RIGHT 3
 #define STE_NAV_CONFIRM 4
 #define STE_NAV_BACK 5
+#define STE_NAV_PREV_TAB 6  /* LB / L1: previous page (0.1.8) */
+#define STE_NAV_NEXT_TAB 7  /* RB / R1: next page (0.1.8) */
 
 typedef struct ste_overlay_input {
     int type;           /* STE_INPUT_* */

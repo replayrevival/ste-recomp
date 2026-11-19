@@ -117,7 +117,9 @@ const D3D8VideoCfg *d3d8_video_cfg(void)
         vid_get("STE_VIDEO_WIDTH", "width", ini, b, sizeof(b));  W = b[0] ? (UINT)atoi(b) : 0;
         vid_get("STE_VIDEO_HEIGHT", "height", ini, b, sizeof(b)); H = b[0] ? (UINT)atoi(b) : 0;
         vid_get("STE_VIDEO_MODE", "mode", ini, b, sizeof(b));
-        if (!_stricmp(b, "borderless")) mode = D3D8V_BORDERLESS; else if (!_stricmp(b, "fullscreen")) mode = D3D8V_FULLSCREEN;
+        if (!_stricmp(b, "borderless")) mode = D3D8V_BORDERLESS;
+        else if (!_stricmp(b, "exclusive") || !_stricmp(b, "fullscreen_exclusive")) mode = D3D8V_FULLSCREEN;   /* c418: true exclusive fullscreen is an advanced option (menu-open freeze on Black Mamba, 0.1.7) */
+        else if (!_stricmp(b, "fullscreen")) { mode = D3D8V_BORDERLESS; fprintf(stderr, "[VIDEO] mode=fullscreen uses borderless fullscreen (flip-model chain on a borderless window covering the monitor); mode=exclusive selects true exclusive fullscreen\n"); }
         { int dsp = -1; RECT mr; char mdev[40]; vid_get("STE_VIDEO_DISPLAY", "display", ini, b, sizeof(b)); if (b[0] >= '0' && b[0] <= '9') dsp = atoi(b);   /* c252 */
           vid_pick_monitor(dsp, &mr, mdev, sizeof mdev); g_vcfg.display = dsp; g_vcfg.mon_x = mr.left; g_vcfg.mon_y = mr.top; g_vcfg.mon_w = mr.right - mr.left; g_vcfg.mon_h = mr.bottom - mr.top;
           strncpy(g_mon_dev, mdev, sizeof g_mon_dev - 1); }
