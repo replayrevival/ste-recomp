@@ -4,6 +4,8 @@
 **Early alpha. Work in progress, development continues.** Not affiliated with or endorsed by Toho, Atari or Pipeworks. You must own the game; no game data is included or distributed. Windows only for now.
 Draft prepared 2026-11-10, 0.1.4 section added 2026-11-14, 0.1.5 section 2026-11-15. Nothing here is published; the owner publishes.
 
+**Credit:** the "G:STEM-inspired options" (Monster size, Footstep camera shake, Rage meter, More traffic, No juggle limit, No knockback scaling, No minimum health, Weapon-independent vertical knockback, No results-screen dimming, Empty arena) are based on G:STEM's gameplay options: credit to Gojirex, Shame Devs, GR8GODZILLAGOD and the STEM community (docs\CREDITS_AND_SOURCES.md, docs\community\STEM_TOGGLES.md). Each is re-created from the STEM patch notes as a separate toggle, default off.
+
 ## 0.2.0 (draft, 2026-11-19)
 | Area | Change | Status |
 |---|---|---|
