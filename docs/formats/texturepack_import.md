@@ -34,3 +34,19 @@ The manifest must carry `credits` (source and licence of every imported texture)
 
 ## End-to-end proof (2026-11-19, c430)
 Two synthetic checkerboard PNGs named `Gigan_G2_512_C` and `Gigan_G2_512_B` went through `import_texture_set.py import` (both `matched`, keys 859899229af9d2ce / 31710ceea1a8eab8) into a pack; a Tokyo Godzilla 2000 vs Gigan fight with `STE_TEXTUREPACKS=<folder>` logged `[TEXPACK] gigan-synthetic ... ACTIVE ... 2 texture file(s)`, `replacement textures uploaded so far: 2`, and Gigan is drawn with the checkerboard in the recorded frames (F:\GodzillaSTE_work\clips_try\texpack_gigan.mkv, not in a repo). No crash. So name -> offline key -> pack -> game works.
+
+## Getting the original textures out: `export` (0.2.2)
+Requirements: Python 3.9+ and Pillow (`pip install Pillow`); Windows paths work as written. Offline, read-only, from the user's own game folder or Xbox disc image (.iso, plain or redump-style); never writes into the game.
+
+    python -I tools\mods\import_texture_set.py export <game folder or .iso> <out folder> --monster Gigan
+    python -I tools\mods\import_texture_set.py export <game folder or .iso> <out folder> --match Gigan,Mothra
+    python -I tools\mods\import_texture_set.py export <game folder or .iso> --list --match Gigan      (names only, writes nothing)
+    python -I tools\mods\import_texture_set.py export <game folder or .iso> x --monster ?            (monster names)
+
+- `--match` = comma-separated words, case-insensitive substring of the texture name. `--monster NAME` = every texture in that monster's own bundle plus its HUD bundle. Plain `--match Gigan` misses the textures that do not carry the name (`sawblade`, `atomicbreath`, `hornkatana`, `gigan_cubemap`), so prefer `--monster`.
+- Monsters in the game: Anguirus, Baragon, Biollante, Destoroyah, Ebirah, Ghidorah, Gigan, Godzilla2k, Godzilla90s, JetJaguar, MechaGodzilla2, MechaGodzilla3, Megaguirus, Megalon, MGhidorah, MOGUERA2, Mothra, Orga, Rodan, SpaceGodzilla.
+- Output: `<Name>.png` (RGBA, level 0), exactly the name `import` matches, plus `export_report.csv` (name, size, format, file, status, reason). If one name has different pixels in several bundles, each is written as `<Name>__<bundle>.png`; importing any of them under the base name replaces every variant. Identical copies in several bundles are written once (the report lists where else they are).
+- Skin textures of a monster: `<Monster>_G2_512_C` = colour, `<Monster>_G2_512_B` = bump/normal map. The retail monster bundles hold ONE skin set per monster: there are no separate far-LOD texture names in the Xbox game (the 21:9 / far-LOD pair reported earlier is not a naming scheme of the retail files).
+- Formats decoded (incl. de-swizzling): DXT1/3/5, A8R8G8B8, X8R8G8B8, R5G6B5, A1R5G5B5, A4R4G4B4, X1R5G5B5, L8, AL8, A8, A8L8, P8 (with palette), and the linear (LIN_*) variants. Anything else is listed as skipped with the reason.
+- Linear (LIN_*) textures such as the 132x204 name plates are not power-of-two: `import` flags them "size-mismatch" but writes them; keep the same size when editing.
+- Friendly messages instead of tracebacks: Pillow missing, folder/iso not found or not an Xbox image, no bundles found, no match (with the closest names).
