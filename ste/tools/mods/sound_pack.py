@@ -11,7 +11,7 @@ Requirements: Python 3.9+ (no other package needed). Windows paths work as writt
         checks every WAV against the game's sounds (matched / unmatched / format-refused / notes), copies the usable ones into <pack folder>
         with a manifest.json ("profile": "sounds") and writes report.csv. Install the pack folder with the launcher's Mods tab.
 Naming: keep the exported file names (the part before the cue name is the id: <bank>_<3-digit slot> or the music track name).
-Replacement WAVs: PCM 16-bit, mono or stereo, any sample rate. Loops: a WAV 'smpl' loop (Audacity: export with loop) makes a bank sound loop.
+Replacement WAVs: PCM 16-bit, mono or stereo, any sample rate. Loops: end the file name with _loop (my_sound_loop.wav) or give the WAV a 'smpl' loop (editors such as Wavosaur write one; Audacity does not) to make a bank sound loop.
 Share only audio you made or have the rights to; packs with copyrighted music or game voice clips are for personal use only."""
 import csv, io, json, os, re, struct, sys
 
@@ -301,6 +301,7 @@ def cmd_import(a):
         else:
             if len(ch) == 2: note.append('stereo: mixed down to mono (game sounds are mono)')
             if loop and (loop[0] > 0 or loop[1] < len(ch[0]) - 2): note.append('partial loop ignored: the whole sound loops')
+            if stem.lower().endswith('_loop'): note.append('loops (file name ends with _loop)')
             orig = slots[m.group(1).lower()][int(m.group(2))]
             if abs(secs - len(adpcm_decode(orig['data'], 1)[0]) / float(orig['rate'])) > 0.25: note.append('length differs from the original (%.2f s vs %.2f s)' % (secs, len(adpcm_decode(orig['data'], 1)[0]) / float(orig['rate'])))
         used.add(ident); os.makedirs(os.path.join(out, 'sounds'), exist_ok=True)

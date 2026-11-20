@@ -257,7 +257,7 @@ int xbox_soundpack_build(const WCHAR *game_dir, const WCHAR *cache_root, const W
                     buf = (uint8_t *)malloc((size_t)sz.QuadPart + 1); ReadFile(h, buf, (DWORD)sz.QuadPart, &got, NULL); CloseHandle(h);
                     if (rep[slot].have) wav_free(&rep[slot].w);   /* later pack wins */
                     why = wav_load(buf, got, &rep[slot].w); free(buf);
-                    if (why) { snprintf(line, sizeof line, "  %s: refused (%s)", wf[i].stem, why); logf(line, lctx); rep[slot].have = 0; } else { rep[slot].have = 1; any = 1; }
+                    if (why) { snprintf(line, sizeof line, "  %s: refused (%s)", wf[i].stem, why); logf(line, lctx); rep[slot].have = 0; } else { size_t sl = strlen(wf[i].stem); if (sl >= 5 && !_stricmp(wf[i].stem + sl - 5, "_loop")) rep[slot].w.loop = 1; rep[slot].have = 1; any = 1; }
                 }
             }
             if (!any) { free(rep); continue; }
