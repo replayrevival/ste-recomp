@@ -1219,8 +1219,20 @@ static void dd_trace(const char *site, unsigned obj, double depth, double thr, u
     if (!g_dd_tr_init) { const char *e = getenv("STE_DD_TRACE_N"); g_dd_tr_init = 1; if (e) sscanf(e, "%u-%u", &g_dd_tr_lo, &g_dd_tr_hi); }
     { static const char *only; static int oi; if (!oi) { oi = 1; only = getenv("STE_DD_TRACE_SITE"); } if (only && *only && strcmp(only, site)) return; }
     if (!g_dd_tr_hi || g_ste_fc_n_pub < g_dd_tr_lo || g_ste_fc_n_pub > g_dd_tr_hi || cnt >= 40000u) return;
+    x.u = posp ? G32(posp) : 0; y.u = posp ? G32(posp + 4) : 0; z.u = posp ? G32(posp + 8) : 0;
+    {   /* debug filters: STE_DD_TRACE_ZMIN=<z> only logs objects at or above that height; STE_DD_TRACE_MOVED=1 logs an object only when it is new or moved more than 20 units since it was last logged (finds moving objects among thousands of static ones) */
+        static int fi; static float zmin = -1e30f; static int moved; static struct { unsigned obj; float x, y, z; } seen[8192];
+        if (!fi) { const char *e = getenv("STE_DD_TRACE_ZMIN"); fi = 1; if (e) zmin = (float)atof(e); e = getenv("STE_DD_TRACE_MOVED"); moved = e && *e == '1'; }
+        if (z.f < zmin) return;
+        if (moved) {
+            unsigned h = (obj * 2654435761u >> 19) & 8191u; unsigned k;
+            for (k = 0; k < 8192u && seen[h].obj && seen[h].obj != obj; k++) h = (h + 1) & 8191u;
+            if (seen[h].obj == obj && fabsf(seen[h].x - x.f) + fabsf(seen[h].y - y.f) + fabsf(seen[h].z - z.f) < 20.0f) return;
+            seen[h].obj = obj; seen[h].x = x.f; seen[h].y = y.f; seen[h].z = z.f;
+        }
+    }
     if (posp) dd_radial(posp, &rr, &cc);
-    cnt++; x.u = posp ? G32(posp) : 0; y.u = posp ? G32(posp + 4) : 0; z.u = posp ? G32(posp + 8) : 0;
+    cnt++;
     fprintf(stderr, "[DDTRACE] n=%u site=%s obj=0x%08X value=%.4f thr=%.4f pos=(%.1f %.1f %.1f) override=%d rad=%.4f cosf=%.4f\n", g_ste_fc_n_pub, site, obj, depth, thr, x.f, y.f, z.f, dd_active(), rr, cc);
 }
 /* radial distance of the point at guest address posp (x,y,z floats) from the camera ([0x4322F0], position +0x54), times cam[0x140] (same scale as the game's depth); cosf = forward depth / radial distance.

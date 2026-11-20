@@ -6,6 +6,17 @@ Draft prepared 2026-11-10, 0.1.4 section added 2026-11-14, 0.1.5 section 2026-11
 
 **Credit:** the "G:STEM-inspired options" (Monster size, Footstep camera shake, Rage meter, More traffic, No juggle limit, No knockback scaling, No minimum health, Weapon-independent vertical knockback, No results-screen dimming, Empty arena) are based on G:STEM's gameplay options: credit to Gojirex, Shame Devs, GR8GODZILLAGOD and the STEM community (docs\CREDITS_AND_SOURCES.md, docs\community\STEM_TOGGLES.md). Each is re-created from the STEM patch notes as a separate toggle, default off.
 
+## 0.2.3 (draft, 2026-11-20): sound packs
+| Area | Change | Status |
+|---|---|---|
+| Sound packs (audio mods) | a mod with `"profile": "sounds"` replaces sounds of the game: effects, announcer/voice lines, monster jingles and music tracks, from plain WAV files (PCM 16-bit, mono or stereo, any rate). Installed from the launcher's Mods tab; follows the on/off switch and order like every mod; `last_report.txt` says whether each pack is active and why a file was refused. No pack = nothing changes | in (proved: replaced announcer cues and fight music in a Tokyo fight; synthetic tones) |
+| Export / build tools | `tools\mods\sound_pack.py export <game folder or .iso> <out> [--match WORDS] [--category effects|voices|music|monsters] [--list]` writes every sound as a named WAV; `import <WAV folder> <game> <pack folder>` checks the WAVs and builds the pack (matched / unmatched / refused / notes); only Python 3.9+ is needed | in |
+| Loops | end a file name with `_loop` or give the WAV a `smpl` loop (Audacity does not write one); the loop flag is written, in-game looping of replaced sounds is NOT verified | partly (untested in game) |
+| RAGE announcer | traced: the game plays its `RAGE` cue (voice bank slot 28) on a real rage pickup, at the level of the other announcer lines; nothing to fix found; what it sounds like is for the listening check (export the line with `--match RAGE`) | investigated, no change |
+| Tokyo UFO, Unlimited pop-in, ANILORAK HD sample | not resolved / not delivered in 0.2.3 (details in docs\REPORT_0.2.md) | open |
+| Version | exe resource 0.2.3 (candidate c432) | in |
+Changes text for the release page: "Sound packs: replace the game's effects, announcer lines and music with your own WAV files, build the pack with one command and install it from the Mods tab."
+
 ## 0.2.2 (draft, 2026-11-19): retexture path
 | Area | Change | Status |
 |---|---|---|

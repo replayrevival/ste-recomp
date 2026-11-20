@@ -192,6 +192,15 @@ static int bank_rebuild(const uint8_t *uber, uint32_t un, const uint8_t *samp, u
     }
     if (!changed) { free(nu); free(ns); return 0; }
     WR32(nu + sdir + 8, pos);   /* SDIR: total .samp size */
+    {   /* the cue records (POOL) carry their own loop flag: block = 10 00 <slot u16> 00 00 00 00 07 <loop> ..; set it for every replaced slot (the pack decides) */
+        uint32_t pool = RD32(uber + 12), j;
+        for (j = pool + 16; j + 10 <= sdir; j++) {
+            if (nu[j] == 0x10 && nu[j + 1] == 0 && !nu[j + 4] && !nu[j + 5] && !nu[j + 6] && !nu[j + 7] && nu[j + 8] == 0x07) {
+                uint32_t slot = nu[j + 2] | ((uint32_t)nu[j + 3] << 8);
+                if ((int)slot < nslots_rep && rep[slot].have) nu[j + 9] = rep[slot].w.loop ? 1 : 0;
+            }
+        }
+    }
     *o_uber = nu; *o_samp = ns; *o_sn = pos; return 1;
 }
 
@@ -217,7 +226,7 @@ typedef struct { WCHAR path[MAX_PATH]; char stem[160]; int pack; } WavFile;
 /* dirs: the ACTIVE sound-pack folders in load order (later wins). Returns the number of files emitted. log (UTF-8) receives one line per problem / result. */
 int xbox_soundpack_build(const WCHAR *game_dir, const WCHAR *cache_root, const WCHAR *const *dirs, const char *const *ids, int npacks, sp_emit emit, void *ctx, void (*logf)(const char *line, void *c), void *lctx)
 {
-    WavFile *wf = NULL; size_t nwf = 0, cap = 0; int p, emitted = 0; uint32_t key = 2166136261u; char line[400];
+    WavFile *wf = NULL; size_t nwf = 0, cap = 0; int p, emitted = 0; uint32_t key = 2166136261u; key = fnv(key, "sp2-poolloop", 12);   /* loader version: a change in the build rules must not reuse an old cache */ char line[400];
     for (p = 0; p < npacks; p++) {
         WCHAR pat[MAX_PATH]; WIN32_FIND_DATAW fd; HANDLE h; int pcount = 0; int sub;
         for (sub = 0; sub < 2; sub++) {
