@@ -188,6 +188,17 @@ void texpack_init(void)
               if (n) g_packs_active = 1; }
         }
         fprintf(stderr, "[TEXPACK] dir %s: %d pack(s), %u distinct replacement key(s)\n", dir, np, (unsigned)g_tab_n);
+        {   /* c431: texture packs installed as mods (STE_MODS_DIR\<id>, "profile": "textures"): enabled flags and order come from the mods system (order.json), applied after the texturepacks folder, later wins */
+            extern int xbox_mods_texture_pack(int n, char *dir, size_t dn, char *id, size_t idn); extern void xbox_mods_report_append(const char *line);
+            char md[MAX_PATH], mid[96], ln[320]; int k;
+            for (k = 0; xbox_mods_texture_pack(k, md, sizeof md, mid, sizeof mid); k++) {
+                int n = scan_dir(md, 0);
+                fprintf(stderr, "[TEXPACK] mod %s ACTIVE (mods dir, position %d): %d texture file(s)\n", mid, k + 1, n);
+                snprintf(ln, sizeof ln, "texture pack %s: %s, %d file(s)", mid, n ? "ACTIVE" : "skipped (no usable <key16>_name.png files)", n);
+                xbox_mods_report_append(ln);
+                if (n) g_packs_active = 1;
+            }
+        }
     }
     g_want_mips = g_packs_active || g_aniso || g_mip_bias != 0.0f;
     { extern void texpack_start_preload(void); texpack_start_preload(); }   /* c178 */

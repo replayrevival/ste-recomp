@@ -132,6 +132,9 @@ static mod_t g_mods[MODS_MAX]; static int g_nmods;
 static int g_active[MODS_MAX]; static int g_nactive;        /* indices into g_mods, load order (later wins) */
 static int g_mods_ready, g_mods_off;
 static WCHAR g_game_dir[MAX_PATH];
+/* c431: texture packs ("profile": "textures") installed as mods are not game-file overrides; the active ones are handed to the texture-pack loader in load order (later wins). */
+static WCHAR g_root[MAX_PATH]; static int g_texmods[MODS_MAX]; static int g_ntexmods;
+static int g_sndmods[MODS_MAX]; static int g_nsndmods;   /* c432: active sound packs (profile "sounds") in load order */
 static char g_cache_tag[24];   /* c124 */
 
 /* override table: lowercase game-relative path -> host path of the winning mod file */
@@ -177,6 +180,13 @@ static void rep(const char *fmt, ...)
     char b[512]; va_list ap; va_start(ap, fmt); vsnprintf(b, sizeof b, fmt, ap); va_end(ap);
     fprintf(stderr, "[MODS] %s\n", b); if (g_rep) fprintf(g_rep, "%s\n", b);
 }
+
+/* c432: kernel_soundpack.c callbacks */
+extern int xbox_soundpack_build(const WCHAR *game_dir, const WCHAR *cache_root, const WCHAR *const *dirs, const char *const *ids, int npacks,
+                                void (*emit)(const WCHAR *rel_lc, const WCHAR *host, void *ctx), void *ctx, void (*logf)(const char *line, void *c), void *lctx);
+static int sp_ctx_mod;
+static void sp_emit_cb(const WCHAR *rel_lc, const WCHAR *host, void *ctx) { (void)ctx; ov_put(rel_lc, host, sp_ctx_mod, NULL); }
+static void sp_log_cb(const char *line, void *c) { (void)c; rep("%s", line); }
 
 static void scan_mod(int mi, const WCHAR *dir, const WCHAR *rel_prefix, int *nover, int *nnew)
 {
@@ -251,6 +261,7 @@ void xbox_mods_init(const WCHAR *game_dir)
     if (e && *e) MultiByteToWideChar(CP_UTF8, 0, e, -1, root, MAX_PATH);
     else { WCHAR *sl; if (!GetModuleFileNameW(NULL, root, MAX_PATH) || !(sl = wcsrchr(root, L'\\'))) return; *sl = 0; wcscat_s(root, MAX_PATH, L"\\mods"); }
     if (GetFileAttributesW(root) == INVALID_FILE_ATTRIBUTES) { g_mods_off = 1; return; }
+    wcsncpy_s(g_root, MAX_PATH, root, _TRUNCATE);
     swprintf_s(pat, MAX_PATH, L"%s\\*", root);
     h = FindFirstFileW(pat, &fd);
     if (h != INVALID_HANDLE_VALUE) {
@@ -312,8 +323,21 @@ void xbox_mods_init(const WCHAR *game_dir)
         }
         if (ok && !g_nactive) {}   /* nothing */
         if (!ok) { rep("%s %s: SKIPPED - %s", M->id, M->version, M->why); continue; }
+        if (!strcmp(jgets(M->manifest, "profile", ""), "sounds")) {   /* c432: a sound pack: built into replacement bank/stream files below, after all mods are known */
+            M->active = 1; g_sndmods[g_nsndmods++] = idx[i]; continue;
+        }
+        if (!strcmp(jgets(M->manifest, "profile", ""), "textures")) {   /* c431: a texture pack: no game-file paths to scan; the texture loader applies it */
+            M->active = 1; g_texmods[g_ntexmods++] = idx[i]; rep("%s %s (%s) ACTIVE texture pack, texture load position %d (the texture loader reports its file count below)", M->id, M->version, M->folder, g_ntexmods); continue;
+        }
         M->active = 1; g_active[g_nactive++] = idx[i];
         { int nover = 0, nnew = 0; rep("%s %s (%s) ACTIVE, load position %d:", M->id, M->version, M->folder, g_nactive); scan_mod(idx[i], M->dir, L"", &nover, &nnew); scan_built(idx[i], M->dir, &nover); rep("  = %d override(s), %d new file(s)", nover, nnew); }
+    }
+    if (g_nsndmods) {   /* c432: sound packs -> rebuilt SoundData files in <mods>\_soundcache\<key>, served through the same override table */
+        const WCHAR *dirs[MODS_MAX]; const char *ids[MODS_MAX]; WCHAR cache[MAX_PATH]; int k;
+        for (k = 0; k < g_nsndmods; k++) { dirs[k] = g_mods[g_sndmods[k]].dir; ids[k] = g_mods[g_sndmods[k]].id; }
+        swprintf_s(cache, MAX_PATH, L"%s\\_soundcache", root);
+        sp_ctx_mod = g_sndmods[0];
+        xbox_soundpack_build(g_game_dir, cache, dirs, ids, g_nsndmods, sp_emit_cb, NULL, sp_log_cb, NULL);
     }
     {   /* c124: the title caches the loose game files it reads (Partition5 cache_N.bin = Cache\ in the save dir) and later reads the cache instead of the disc, so an override would never be seen. A non-empty tag moves the cache to Cache.<tag>: one cache per active override set. */
         size_t k; unsigned long acc = 0;
@@ -367,3 +391,25 @@ int xbox_mods_resolve(WCHAR *host_path, DWORD size)
 
 /* c124: "" without overrides, else mods_<hash of the override set>; kernel_path.c appends it to the Cache directory name. */
 const char *xbox_mods_cache_tag(void) { return g_mods_ready && !g_mods_off ? g_cache_tag : ""; }
+
+
+/* c431: n-th ACTIVE texture-pack mod in load order (0-based): its folder (UTF-8) and id; 0 when there is none. */
+int xbox_mods_texture_pack(int n, char *dir, size_t dn, char *id, size_t idn)
+{
+    mod_t *M;
+    if (!g_mods_ready || g_mods_off || n < 0 || n >= g_ntexmods) return 0;
+    M = &g_mods[g_texmods[n]];
+    WideCharToMultiByte(CP_UTF8, 0, M->dir, -1, dir, (int)dn, NULL, NULL);
+    strncpy_s(id, idn, M->id, _TRUNCATE);
+    return 1;
+}
+
+/* c431: the texture loader appends its per-pack result to mods\last_report.txt (the mods init has closed the file by then). */
+void xbox_mods_report_append(const char *line)
+{
+    WCHAR path[MAX_PATH]; FILE *f;
+    if (!g_mods_ready || g_mods_off || !g_root[0]) return;
+    swprintf_s(path, MAX_PATH, L"%s\\last_report.txt", g_root);
+    f = _wfopen(path, L"a"); if (!f) return;
+    fprintf(f, "%s\n", line); fclose(f);
+}
