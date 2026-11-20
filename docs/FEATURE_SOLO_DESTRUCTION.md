@@ -38,3 +38,11 @@ So the retail game already ships a complete, self-contained "solo city destructi
 
 ## 6. Decision wanted from Miko
 Approve step 1 (prove the retail Demolition challenge in the recomp, test-only trigger) and step 2 (a menu entry through the mod system) as the first, cheap version of "Solo Destruction"; the bigger Ultra-style mode waits for the Ultra port work.
+
+## 7. Step 1 proven in game (2026-11-20, c432)
+Retail Demolition challenge, reached through MAIN MENU > CHALLENGES (fifth entry: Battleships, Vorillium Basketball, Osaka Crunch, Monster Bowling, **Demolition**; all listed with "Unlock all challenges") with a scripted pad (`mission-l6\tests\pads\demolition_probe.pad.txt`, pad times are process-age seconds; run `F:\GodzillaSTE_work\soak\q1b\demo_run2`, screenshots every 8 s):
+- Briefing/pause screen: "DEMOLITION: Destroy the city. Earn 15,000 destruction points before the timer runs out. Game tip: a club can be a useful tool for destruction." (Press START to continue).
+- Play: San Francisco at night, Godzilla 2000, HUD with health bar, **countdown timer** (1:41 ... 0:06 in the sampled shots) and a **SCORE** counter (2175 -> 2450 -> 2775 -> 2825) with floating "325" points popups while buildings fall.
+- End: at 0:00 the CHALLENGE RESULTS screen shows **FAILED!**, DESTRUCTION POINTS 2825, GOAL 15000, CONTINUE. (The scripted pad was a blunt button masher; a win needs 15,000.)
+- No [ICALL FAIL] / [STUB HIT] in the log. So scoring, HUD, timer, end condition and results screen all work in the recomp. Not checked: the win path (>= 15,000: victory pose and PASSED text), the Continue flow back to the menu, 16:9/21:9 HUD placement of the Demolition surface.
+Steps 2 and 3 (free "Solo Destruction": any monster, any city, timer options, menu row) need an edited script (`ChallengeDemolition.bsf` hard-codes `godzilla2k`, the level `ChallengeDemolition`, `setRoundTime(180.9)`), i.e. a BSF patch applied through the mod-patch system; next: BSF assembler/patch tooling and licence check.
