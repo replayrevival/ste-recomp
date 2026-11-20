@@ -5,7 +5,7 @@ Own code. Reads the user's own Xbox game files READ-ONLY (bundle files .cmf/.bdl
 
   index  <xbox game dir> <out index.csv>
         one row per TEXTURE chunk of every bundle: bundle, texture name, D3D format word, width, height, level-0 bytes, palette name, key16 (the texture-pack key the renderer computes).
-  import <set: folder of PNGs | mapping.csv(name,file)> <index.csv> <out pack dir> [--id ID --name NAME --credits TEXT --max-dim N]
+  import <set: folder of PNGs | mapping.csv(name,file)> <index.csv | game folder | game .iso> <out pack dir> [--id ID --name NAME --credits TEXT --max-dim N]
         matches PNG names to texture names (case-insensitive; 'Gigan_G2_512_C.png' or 'Gigan_G2_512_C_anything.png'), writes <out>\\<key16>_<name>.png (8-bit RGBA), manifest.json and report.csv
         (status per input: matched / unmatched / size-mismatch / ambiguous). Size mismatch = a different aspect ratio or a non power of two size (still written, flagged).
   sample <index.csv> <out pack dir>
@@ -73,9 +73,14 @@ def bundles(game_dir):
                             except Exception: pass
                 except Exception: pass
 
-def cmd_index(a):
+def open_source(path):
+    if os.path.isdir(path): return _Folder(path)
+    if os.path.isfile(path): return _Xiso(path)
+    raise ValueError('not found: %s' % path)
+
+def index_rows(path):
     rows = []
-    for bname, b in bundles(a[0]):
+    for bname, b in _bundle_iter(open_source(path)):
         pal = {c[1].lower(): c for c in b.chunks if c[0] == 0x0D}
         for typ, name, mo, ms, go, gs in b.chunks:
             if typ != 9 or ms < 20: continue
@@ -93,13 +98,21 @@ def cmd_index(a):
                     hs ^= hash_bytes(b.d[pc[4]:pc[4] + 1024]); palname = pc[1]
                 key = '%016x' % texpack_key(hs, fmt, w, h)
             rows.append((bname, name, '%08X' % fmt, w, h, lvl0, palname, key))
+    return rows
+
+def cmd_index(a):
+    rows = index_rows(a[0])
     with open(a[1], 'w', newline='', encoding='utf-8') as o:
         wr = csv.writer(o); wr.writerow(['bundle', 'name', 'd3d_format', 'width', 'height', 'level0_bytes', 'palette', 'key16']); wr.writerows(rows)
     print(len(rows), 'textures,', sum(1 for r in rows if r[7]), 'with a key ->', a[1])
 
 def load_index(path):
     by = {}
-    for r in csv.DictReader(open(path, encoding='utf-8')):
+    if path.lower().endswith('.csv'): rows = list(csv.DictReader(open(path, encoding='utf-8')))
+    else:   # a game folder or an Xbox disc image: build the index on the fly (about 7 s)
+        print('Reading the game textures from %s (about 10 seconds)...' % path)
+        rows = [dict(zip(['bundle', 'name', 'd3d_format', 'width', 'height', 'level0_bytes', 'palette', 'key16'], r)) for r in index_rows(path)]
+    for r in rows:
         by.setdefault(r['name'].lower(), []).append(r)
     return by
 
@@ -146,6 +159,7 @@ def cmd_import(a):
     c = {}
     for r in report: c[r[3].split(' ')[0]] = c.get(r[3].split(' ')[0], 0) + 1
     print('inputs', len(files), c, '->', out)
+    if done: print("Next: put the folder %s into the launcher Mods tab (Install from folder) and switch it on, or copy it into the game's texturepacks folder." % out)
 
 def cmd_sample(a):
     from PIL import Image
@@ -414,6 +428,8 @@ def cmd_export(a):
     print('Exported %d PNG file(s) for %d texture name(s) to %s' % (nw, len(by), o.out))
     if sk: print('%d skipped (see export_report.csv), e.g. %s: %s' % (len(sk), sk[0][0], sk[0][5]))
     print('Report: %s' % os.path.join(o.out, 'export_report.csv'))
+    print('Next: edit the PNGs (keep each file name; keep the size or use the same proportions), then run:')
+    print('  python -I import_texture_set.py import %s <game folder or .iso> <pack folder> --id my-retexture --name "My retexture"' % o.out)
     return 0
 
 def main():

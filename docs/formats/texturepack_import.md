@@ -50,3 +50,6 @@ Requirements: Python 3.9+ and Pillow (`pip install Pillow`); Windows paths work 
 - Formats decoded (incl. de-swizzling): DXT1/3/5, A8R8G8B8, X8R8G8B8, R5G6B5, A1R5G5B5, A4R4G4B4, X1R5G5B5, L8, AL8, A8, A8L8, P8 (with palette), and the linear (LIN_*) variants. Anything else is listed as skipped with the reason.
 - Linear (LIN_*) textures such as the 132x204 name plates are not power-of-two: `import` flags them "size-mismatch" but writes them; keep the same size when editing.
 - Friendly messages instead of tracebacks: Pillow missing, folder/iso not found or not an Xbox image, no bundles found, no match (with the closest names).
+
+## `import` takes the game directly (0.2.2)
+`import <edits folder> <index.csv | game folder | game .iso> <pack folder>`: with a folder or .iso the tool reads the game's texture list itself (about 10 s); the separate `index` step is only needed to reuse an index.csv. After export and import the tool prints the next step (install the pack folder in the launcher's Mods tab).
