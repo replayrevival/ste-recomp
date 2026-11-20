@@ -68,6 +68,8 @@
 </tr>
 </table>
 
+Making mods? See the [modding guide](https://github.com/replayrevival/launcher/blob/main/docs/MODDING.md).
+
 **Known issues:** Unlimited draw distance can still show buildings popping in and out at the far skyline (not fixed, not verified either way); in Tokyo a UFO can leave the playing area; we could not confirm that the announcer's "RAGE" line plays. The full list is in the release notes.
 
 Earlier: 0.2.0 added playing from a disc image, the controller-only in-game menu, borderless Fullscreen and the G:STEM credit. 0.1.7 made cheats from the in-game menu work at once, even in the middle of a fight. 0.1.6 brought back Mechagodzilla 3's missile trails and typing your name with the keyboard. 0.1.5a fixed a freeze when opening the in-game menu. 0.1.5 added the menu and made the text follow your button style ("PRESS START" becomes "PRESS MENU"). 0.1.4 made the game start about 20 seconds sooner and made mods that change the game's own files work. 0.1.3 brought unlimited draw distance at a smooth 60 fps, a big performance boost, Xbox / PlayStation / original Xbox button pictures, the Mods tab and Save crash report.
@@ -97,7 +99,7 @@ Earlier: 0.2.0 added playing from a disc image, the controller-only in-game menu
 
 **Why the Xbox version?** The Xbox release has the sharpest textures and effects of the original versions, so it's the best starting point.
 
-**Can I mod it?** Yes. The launcher installs mods from a zip or a folder. See the [modding guide](https://github.com/replayrevival/launcher/blob/main/docs/MODDING.md). Mods must never contain game files.
+**Can I mod it?** Yes. The launcher installs mods from a zip or a folder, and there is a step-by-step guide for retexturing a monster, file mods, patch mods and every setting you can change: the [modding guide](https://github.com/replayrevival/launcher/blob/main/docs/MODDING.md). Mods must never contain game files.
 
 **Linux, Mac or Steam Deck?** Windows only for now. Linux and Mac are planned for later. A guide for trying it with Proton on Linux is in [docs/TESTING_PROTON.md](docs/TESTING_PROTON.md), but it is not officially supported yet.
 
