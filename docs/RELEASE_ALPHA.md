@@ -6,6 +6,17 @@ Draft prepared 2026-11-10, 0.1.4 section added 2026-11-14, 0.1.5 section 2026-11
 
 **Credit:** the "G:STEM-inspired options" (Monster size, Footstep camera shake, Rage meter, More traffic, No juggle limit, No knockback scaling, No minimum health, Weapon-independent vertical knockback, No results-screen dimming, Empty arena) are based on G:STEM's gameplay options: credit to Gojirex, Shame Devs, GR8GODZILLAGOD and the STEM community (docs\CREDITS_AND_SOURCES.md, docs\community\STEM_TOGGLES.md). Each is re-created from the STEM patch notes as a separate toggle, default off.
 
+## 0.2.2 (draft, 2026-11-19): retexture path
+| Area | Change | Status |
+|---|---|---|
+| Export original textures | `import_texture_set.py export <game folder or .iso> <out> --monster Gigan` (also `--match`, `--list`, `--monster ?`): every texture as a named RGBA PNG plus `export_report.csv`; DXT1/3/5, A8R8G8B8, 16-bit, P8 and the linear formats are decoded and de-swizzled. Needs Python 3.9+ and Pillow | in |
+| Import in one step | `import <edits> <game folder or .iso> <pack folder>` builds the texture list itself (about 10 s); prints the next step | in |
+| Texture packs from the Mods tab | a texture pack installed as a mod (`"profile": "textures"`) is loaded from the mods folder and follows the Mods tab's enable switch and order; `last_report.txt` and the log say whether each pack is active. The `texturepacks` folder next to the exe keeps working | in (proved: checkerboard on Godzilla 2000 on/off in a Tokyo fight) |
+| Docs | docs\formats\texturepack.md, texturepack_import.md; launcher note docs\NOTE_FOR_LAUNCHER_0.2.2_retexture.md | in |
+| Version | exe resource says 0.2.2 (candidate c431) | in |
+Not in 0.2.2 (moved to 0.2.3): the RAGE announcer line, the Tokyo UFO, Unlimited pop-in, ANILORAK's HD sample test, sound packs.
+Changes text for the release page: "Retexture a monster: export the game's own textures as named PNGs from your game folder or disc image, edit them, build a pack in one command, install it from the launcher's Mods tab. Texture packs now follow the Mods tab's on/off switch and order."
+
 ## 0.2.1 (draft, 2026-11-19)
 | Area | Change | Status |
 |---|---|---|
