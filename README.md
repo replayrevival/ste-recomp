@@ -52,29 +52,18 @@
 - A graphics card that supports **DirectX 11**.
 - A controller is recommended. The keyboard works too.
 
-## What's new in v0.2.1
+## What's new in v0.2.2
 
-- **Typing your name is instant.** On the profile name screen the name you type appears at once, up to the game's own limit of 10 characters. Backspace removes the last letter. (Tested with a virtual keyboard path, not yet with a physical keyboard.)
-- Everything from 0.2.0 is in it too: you can play straight from your disc image, the in-game menu works with a controller alone (LB and RB switch pages), "Fullscreen" is borderless fullscreen, and the options based on G:STEM's gameplay options are grouped and credited. Based on G:STEM's gameplay options — credit to Gojirex, Shame Devs, GR8GODZILLAGOD and the STEM community.
-
-<table>
-<tr>
-<td><img src="docs/screenshots/0.2.1_instant_typing.jpg" alt="The name GODZILLA typed on the profile screen"></td>
-<td><img src="docs/screenshots/0.2.1_rage_mode_tokyo.jpg" alt="A Tokyo fight with Gigan in rage mode"></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/0.1.8_overlay_controller_navigation.jpg" alt="The in-game menu's Enhancements page with the three-page strip at the top and controller button pictures in the hint bar"></td>
-<td><img src="docs/screenshots/0.1.8_overlay_paused_tabs.jpg" alt="The in-game menu's main page: Resume, Video, Enhancements, Controllers, Return to launcher, Quit game"></td>
-</tr>
-</table>
+- **Retexture any monster.** Repaint Godzilla, Gigan, Mechagodzilla or any other monster and play with your own skin. Export the game's own pictures from your game folder or disc image as named PNG files, edit them in any image editor, build a pack with one command and install it from the launcher's **Mods** tab. Packs follow the Mods tab's on/off switch and order. Step by step, in plain words: the **[Retexture a monster guide](https://github.com/replayrevival/launcher/blob/main/docs/MODDING.md#retexture-a-monster)**.
+- Everything from 0.2.1 is in it too: instant name typing, playing straight from your disc image, the controller-only in-game menu, borderless Fullscreen, and the credited "G:STEM-inspired options".
 
 Making mods? See the [modding guide](https://github.com/replayrevival/launcher/blob/main/docs/MODDING.md).
 
 **Known issues:** Unlimited draw distance can still show buildings popping in and out at the far skyline (not fixed, not verified either way); in Tokyo a UFO can leave the playing area; we could not confirm that the announcer's "RAGE" line plays. The full list is in the release notes.
 
-Earlier: 0.2.0 added playing from a disc image, the controller-only in-game menu, borderless Fullscreen and the G:STEM credit. 0.1.7 made cheats from the in-game menu work at once, even in the middle of a fight. 0.1.6 brought back Mechagodzilla 3's missile trails and typing your name with the keyboard. 0.1.5a fixed a freeze when opening the in-game menu. 0.1.5 added the menu and made the text follow your button style ("PRESS START" becomes "PRESS MENU"). 0.1.4 made the game start about 20 seconds sooner and made mods that change the game's own files work. 0.1.3 brought unlimited draw distance at a smooth 60 fps, a big performance boost, Xbox / PlayStation / original Xbox button pictures, the Mods tab and Save crash report.
+Earlier: 0.2.1 made typing a name instant. 0.2.0 added playing from a disc image, the controller-only in-game menu, borderless Fullscreen and the G:STEM credit. 0.1.7 made cheats from the in-game menu work at once, even in the middle of a fight. 0.1.6 brought back Mechagodzilla 3's missile trails and typing your name with the keyboard. 0.1.5a fixed a freeze when opening the in-game menu. 0.1.5 added the menu and made the text follow your button style ("PRESS START" becomes "PRESS MENU"). 0.1.4 made the game start about 20 seconds sooner and made mods that change the game's own files work. 0.1.3 brought unlimited draw distance at a smooth 60 fps, a big performance boost, Xbox / PlayStation / original Xbox button pictures, the Mods tab and Save crash report.
 
-[Read the full release notes](https://github.com/replayrevival/ste-recomp/releases/tag/v0.2.1-alpha).
+[Read the full release notes](https://github.com/replayrevival/ste-recomp/releases/tag/v0.2.2-alpha).
 
 **Coming next:** more checks of the game's effects, a beta, then 1.0. Linux and Mac come later.
 
