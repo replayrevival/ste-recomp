@@ -1,0 +1,161 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+"""iso_to_mod.py - turn a modified STE disc image or folder into a patch mod (manifest api 2), without shipping game data.
+
+  python -I iso_to_mod.py diff <modded .iso or folder> <retail folder or .iso>
+  python -I iso_to_mod.py make <modded> <retail> <out mod folder> --id my.mod --name "My mod" [--license CC-BY-4.0]
+  python -I iso_to_mod.py prepare <mod folder> <retail folder or .iso>      (builds <mod>\\_built from YOUR original files)
+
+make writes ONLY differences (step1 patches, docs\\formats\\mod_patch.md) for files that exist in both. Files that are new in the modded
+image are reported, never copied: a new file needs a close retail file as its base (use --new-base NEW=RETAIL, repeatable) and then
+becomes "retail file + patch". A .zip that holds exactly one member whose content is the (patched) sibling .cmf is not diffed (compressed
+bytes do not diff): it is recorded as "zip-of" and rebuilt deterministically (zlib level 6, fixed date) from the patched member.
+Needs Python 3.9+, standard library only. Private input data stays where it is; nothing is written next to it."""
+import sys, os, io, json, hashlib, struct, zipfile, zlib
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'step-diff'))
+import step_diff
+
+class Src:
+    """read-only file source: a folder or an Xbox disc image (XDVDFS, plain or with a video partition in front)"""
+    OFFS = (0, 0x18300000, 0x0FD90000, 0x02090000)
+    def __init__(self, p):
+        self.p = p; self.files = {}
+        if os.path.isdir(p):
+            self.f = None
+            for d, _, fs in os.walk(p):
+                for n in fs:
+                    full = os.path.join(d, n); rel = os.path.relpath(full, p).replace('\\', '/')
+                    self.files[rel.lower()] = (rel, full, os.path.getsize(full))
+        else:
+            self.f = open(p, 'rb'); self.base = None
+            for off in self.OFFS:
+                self.f.seek(off + 32 * 2048); b = self.f.read(2048)
+                if b[:20] == b'MICROSOFT*XBOX*MEDIA': self.base = off; root, rsize = struct.unpack_from('<II', b, 20); break
+            if self.base is None: raise SystemExit('%s: not a folder or an Xbox disc image' % p)
+            for rel, sec, sz in self._walk(root, rsize): self.files[rel.lower()] = (rel, sec, sz)
+    def _walk(self, sec, size, prefix=''):
+        self.f.seek(self.base + sec * 2048); data = self.f.read(size); seen = set(); st = [0]
+        while st:
+            o = st.pop()
+            if o in seen or o + 14 > len(data): continue
+            seen.add(o); l, r, s, sz, at, nl = struct.unpack_from('<HHIIBB', data, o)
+            if l == 0xFFFF and r == 0xFFFF and s == 0xFFFFFFFF: continue
+            name = data[o + 14:o + 14 + nl].decode('latin-1')
+            if at & 0x10: yield from self._walk(s, sz, prefix + name + '/')
+            else: yield prefix + name, s, sz
+            for t in (l, r):
+                if t and t != 0xFFFF: st.append(t * 4)
+    def read(self, rel):
+        r, loc, sz = self.files[rel.lower()]
+        if self.f is None: return open(loc, 'rb').read()
+        self.f.seek(self.base + loc * 2048); return self.f.read(sz)
+    def has(self, rel): return rel.lower() in self.files
+    def name(self, rel): return self.files[rel.lower()][0]
+
+SKIP = ('udata/', 'tdata/', 'cache/')   # save-game and cache files of an extracted copy are not disc content
+def disc_files(s): return sorted(k for k in s.files if not k.startswith(SKIP))
+def sha(b): return hashlib.sha256(b).hexdigest()
+
+def zip_single(blob):
+    """(member name, member bytes) when blob is a zip with exactly one member, else None"""
+    try:
+        z = zipfile.ZipFile(io.BytesIO(blob)); il = z.infolist()
+        if len(il) != 1: return None
+        return il[0].filename, z.read(il[0].filename)
+    except Exception: return None
+
+def build_zip(member, data):
+    bio = io.BytesIO()
+    with zipfile.ZipFile(bio, 'w') as z:
+        zi = zipfile.ZipInfo(member, date_time=(1980, 1, 1, 0, 0, 0)); zi.compress_type = zipfile.ZIP_DEFLATED; zi.external_attr = 0
+        z.writestr(zi, data, compress_type=zipfile.ZIP_DEFLATED, compresslevel=6)
+    return bio.getvalue()
+
+def classify(mod, ret):
+    new, changed, same, removed = [], [], 0, []
+    mk = disc_files(mod); rk = set(disc_files(ret))
+    for k in mk:
+        if k not in rk: new.append(k)
+        elif sha(mod.read(k)) != sha(ret.read(k)): changed.append(k)
+        else: same += 1
+    removed = [k for k in sorted(rk) if not mod.has(k)]
+    return new, changed, same, removed
+
+def cmd_diff(a):
+    mod, ret = Src(a[0]), Src(a[1]); new, changed, same, removed = classify(mod, ret)
+    print('identical: %d files' % same)
+    print('new in modded image (%d):' % len(new)); [print('  %s  %d bytes' % (mod.name(k), mod.files[k][2])) for k in new]
+    print('changed (%d):' % len(changed)); [print('  %s  %d -> %d bytes' % (mod.name(k), ret.files[k][2], mod.files[k][2])) for k in changed]
+    print('missing from modded image (%d):' % len(removed)); [print('  %s' % ret.name(k)) for k in removed]
+
+def opt(a, key, default=None):
+    return a[a.index(key) + 1] if key in a else default
+
+def cmd_make(a):
+    mod, ret, out = Src(a[0]), Src(a[1]), a[2]
+    mid = opt(a, '--id', 'unnamed.mod'); nm = opt(a, '--name', mid); lic = opt(a, '--license', 'CC-BY-4.0')
+    bases = {}
+    for i, x in enumerate(a):
+        if x == '--new-base': n, r = a[i + 1].split('=', 1); bases[n.lower().replace('\\', '/')] = r.replace('\\', '/')
+    if os.path.exists(out) and os.listdir(out): raise SystemExit('%s exists and is not empty' % out)
+    os.makedirs(os.path.join(out, 'patches'), exist_ok=True)
+    new, changed, same, removed = classify(mod, ret)
+    entries, report, todo = [], [], []
+    mem_patched = {}   # target (lower) -> result bytes, for zip-of detection
+    for k in changed + [n for n in new if n in bases]:
+        base_k = k if k in ret.files else bases[k].lower()
+        a_b, b_b = ret.read(base_k), mod.read(k)
+        zs_a, zs_b = zip_single(a_b), zip_single(b_b)
+        sib = k[:-4] + '.cmf' if k.endswith('.zip') else None
+        if zs_b and zs_a and sib and sib in changed and mod.read(sib) == zs_b[1]:
+            todo.append((k, zs_b[0], sib)); continue
+        pf = 'patches/' + mod.name(k).replace('/', '__') + '.step'
+        pth = os.path.join(out, pf)
+        ops = step_diff.make_ops(a_b, b_b)
+        body = zlib.compress(b''.join(bytes([kd]) + p for kd, p in ops), 9)
+        head = step_diff.MAGIC + struct.pack('<QQ', len(a_b), len(b_b)) + step_diff.sha(a_b) + step_diff.sha(b_b) + struct.pack('<II', len(ops), 1)
+        blob = head + body; blob += struct.pack('<I', zlib.crc32(blob) & 0xFFFFFFFF); open(pth, 'wb').write(blob)
+        tgt = mod.name(k).replace('/', '\\')
+        entries.append({'target': tgt, 'base_sha256': 'sha256:' + sha(a_b), 'result_sha256': 'sha256:' + sha(b_b), 'patch': pf.replace('/', '\\'), 'size': len(b_b), 'base_from': ret.name(base_k)})
+        report.append('%s: step1 patch %d bytes (result %d)' % (tgt, len(blob), len(b_b)))
+    for k, member, sib in todo:   # zip-of entries: result = deterministic rebuild from the PATCHED sibling
+        res = build_zip(member, mod.read(sib)); tgt = mod.name(k).replace('/', '\\')
+        entries.append({'target': tgt, 'base_sha256': 'sha256:' + sha(ret.read(k)), 'result_sha256': 'sha256:' + sha(res), 'patch': 'zip-of:' + mod.name(sib).replace('/', '\\'),
+                        'format': 'zip-of', 'member': member, 'size': len(res)})
+        report.append('%s: zip-of %s (rebuilt, %d bytes, no patch data)' % (tgt, mod.name(sib), len(res)))
+    unhandled_new = [n for n in new if n not in bases]
+    man = {'api': 2, 'id': mid, 'name': nm, 'version': '1.0.0', 'game': 'STE-Xbox', 'profile': 'content', 'license': lic,
+           'description': 'Patch mod generated by iso_to_mod.py. Contains only differences against the original files, no game data.',
+           'patch_tool': 'iso_to_mod 1.0 (step-diff 1.0)', 'patches': entries}
+    json.dump(man, open(os.path.join(out, 'manifest.json'), 'w'), indent=2)
+    print('\n'.join(report)); print('mod folder %s: %d entries (%d patch files, %d zip-of), patch data %d bytes' % (
+        out, len(entries), len(entries) - len(todo), len(todo), sum(os.path.getsize(os.path.join(out, 'patches', f)) for f in os.listdir(os.path.join(out, 'patches')))))
+    if unhandled_new:
+        print('NOT EXPRESSIBLE (new files without a --new-base): %s' % ', '.join(mod.name(n) for n in unhandled_new))
+    if removed: print('note: %d retail files are missing from the modded image (a mod cannot remove files): %s' % (len(removed), ', '.join(ret.name(n) for n in removed[:10])))
+
+def cmd_prepare(a):
+    mdir, ret = a[0], Src(a[1]); man = json.load(open(os.path.join(mdir, 'manifest.json'))); ok = True; patched = {}
+    for e in man['patches']:
+        tgt = e['target'].replace('\\', '/'); dst = os.path.join(mdir, '_built', e['target'].replace('/', '\\'))
+        if e.get('format') == 'zip-of': continue
+        if not ret.has(tgt): print('%s: not in your game, skipped' % tgt); ok = False; continue
+        orig = ret.read(tgt)
+        if 'sha256:' + sha(orig) != e['base_sha256']: print('%s: BASE MISMATCH (your file differs from the one the mod was made for)' % tgt); ok = False; continue
+        res = step_diff.apply(orig, open(os.path.join(mdir, e['patch'].replace('\\', '/')), 'rb').read())
+        if 'sha256:' + sha(res) != e['result_sha256']: print('%s: RESULT MISMATCH' % tgt); ok = False; continue
+        os.makedirs(os.path.dirname(dst), exist_ok=True); open(dst, 'wb').write(res); patched[tgt.lower()] = res; print('%s: built' % tgt)
+    for e in man['patches']:
+        if e.get('format') != 'zip-of': continue
+        tgt = e['target'].replace('\\', '/'); sib = e['patch'][len('zip-of:'):].replace('\\', '/')
+        if 'sha256:' + sha(ret.read(tgt)) != e['base_sha256']: print('%s: BASE MISMATCH' % tgt); ok = False; continue
+        res = build_zip(e['member'], patched[sib.lower()]) if sib.lower() in patched else None
+        if res is None or 'sha256:' + sha(res) != e['result_sha256']: print('%s: RESULT MISMATCH (zlib differs on this machine?)' % tgt); ok = False; continue
+        dst = os.path.join(mdir, '_built', e['target'].replace('/', '\\')); os.makedirs(os.path.dirname(dst), exist_ok=True); open(dst, 'wb').write(res); print('%s: built (zip-of)' % tgt)
+    return 0 if ok else 2
+
+if __name__ == '__main__':
+    c = sys.argv[1] if len(sys.argv) > 1 else ''
+    if c == 'diff' and len(sys.argv) >= 4: cmd_diff(sys.argv[2:])
+    elif c == 'make' and len(sys.argv) >= 5: cmd_make(sys.argv[2:])
+    elif c == 'prepare' and len(sys.argv) >= 4: sys.exit(cmd_prepare(sys.argv[2:]))
+    else: print(__doc__)

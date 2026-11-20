@@ -1,0 +1,6 @@
+# NOTE FOR THE LAUNCHER SESSION: iso_to_mod (patch mod from a modified image)
+New modder tool `tools\mods\iso_to_mod.py` (docs\formats\mod_patch.md section 8): `diff`, `make <modded iso|folder> <retail> <out>` (writes a manifest api 2 patch mod with step1 patches, never game data), `prepare <mod> <retail>` (builds `_built` from the user's own files and checks every SHA-256).
+- New manifest entry kind: `"format": "zip-of"`, `"patch": "zip-of:<sibling .cmf target>"`, `"member"`. The GAME ignores it and only reads `_built`, so the launcher's Prepare mods step has to do what `prepare` does (patches first, then zip-of: zip rebuilt from the patched member with zlib level 6, date 1980-01-01; check result_sha256; a mismatch means "RESULT MISMATCH, original used"). If you prefer, call `python -I iso_to_mod.py prepare <mod folder> <game folder>`.
+- Proven with a private test image (a modified copy of the game, 50 changed files): the generated mod prepared on a clean retail folder and ran in game (50 overrides verified, fight reached, 0 errors). Nothing from it is in the repo; tests for the public tool must use synthetic changes only.
+- Not a user feature yet.
+For the machine: my game is not running; "launcher clear".
