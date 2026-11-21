@@ -66,8 +66,12 @@ SLOTS = [
     {'name': 'biollante', 'row': 2, 'art': 'biollante_en', 'crop': (28, 34, 92)},
 ]
 # 3-row layout: the retail grid (2 rows, 52 px tiles, 57 px pitch) is scaled so a third row fits above the Back/Select buttons inside the 4:3 menu area
-GRID_SCALE = 0.84
-GRID_POS = (31, 21)
+GRID_SCALE = 0.78
+FRAME_CX = 318.7                      # horizontal centre of the menu frame in the 640x480 menu space
+GRID_CX = 322                         # centre of a retail 9-column row in the grid's own space (76 + (9*55-3)/2)
+GRID_TOP = 279                        # final y of the first row (just under the portrait boxes); three rows then end ~11 units above the button hints
+GRID_POS = (round(FRAME_CX - GRID_SCALE * GRID_CX, 1), round(GRID_TOP - GRID_SCALE * 308, 1))
+MAX_PER_ROW = 12                      # 12 tiles at pitch 55 * 0.78 fit inside the menu frame
 ROW_Y = {0: 308, 1: 365, 2: 422}     # row origins in the grid's own (unscaled) space
 
 
@@ -99,8 +103,8 @@ def build(orig):
     xml = ''
     for r in sorted(rows):
         kids = rows[r]
-        if r < 2 or len(kids) > 10: raise SystemExit('slot table: row %d is not an extra row or has too many slots' % r)
-        x0 = 76 + (9 - len(kids)) * 55 // 2
+        if r < 2 or len(kids) > MAX_PER_ROW: raise SystemExit('slot table: row %d is not an extra row or has too many slots' % r)
+        x0 = int(round(GRID_CX - (55 * len(kids) - 3) / 2.0))    # centred on the retail rows
         body = ''.join(k.replace('<p> 516 0 0</p>', '<p> %d 0 0</p>' % (x0 + 55 * i), 1) for i, k in enumerate(kids))
         xml += '<o n="Row%d"><p> 0 %d 0</p>%s</o>' % (r, ROW_Y[r], body)
     r1 = ifc.index('<o n="Row1">'); r1e = _end_of_tag(ifc, r1)

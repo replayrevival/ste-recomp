@@ -192,8 +192,101 @@ def cmd_prepare(a):
         dst = os.path.join(mdir, '_built', e['target'].replace('/', '\\')); os.makedirs(os.path.dirname(dst), exist_ok=True); open(dst, 'wb').write(res); print('%s: built (zip-of)' % tgt)
     return 0 if ok else 2
 
+def _mod_order(root, only=None):
+    """enabled mods of a mods root in the game's load order (kernel_mods.c): order.json 'order' first, then manifest priority (default 100), then id."""
+    mods = {}
+    for d in sorted(os.listdir(root)):
+        mp = os.path.join(root, d, 'manifest.json')
+        if not os.path.isfile(mp): continue
+        try: m = json.load(open(mp, encoding='utf-8'))
+        except ValueError: continue
+        if not m.get('patches') or m.get('api', 1) < 2 or not m.get('id'): continue
+        mods[m['id']] = {'dir': os.path.join(root, d), 'man': m, 'enabled': bool(m.get('enabled', True)), 'pos': 1 << 20, 'prio': m.get('priority', 100)}
+    oj = os.path.join(root, 'order.json')
+    if os.path.isfile(oj):
+        o = json.load(open(oj, encoding='utf-8'))
+        for i, mid in enumerate(o.get('order', [])):
+            if mid in mods: mods[mid]['pos'] = i
+        for mid, en in (o.get('enabled') or {}).items():
+            if mid in mods: mods[mid]['enabled'] = bool(en)
+    if only is not None:
+        for mid in mods: mods[mid]['enabled'] = mid in only
+    return [mods[k] for k in sorted((k for k in mods if mods[k]['enabled']), key=lambda k: (mods[k]['pos'], mods[k]['prio'], k))]
+
+
+class StackConflict(Exception):
+    pass
+
+
+def _apply_layer(e, mdir, base, mid, touched):
+    """apply one recipe entry on top of `base` (the retail file or the result of earlier mods). Returns the new bytes or raises StackConflict."""
+    fmt = e.get('format')
+    prior = touched.get(e['target'].replace(chr(92), '/').lower(), [])
+    on_top = ' (already changed by %s)' % ', '.join(prior) if prior else ''
+    if fmt in ('bsf-edit', 'text-edit'):
+        edits = json.load(open(os.path.join(mdir, e['patch'].replace('\\', '/'))))['edits']
+        if fmt == 'bsf-edit':
+            import bsf_edit
+            toks = bsf_edit.parse(base)
+            for i, ed in enumerate(edits):
+                try: toks = bsf_edit.replace(toks, ed['old'], ed['new'])
+                except bsf_edit.BsfError as x:
+                    raise StackConflict('%s: %s: edit #%d does not match exactly once%s: %s | starts with: %s' % (mid, e['target'], i + 1, on_top, x, ed['old'].strip()[:70].replace('\n', ' ')))
+            return bsf_edit.emit(toks)
+        res = base
+        for i, ed in enumerate(edits):
+            o, n = ed['old'].encode('latin-1'), ed['new'].encode('latin-1')
+            if res.count(o) != 1: raise StackConflict('%s: %s: text edit #%d does not match exactly once%s: %s' % (mid, e['target'], i + 1, on_top, ed['old'][:70]))
+            res = res.replace(o, n)
+        return res
+    if fmt == 'builtin':
+        import importlib
+        nm = e['patch'][len('builtin:'):]
+        if nm not in BUILTINS: raise StackConflict('%s: %s: unknown builtin %r' % (mid, e['target'], nm))
+        try: return importlib.import_module(nm).build(base)
+        except SystemExit as x: raise StackConflict('%s: %s: builtin %s refused the file%s: %s' % (mid, e['target'], nm, on_top, x))
+    if prior: raise StackConflict('%s: %s: a binary patch cannot be stacked on top of the changes of %s' % (mid, e['target'], ', '.join(prior)))
+    if 'sha256:' + sha(base) != e['base_sha256']: raise StackConflict('%s: %s: BASE MISMATCH (your file differs from the one the mod was made for)' % (mid, e['target']))
+    return step_diff.apply(base, open(os.path.join(mdir, e['patch'].replace('\\', '/')), 'rb').read())
+
+
+def cmd_prepare_stack(a):
+    """prepare-stack <mods root> <retail folder or .iso> [--enable id,id]: build every enabled recipe mod ON TOP OF the earlier ones (load order).
+    A mod whose edits no longer match the already edited file is reported as a conflict naming it and the mods it clashes with, and is skipped (its
+    stale _built file for that target is renamed to .conflict so it cannot override the others). A layer on top of another mod's result gets a hash
+    the manifest cannot know: it is recorded in <mod>\\_built\\_stack.json, which the game accepts (kernel_mods.c) in place of result_sha256."""
+    root, ret = a[0], Src(a[1])
+    only = set(a[a.index('--enable') + 1].split(',')) if '--enable' in a else None
+    cur, touched, ok, sidecar = {}, {}, True, {}
+    for M in _mod_order(root, only):
+        mid, mdir = M['man']['id'], M['dir']; sidecar[mid] = {}
+        for e in M['man']['patches']:
+            if e.get('format') == 'zip-of': print('%s: %s: zip-of entries are not stacked here, use prepare for this mod alone' % (mid, e['target'])); ok = False; continue
+            tgt = e['target'].replace('\\', '/'); key = tgt.lower(); dst = os.path.join(mdir, '_built', e['target'].replace('/', '\\'))
+            if not ret.has(tgt): print('%s: %s: not in your game, skipped' % (mid, tgt)); ok = False; continue
+            base = cur.get(key)
+            if base is None: base = ret.read(tgt)
+            try: res = _apply_layer(e, mdir, base, mid, touched)
+            except StackConflict as x:
+                print('CONFLICT %s' % x); ok = False
+                if os.path.exists(dst): os.replace(dst, dst + '.conflict')
+                continue
+            alone = 'sha256:' + sha(res) == e['result_sha256']
+            if not alone and not touched.get(key): print('%s: %s: RESULT MISMATCH' % (mid, tgt)); ok = False; continue
+            os.makedirs(os.path.dirname(dst), exist_ok=True); open(dst, 'wb').write(res)
+            if not alone: sidecar[mid][e['target']] = {'sha256': sha(res), 'stack': touched.get(key, []) + [mid]}
+            cur[key] = res; touched.setdefault(key, []).append(mid)
+            print('%s: %s: built%s' % (mid, tgt, (' on top of ' + ', '.join(touched[key][:-1])) if len(touched[key]) > 1 else ''))
+        sc = os.path.join(mdir, '_built', '_stack.json')
+        if sidecar[mid]:
+            os.makedirs(os.path.dirname(sc), exist_ok=True); json.dump({'api': 1, 'targets': sidecar[mid]}, open(sc, 'w'), indent=1)
+        elif os.path.exists(sc): os.replace(sc, sc + '.old')
+    return 0 if ok else 2
+
+
 if __name__ == '__main__':
     c = sys.argv[1] if len(sys.argv) > 1 else ''
+    if c == 'prepare-stack' and len(sys.argv) >= 4: sys.exit(cmd_prepare_stack(sys.argv[2:]))
     if c == 'diff' and len(sys.argv) >= 4: cmd_diff(sys.argv[2:])
     elif c == 'make' and len(sys.argv) >= 5: cmd_make(sys.argv[2:])
     elif c == 'prepare' and len(sys.argv) >= 4: sys.exit(cmd_prepare(sys.argv[2:]))

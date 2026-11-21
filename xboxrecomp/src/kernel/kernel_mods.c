@@ -230,7 +230,18 @@ static void scan_built(int mi, const WCHAR *dir, int *nover)
         swprintf_s(full, MAX_PATH, L"%s\\_built\\%s", dir, wt);
         if (GetFileAttributesW(full) == INVALID_FILE_ATTRIBUTES) { rep("  patch %s: not built (no _built file; the launcher's Prepare mods step builds it), the original is used", tg); continue; }
         sha256_file_hex(full, have);
-        if (_stricmp(have, want)) { rep("  patch %s: RESULT MISMATCH (found sha256:%.16s..., wanted sha256:%.16s...), the original is used", tg, have, want); continue; }
+        if (_stricmp(have, want)) {
+            /* c436: a recipe mod built ON TOP of earlier mods (iso_to_mod.py prepare-stack) has a hash the manifest cannot list; the tool records it in _built/_stack.json */
+            char sc[MAX_PATH * 2]; WCHAR wsc[MAX_PATH]; jv *sj, *st, *te; int okst = 0;
+            swprintf_s(wsc, MAX_PATH, L"%s\\_built\\_stack.json", dir);
+            sj = jload(wsc); st = sj ? jget(sj, "targets") : NULL; (void)sc;
+            if (st && st->t == J_OBJ) { int q; for (q = 0; q < st->nk; q++) if (st->keys[q]) { char a1[MAX_PATH], b1[MAX_PATH]; char *c; strncpy_s(a1, sizeof a1, st->keys[q], _TRUNCATE); strncpy_s(b1, sizeof b1, tg, _TRUNCATE);
+                for (c = a1; *c; c++) if (*c == '/') *c = '\\'; for (c = b1; *c; c++) if (*c == '/') *c = '\\';
+                if (!_stricmp(a1, b1)) { te = st->kids[q]; if (te && !_stricmp(jgets(te, "sha256", ""), have)) okst = 1; } } }
+            if (sj) jfree(sj);
+            if (!okst) { rep("  patch %s: RESULT MISMATCH (found sha256:%.16s..., wanted sha256:%.16s...), the original is used", tg, have, want); continue; }
+            rep("  patch %s: stacked result recorded by Prepare (sha256:%.16s...)", tg, have);
+        }
         swprintf_s(gp, MAX_PATH, L"%s\\%s", g_game_dir, wt);
         wcscpy_s(lc, MAX_PATH, wt); lcw(lc);
         ov_put(lc, full, mi, &rp);
