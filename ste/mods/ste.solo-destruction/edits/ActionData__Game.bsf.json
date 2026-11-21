@@ -1,0 +1,9 @@
+{
+ "format": "bsf-edit",
+ "edits": [
+  {
+   "old": "\t\tgGame.loadScript(\"ConventionalGame.bsf\");\n\t}\n\tnumber sendHudMessage",
+   "new": "\t\tif(gi.getShellCheats() & 4194304.000000){\n\t\t\tgi.setShellCheats(gi.getShellCheats() - 4194304.000000);\n\t\t\tgGame.loadScript(\"ChallengeDemolition.bsf\");\n\t\t} else gGame.loadScript(\"ConventionalGame.bsf\");\n\t}\n\tnumber sendHudMessage"
+  }
+ ]
+}

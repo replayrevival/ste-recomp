@@ -1,0 +1,29 @@
+{
+ "format": "bsf-edit",
+ "edits": [
+  {
+   "old": "else if((gt == 5.000000) || (gt == 6.000000)){ obj = OnePlayer;",
+   "new": "else if((gt == 5.000000) || (gt == 6.000000) || (gShell.getGameInfo().getShellCheats() & 4194304.000000)){ obj = OnePlayer;"
+  },
+  {
+   "old": "else if((gt == 5.000000) || (gt == 6.000000)){\n\t\t\tOnePlayer.showObject(); TwoPlayer.hideObject(); FourPlayer.hideObject();\n\t\t\tif(gt == 5.000000){ s = gApp.localizeString(\"adventure\"); AMScore.showObject(); }\n\t\t\telse s = gApp.localizeString(\"survival\");\n\t\t\tsetupDifficulty();",
+   "new": "else if((gt == 5.000000) || (gt == 6.000000) || (gShell.getGameInfo().getShellCheats() & 4194304.000000)){\n\t\t\tOnePlayer.showObject(); TwoPlayer.hideObject(); FourPlayer.hideObject();\n\t\t\tif(gt == 5.000000){ s = gApp.localizeString(\"adventure\"); AMScore.showObject(); }\n\t\t\telse if((gShell.getGameInfo().getShellCheats() & 4194304.000000)) s = \"SOLO DESTRUCTION\";\n\t\t\telse s = gApp.localizeString(\"survival\");\n\t\t\t{\n\t\t\t\tShellObject sdf;\n\t\t\t\tsdf = OnePlayer.findObject(\"Difficulty\");\n\t\t\t\tif((gShell.getGameInfo().getShellCheats() & 4194304.000000)){ if(sdf.isValid()) sdf.hideObject(); }\n\t\t\t\telse{ if(sdf.isValid()) sdf.showObject(); setupDifficulty(); }\n\t\t\t}"
+  },
+  {
+   "old": "if(gt == 1.000000){ return rule != 2.000000; }",
+   "new": "if(gt == 1.000000){ if((gShell.getGameInfo().getShellCheats() & 4194304.000000)) return rule == 3.000000 || rule == 4.000000; return rule != 2.000000; }"
+  },
+  {
+   "old": "else if(rule == 4.000000) return prefix + \"reset_arenas\";",
+   "new": "else if(rule == 4.000000){ if(gt == 1.000000 && (gShell.getGameInfo().getShellCheats() & 4194304.000000)) return \"rule_solo_notimelimit\"; return prefix + \"reset_arenas\"; }"
+  },
+  {
+   "old": "void updateWhichRules(){ hideUnusedRules(); setRuleCursor(0.000000);",
+   "new": "void updateWhichRules(){ if(getGameType() == 1.000000 && (gShell.getGameInfo().getShellCheats() & 4194304.000000)) ((ShellText) Names[4.000000]).setText(\"NO TIME LIMIT\"); hideUnusedRules(); setRuleCursor(0.000000);"
+  },
+  {
+   "old": "sgi.setPlayers(plyrs); Lobby.closeLobby();",
+   "new": "sgi.setPlayers(plyrs);\n\t\tif((gShell.getGameInfo().getShellCheats() & 4194304.000000)){\n\t\t\tShellGameInfo sg;\n\t\t\tsg = gShell.getGameInfo();\n\t\t\tif(sg.getShellCheats() & 8388608.000000) sg.setShellCheats(sg.getShellCheats() - 8388608.000000);\n\t\t\tif(sgi.getShellCheats() & 8388608.000000) sgi.setShellCheats(sgi.getShellCheats() - 8388608.000000);\n\t\t\tif((Rules -- getRuleValue(4.000000)) == 1.000000){\n\t\t\t\tsg.setShellCheats(sg.getShellCheats() + 8388608.000000);\n\t\t\t\tsgi.setShellCheats(sgi.getShellCheats() + 8388608.000000);\n\t\t\t}\n\t\t}\n\t\tLobby.closeLobby();"
+  }
+ ]
+}

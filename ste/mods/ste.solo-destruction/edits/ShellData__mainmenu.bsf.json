@@ -1,0 +1,21 @@
+{
+ "format": "bsf-edit",
+ "edits": [
+  {
+   "old": "\t\t\telse ListBox.findObject(\"SystemLinkCheat\").hideObject();\n\t\t}\n\t\tListBox.setSelection(selection);",
+   "new": "\t\t\telse ListBox.findObject(\"SystemLinkCheat\").hideObject();\n\t\t}\n\t\t{\n\t\t\tShellObject sdo;\n\t\t\tsdo = ListBox.findObject(\"SystemLinkCheat\");\n\t\t\t((ShellText) sdo).setText(\"SOLO DESTRUCTION\");\n\t\t\tsdo.showObject();\n\t\t}\n\t\tListBox.setSelection(selection);"
+  },
+  {
+   "old": "\t\tif(entry == \"SystemLinkCheat\"){\n\t\t\tgShell.fCallScriptF(\"MultiPlayer::setSilentPassThrough\", 5.000000, 0.000000);\n\t\t\tmmGotoScreen(19.000000);\n\t\t\treturn;\n\t\t}",
+   "new": "\t\tif(entry == \"SystemLinkCheat\"){\n\t\t\tgSoloNext = 1.000000;\n\t\t\tcreateGame(1.000000, 0.000000);\n\t\t\tgSoloNext = 0.000000;\n\t\t\tmmGotoScreen(2.000000);\n\t\t\treturn;\n\t\t}"
+  },
+  {
+   "old": "\t\tsgi = gShell.getGameInfo();\n\t\tsgi.setGameType(gt);\n\t\tgShell.createGame(gt, mode);",
+   "new": "\t\tsgi = gShell.getGameInfo();\n\t\tif(sgi.getShellCheats() & 4194304.000000) sgi.setShellCheats(sgi.getShellCheats() - 4194304.000000);\n\t\tif(sgi.getShellCheats() & 8388608.000000) sgi.setShellCheats(sgi.getShellCheats() - 8388608.000000);\n\t\tsgi.setGameType(gt);\n\t\tgShell.createGame(gt, mode);\n\t\tif(gSoloNext){\n\t\t\tsgi.setShellCheats(sgi.getShellCheats() + 4194304.000000);\n\t\t}"
+  },
+  {
+   "old": "\tShellListBox ListBox;\n",
+   "new": "\tShellListBox ListBox;\n\tnumber gSoloNext;\n"
+  }
+ ]
+}
