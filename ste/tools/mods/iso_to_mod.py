@@ -131,7 +131,7 @@ def cmd_make(a):
         out, len(entries), len(entries) - len(todo), len(todo), sum(os.path.getsize(os.path.join(out, 'patches', f)) for f in os.listdir(os.path.join(out, 'patches')))))
     if unhandled_new:
         print('NOT EXPRESSIBLE (new files without a --new-base): %s' % ', '.join(mod.name(n) for n in unhandled_new))
-    if removed: print('note: %d retail files are missing from the modded image (a mod cannot remove files): %s' % (len(removed), ', '.join(ret.name(n) for n in removed[:10])))
+    if removed and '--partial' not in a: print('note: %d retail files are missing from the modded image (a mod cannot remove files): %s' % (len(removed), ', '.join(ret.name(n) for n in removed[:10])))
 
 def cmd_prepare(a):
     mdir, ret = a[0], Src(a[1]); man = json.load(open(os.path.join(mdir, 'manifest.json'))); ok = True; patched = {}

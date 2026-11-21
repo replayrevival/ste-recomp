@@ -6,6 +6,13 @@ Draft prepared 2026-11-10, 0.1.4 section added 2026-11-14, 0.1.5 section 2026-11
 
 **Credit:** the "G:STEM-inspired options" (Monster size, Footstep camera shake, Rage meter, More traffic, No juggle limit, No knockback scaling, No minimum health, Weapon-independent vertical knockback, No results-screen dimming, Empty arena) are based on G:STEM's gameplay options: credit to Gojirex, Shame Devs, GR8GODZILLAGOD and the STEM community (docs\CREDITS_AND_SOURCES.md, docs\community\STEM_TOGGLES.md). Each is re-created from the STEM patch notes as a separate toggle, default off.
 
+## 0.3 (draft, in progress): Solo Destruction, photo mode, Biollante assessment
+| Feature | What | Status |
+|---|---|---|
+| Solo Destruction | a patch mod (`ste.solo-destruction`, built locally from the player's own scripts with `tools\modsuild_solo_destruction.py`): main menu row SOLO DESTRUCTION runs the retail Demolition challenge on any monster and city, Rules ROUND LENGTH 1-10 MIN (10 MIN = no limit). Heading GODZILLA ULTRA FEATURES, "Based on ANILORAK's Godzilla Ultra research." Docs: docsormats\solo_destruction.md | built and verified in game (Tokyo, Osaka North, results screen); 21:9 HUD not yet checked |
+| Photo mode | free camera with the game paused | not started |
+| Biollante assessment | docs\FEATURE_BIOLLANTE.md | not started |
+
 ## 0.2.3 (draft, 2026-11-20): sound packs
 | Area | Change | Status |
 |---|---|---|

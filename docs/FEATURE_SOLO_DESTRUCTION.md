@@ -46,3 +46,6 @@ Retail Demolition challenge, reached through MAIN MENU > CHALLENGES (fifth entry
 - End: at 0:00 the CHALLENGE RESULTS screen shows **FAILED!**, DESTRUCTION POINTS 2825, GOAL 15000, CONTINUE. (The scripted pad was a blunt button masher; a win needs 15,000.)
 - No [ICALL FAIL] / [STUB HIT] in the log. So scoring, HUD, timer, end condition and results screen all work in the recomp. Not checked: the win path (>= 15,000: victory pose and PASSED text), the Continue flow back to the menu, 16:9/21:9 HUD placement of the Demolition surface.
 Steps 2 and 3 (free "Solo Destruction": any monster, any city, timer options, menu row) need an edited script (`ChallengeDemolition.bsf` hard-codes `godzilla2k`, the level `ChallengeDemolition`, `setRoundTime(180.9)`), i.e. a BSF patch applied through the mod-patch system; next: BSF assembler/patch tooling and licence check.
+
+## 8. Free "Solo Destruction" built (2026-11-20, 0.3)
+Done as a patch mod (menu row, any monster, any city, Rules round length, 10 MIN = no limit): see `docs\formats\solo_destruction.md` for the design, the flag trick and the proof, `tools\mods\build_solo_destruction.py` to build it from the user's own files. Credit: "Based on ANILORAK's Godzilla Ultra research." Open: how the launcher builds it (needs GZBuildr at Prepare time, or the user runs the tool), 21:9 HUD check, win/score banner checks.
