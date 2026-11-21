@@ -1,0 +1,17 @@
+{
+ "format": "bsf-edit",
+ "edits": [
+  {
+   "old": "void SetupAnguirusAI(Monster monster);",
+   "new": "void SetupAnguirusAI(Monster monster);\nvoid SetupBiollanteAI(Monster monster);"
+  },
+  {
+   "old": "else if(are_strings_equal(monster.getName(), \"orga\")) SetupOrgaAI(monster);",
+   "new": "else if(are_strings_equal(monster.getName(), \"biollante\")) SetupBiollanteAI(monster);\n\telse if(are_strings_equal(monster.getName(), \"orga\")) SetupOrgaAI(monster);"
+  },
+  {
+   "old": "void SetupGodzilla90AI(Monster monster){",
+   "new": "void SetupBiollanteAI(Monster monster){\n\tprint(\"Setting up Fight AI for \" + monster.getName());\n\tMonsterAI monster_ai;\n\tMonster null_monster;\n\tMonsterAIGoal goal;\n\tmonster_ai = monster.getAI();\n\tgoal = monster_ai.fightWith(null_monster, \"\", \"\", \"\");\n\tnumber diff_level;\n\tdiff_level = gGame.getShellGameInfo().getDifficultyLevel();\n\tif(gGame.getShellGameInfo().isAttractMode() || diff_level == 2) SetupStdHardAI(goal, monster_ai);\n\telse if(diff_level == 0) SetupStdEasyAI(goal, monster_ai);\n\telse SetupStdMediumAI(goal, monster_ai);\n}\nvoid SetupGodzilla90AI(Monster monster){"
+  }
+ ]
+}

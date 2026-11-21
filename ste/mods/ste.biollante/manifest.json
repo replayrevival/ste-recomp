@@ -1,0 +1,45 @@
+{
+  "api": 2,
+  "id": "ste.biollante",
+  "name": "Biollante",
+  "version": "1.0.0",
+  "game": "STE-Xbox",
+  "profile": "content",
+  "license": "GPL-2.0-or-later",
+  "description": "Makes Biollante a normal character (19th select-grid slot, unlocked, with fight AI). Her models, animations, HUD and sounds are on the retail disc; this mod holds only edit recipes and hashes and is built on your PC from your own game files (Prepare mods).",
+  "patch_tool": "bsf_edit 1.0",
+  "patches": [
+    {
+      "target": "ActionData\\ConventionalGame.bsf",
+      "format": "bsf-edit",
+      "patch": "edits\\ActionData__ConventionalGame.bsf.json",
+      "base_sha256": "sha256:6ce1fc5e8d86471d5b97c1e19fcea4bbfe624ff4c9e6b594058a770865debe24",
+      "result_sha256": "sha256:3496fbaec8ed879525c15ff4ffeba0177a30dd6d7e1b0a5f6b5a848f5e59f5ab",
+      "size": 50721
+    },
+    {
+      "target": "ShellData\\monsterselect.bsf",
+      "format": "bsf-edit",
+      "patch": "edits\\ShellData__monsterselect.bsf.json",
+      "base_sha256": "sha256:26030ebe7d707cbbb254d6f06f84a9ed2292a988fb48f5ba3d42e8daaf4c4866",
+      "result_sha256": "sha256:75243c6b99469f2a42b1e2604b74ba45962ff442de59b981f6a8e7b1daaa153c",
+      "size": 80562
+    },
+    {
+      "target": "ShellData\\attributes.xfg",
+      "format": "text-edit",
+      "patch": "edits\\ShellData__attributes.xfg.json",
+      "base_sha256": "sha256:298ef51c2db762e3cb1d69fb1922280a3f89cf55bcda2d6bca69a68533174ca7",
+      "result_sha256": "sha256:a56c4a106ed3f7f650db3477d700c20c4c873b55f7b3373973e8b126479c0481",
+      "size": 15301
+    },
+    {
+      "target": "ShellData\\ControlRoom.bdl",
+      "format": "builtin",
+      "patch": "builtin:bio_ui",
+      "base_sha256": "sha256:4700a24dceee46441cf56d5872dbd7bf49451edf5482ea0847e349f9b10c58b2",
+      "result_sha256": "sha256:f9036176cfbd3fbf0488e12e07e86fa69824ca36e1dfa5a70a80f9e1fba17cbe",
+      "size": 10256982
+    }
+  ]
+}

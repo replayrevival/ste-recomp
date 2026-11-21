@@ -1,0 +1,17 @@
+{
+ "format": "bsf-edit",
+ "edits": [
+  {
+   "old": "Thumbnails.resize(2.000000);",
+   "new": "Thumbnails.resize(3.000000);"
+  },
+  {
+   "old": "Thumbnails[1.000000] = nails.findObject(\"Row1\");",
+   "new": "Thumbnails[1.000000] = nails.findObject(\"Row1\");\n\t\t\tThumbnails[2.000000] = nails.findObject(\"Row2\");"
+  },
+  {
+   "old": "if(monster == \"rodan\") return 0.000000;",
+   "new": "if(monster == \"rodan\") return 0.000000;\n\t\tif(monster == \"biollante\") return 0.000000;"
+  }
+ ]
+}

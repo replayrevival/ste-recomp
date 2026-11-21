@@ -1,0 +1,9 @@
+{
+ "format": "text-edit",
+ "edits": [
+  {
+   "old": "<attr>biollante<state>hidden</state></attr>",
+   "new": "<attr>biollante<state>unlocked</state><class>1</class></attr>"
+  }
+ ]
+}
