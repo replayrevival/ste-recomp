@@ -47,6 +47,11 @@ def edit_conventional(s):
     return s
 
 def edit_select(s):
+    # extra grid row: the select script keeps its grid as a list of rows (Thumbnails); Row2 is added by the ControlRoom.bdl part (bio_ui.SLOTS)
+    s = sub(s, 'Thumbnails.resize(2.000000);', 'Thumbnails.resize(3.000000);')
+    s = sub(s, 'Thumbnails[1.000000] = nails.findObject("Row1");', 'Thumbnails[1.000000] = nails.findObject("Row1");\n\t\t\tThumbnails[2.000000] = nails.findObject("Row2");')
+    # (lookupThumbnail, the "preselect the last monster" search, keeps scanning rows 0..1: editing its loop bound made the select script fail
+    #  to initialise in the game (2026-11-21 bisect), so a monster in an extra row is simply not preselected)
     return sub(s, 'if(monster == "rodan") return 0.000000;', 'if(monster == "rodan") return 0.000000;\n\t\tif(monster == "biollante") return 0.000000;')
 
 XFG_OLD = '<attr>biollante<state>hidden</state></attr>'
