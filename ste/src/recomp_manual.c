@@ -852,7 +852,7 @@ void sub_0001F740(void)
          * Off: ste_video.ini pillar_camfix=0 or STE_VIDEO_PILLAR_CAMFIX=0. */
         static int cf_init, cf_on, cf_ex, cf_fe_seen; static int nlog;   /* cf_fe_seen: once the front-end (state 0x27) was reached, later state-0/1 calls are the fight/HUD set-up (they must keep the Hor+ k, or the HUD stretches across the wide screen) */
         if (!cf_init) { cf_init = 1; cf_on = ste_ini_float("pillar_camfix", "STE_VIDEO_PILLAR_CAMFIX", 1.0f) != 0.0f; cf_ex = getenv("STE_CAMFIX_EXEMPT_HUDCAM") != NULL; fprintf(stderr, "[CAMCFG] pillar_camfix=%d exempt_hudcam=%d\n", cf_on, cf_ex); fflush(stderr); }
-        if (G32(0x003562B4u) == 0x27u) cf_fe_seen = 1;
+        { uint32_t fes = G32(0x003562B4u); if (fes >= 0x27u && fes < 0x40u) cf_fe_seen = 1; }   /* c435: the front-end state word is 0x27 in retail but 0x28 was observed with a 19th select-grid child (roster mod), so 0x27..0x3F all count */
         {   static int nl2, tr_init, tr_on; if (!tr_init) { tr_init = 1; tr_on = getenv("STE_CAMFIX_TRACE") != NULL; }   /* c140 probe; c166: every DISTINCT (caller, camera, state, k, aspect arg, stored w/h) is logged once (max 600) with a tick, so the whole run is covered, not only the first 200 calls */
             if (tr_on && nl2 < 600) { static struct { uint32_t ret, cam, gs, kb, a4, wh; } seen[600]; uint32_t kb; uint32_t ret = G32(g_esp), cam = (uint32_t)g_ecx, gs = G32(0x003562B4u), a4 = G32(g_esp + 0x10), wh = G32(g_ecx + 0x160) * 4096u + G32(g_ecx + 0x164); int i; memcpy(&kb, &k, 4);
                 for (i = 0; i < nl2; ++i) if (seen[i].ret == ret && seen[i].cam == cam && seen[i].gs == gs && seen[i].kb == kb && seen[i].a4 == a4 && seen[i].wh == wh) break;
@@ -989,7 +989,7 @@ void ste_fe_camera_tick(void)
     st = G32(0x003562B4u);
     if (st == last_state) return;   /* act once per state change (the entry into 0x27), not every frame */
     last_state = st;
-    if (st != 0x27u && st != 0x15u && st != 3u) return;   /* the return path is 0 -> 1 -> 3 -> 0x15 -> 0x27; the movie quad is built when the front-end opens, so restore as early as the state 1 squeeze is over */
+    if (!(st >= 0x27u && st < 0x40u) && st != 0x15u && st != 3u) return;   /* the return path is 0 -> 1 -> 3 -> 0x15 -> 0x27; the movie quad is built when the front-end opens, so restore as early as the state 1 squeeze is over */
     {   const D3D8VideoCfg *vc = d3d8_video_cfg();
         if (!(vc->aspect == D3D8V_ASPECT_WIDE && vc->menu_aspect == D3D8V_ASPECT_PILLAR)) return; }
     if (G32(cam + 0x160) != 640u || G32(cam + 0x164) != 480u) return;   /* camera not set up yet */

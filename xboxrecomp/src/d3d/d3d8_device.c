@@ -84,7 +84,7 @@ int d3d8_front_end_active(void)
     static uint32_t last = 0xFFFFFFFFu;
     uint32_t v = *(volatile uint32_t *)((uintptr_t)g_xbox_mem_offset + 0x003562B4u);
     if (v != last) { last = v; { static ULONGLONG t0; ULONGLONG n = GetTickCount64(); if (!t0) t0 = n; fprintf(stderr, "[FRONTEND] t=%.1fs game-state word 0x003562B4 = 0x%X (front-end=%d)\n", (double)(n - t0) / 1000.0, v, v == 0x27u); } fflush(stderr); }
-    return v == 0x27u;
+    return v >= 0x27u && v < 0x40u;   /* c435: 0x27 in the retail game; 0x28 was observed once a mod adds a 19th select-grid child */
 }
 float d3d8_video_cam_aspect_scale(void)
 {
