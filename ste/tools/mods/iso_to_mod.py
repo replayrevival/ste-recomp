@@ -139,14 +139,20 @@ def write_recipe_mod(out, mid, name, lic, desc, recipes):
     The mod holds only the edit lists and the hashes (no game bytes), so it can be shared; prepare builds the files from the player's own."""
     if os.path.exists(out) and os.listdir(out): raise SystemExit('%s exists and is not empty' % out)
     os.makedirs(os.path.join(out, 'edits'), exist_ok=True); entries = []
-    for tgt, base, res, edits in recipes:
-        pf = 'edits/' + tgt.replace('/', '__') + '.json'
-        json.dump({'format': 'bsf-edit', 'edits': edits}, open(os.path.join(out, pf), 'w'), indent=1)
-        entries.append({'target': tgt.replace('/', '\\'), 'format': 'bsf-edit', 'patch': pf.replace('/', '\\'), 'base_sha256': 'sha256:' + sha(base),
+    for rec in recipes:
+        tgt, base, res, edits = rec[:4]; fmt = rec[4] if len(rec) > 4 else 'bsf-edit'
+        if fmt == 'builtin':   # the build is a function shipped with the tools (tools/mods/<module>.py: build(bytes) -> bytes); edits = module name
+            pf = 'builtin:' + edits
+        else:
+            pf = 'edits/' + tgt.replace('/', '__') + '.json'
+            json.dump({'format': fmt, 'edits': edits}, open(os.path.join(out, pf), 'w'), indent=1)
+        entries.append({'target': tgt.replace('/', '\\'), 'format': fmt, 'patch': pf.replace('/', '\\'), 'base_sha256': 'sha256:' + sha(base),
                         'result_sha256': 'sha256:' + sha(res), 'size': len(res)})
     json.dump({'api': 2, 'id': mid, 'name': name, 'version': '1.0.0', 'game': 'STE-Xbox', 'profile': 'content', 'license': lic, 'description': desc,
                'patch_tool': 'bsf_edit 1.0', 'patches': entries}, open(os.path.join(out, 'manifest.json'), 'w'), indent=2)
 
+
+BUILTINS = ('bio_ui',)   # builders shipped with these tools; a manifest can only name one of these (never arbitrary modules)
 
 def cmd_prepare(a):
     mdir, ret = a[0], Src(a[1]); man = json.load(open(os.path.join(mdir, 'manifest.json'))); ok = True; patched = {}
@@ -160,6 +166,20 @@ def cmd_prepare(a):
             import bsf_edit
             try: res = bsf_edit.apply_edits(orig, json.load(open(os.path.join(mdir, e['patch'].replace('\\', '/'))))['edits'])
             except bsf_edit.BsfError as x: print('%s: %s' % (tgt, x)); ok = False; continue
+        elif e.get('format') == 'text-edit':
+            res = orig
+            for ed in json.load(open(os.path.join(mdir, e['patch'].replace('\\', '/'))))['edits']:
+                o, n = ed['old'].encode('latin-1'), ed['new'].encode('latin-1')
+                if res.count(o) != 1: print('%s: text edit does not match exactly once' % tgt); ok = False; res = None; break
+                res = res.replace(o, n)
+            if res is None: continue
+        elif e.get('format') == 'builtin':
+            import importlib
+            nm = e['patch'][len('builtin:'):]
+            if nm not in BUILTINS: print('%s: unknown builtin %r (this tools version knows %s)' % (tgt, nm, sorted(BUILTINS))); ok = False; continue
+            mod = importlib.import_module(nm)
+            try: res = mod.build(orig)
+            except SystemExit as x: print('%s: %s' % (tgt, x)); ok = False; continue
         else: res = step_diff.apply(orig, open(os.path.join(mdir, e['patch'].replace('\\', '/')), 'rb').read())
         if 'sha256:' + sha(res) != e['result_sha256']: print('%s: RESULT MISMATCH' % tgt); ok = False; continue
         os.makedirs(os.path.dirname(dst), exist_ok=True); open(dst, 'wb').write(res); patched[tgt.lower()] = res; print('%s: built' % tgt)

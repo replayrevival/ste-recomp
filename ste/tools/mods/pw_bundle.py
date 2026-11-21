@@ -76,7 +76,9 @@ class Bundle(object):
         self.main = bytearray(data[ma:re_])
         self.res = bytearray(data[re_:re_ + res_end])
         self.tail = data[re_ + res_end:]
-        self.main_pad = 0
+        p0 = struct.unpack_from('<I', data, 0x3C)[0]
+        self.pool_end = struct.unpack_from('<I', data, p0 + 4)[0] if p0 + 8 <= len(data) else 0
+        self.res_len0 = len(self.res)
         if len(self.main) < main_end:
             raise ValueError('main section shorter than the TOC says')
         self._dirty = False
@@ -101,26 +103,28 @@ class Bundle(object):
         return bytes(self.res[e.res_rel:e.res_rel + e.res_size])
 
     # ---- editing
-    def _put(self, buf, rel, size, data):
+    def _put(self, buf, rel, size, data, align=ALIGN):
         if len(data) <= size and size:
             buf[rel:rel + len(data)] = data
             if len(data) < size:
                 buf[rel + len(data):rel + size] = b'\0' * (size - len(data))
             return rel, len(data)
-        pos = _align(len(buf))
+        pos = _align(len(buf), align)
         buf.extend(b'\xff' * (pos - len(buf)))
         buf.extend(data)
         return pos, len(data)
 
     def set_main(self, e, data):
         e.main_rel, e.main_size = self._put(self.main, e.main_rel, e.main_size, bytes(data)) if data else (e.main_rel, 0)
+        if e.type == 2:                                       # text entries keep their byte size in the metadata (4th dword)
+            struct.pack_into('<I', e.meta, 12, e.main_size)
         self._dirty = True
 
-    def set_res(self, e, data):
-        e.res_rel, e.res_size = self._put(self.res, e.res_rel, e.res_size, bytes(data)) if data else (e.res_rel, 0)
+    def set_res(self, e, data, align=ALIGN):
+        e.res_rel, e.res_size = self._put(self.res, e.res_rel, e.res_size, bytes(data), align) if data else (e.res_rel, 0)
         self._dirty = True
 
-    def add_entry(self, name, etype, main=b'', res=b'', text_size=None):
+    def add_entry(self, name, etype, main=b'', res=b'', text_size=None, res_align=ALIGN):
         low = name.lower()
         if self.names and low <= max(n.lower() for n in self.names):
             raise ValueError('new name %r must sort after every existing name (use a Zz_ prefix)' % name)
@@ -132,19 +136,21 @@ class Bundle(object):
         e = Entry(num, 0, 0, 0, 0, meta)
         self.entries.append(e)
         # a new entry starts empty; the data goes through the append path
-        e.main_rel = _align(len(self.main)); e.res_rel = _align(len(self.res))
+        e.main_rel = _align(len(self.main)); e.res_rel = _align(len(self.res), res_align)
         if main:
             self.main.extend(b'\xff' * (e.main_rel - len(self.main))); self.main.extend(main); e.main_size = len(main)
         if res:
             self.res.extend(b'\xff' * (e.res_rel - len(self.res))); self.res.extend(res); e.res_size = len(res)
+        if etype == 2:
+            struct.pack_into('<I', e.meta, 12, e.main_size)
         self._dirty = True
         return e
 
-    def clone_entry(self, src, name, main=None, res=None):
+    def clone_entry(self, src, name, main=None, res=None, res_align=ALIGN):
         """Add `name` as a copy of entry `src` (optionally with other main/res bytes)."""
         return self.add_entry(name, src.type, self.get_main(src) if main is None else main,
                               self.get_res(src) if res is None else res,
-                              struct.unpack_from('<I', src.meta, 12)[0])
+                              struct.unpack_from('<I', src.meta, 12)[0], res_align)
 
     # ---- writing
     def _name_blob(self):
@@ -178,7 +184,17 @@ class Bundle(object):
         struct.pack_into('<H', hdr, 0x62, n)
         for o, v in ((0x34, so), (0x64, mo), (0x68, ma), (0x70, re_)):
             struct.pack_into('<I', hdr, o, v)
-        return bytes(hdr) + toc + pool + names + meta + bytes(self.main) + bytes(self.res) + self.tail
+        pool = bytearray(pool)
+        if len(self.res) > self.res_len0 and self.pool_end:
+            # the nine pool records hold the end of the resource section; a stale end makes the title ignore appended resources
+            new_end = _align(re_ + len(self.res))
+            for k in range(9):
+                po = struct.unpack_from('<I', hdr, 0x3C + 4 * k)[0] - (HDR + len(toc))
+                for q in (4, 8, 16):
+                    v = struct.unpack_from('<I', pool, po + q)[0]
+                    if v == self.pool_end: struct.pack_into('<I', pool, po + q, new_end)
+                    elif v == self.pool_end + 0x40: struct.pack_into('<I', pool, po + q, new_end + 0x40)
+        return bytes(hdr) + toc + bytes(pool) + names + meta + bytes(self.main) + bytes(self.res) + self.tail
 
 
 def _selftest(paths):

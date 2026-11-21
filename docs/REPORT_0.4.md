@@ -23,3 +23,5 @@ Retail disc has all her files (docs\FEATURE_BIOLLANTE.md). The earlier pack `bio
 ## Progress 2026-11-21
 - Step 2 done: `tools\mods\pw_bundle.py` + `test_pw_bundle.py`. Round trip byte-identical on all 99 retail `.bdl` files; synthetic edit/add/name-order tests pass. Format note updated. Own implementation (no GZBuildr code). Add-entry in game not yet tested.
 - Step 1 (human P2 check) waiting: launcher had the game busy for 0.3.1 smoke tests.
+- Step 3 (built, not yet tested in game): `bio_ui.py` (ControlRoom.bdl: 4 generated tiles, flash ifl, select-grid child) + `build_biollante.py` (recipe mod: ControlRoom builtin, monsterselect.bsf and ConventionalGame.bsf bsf-edit, attributes.xfg text-edit). Equivalence check against the earlier GZBuildr-built pack: every named entry (data and metadata) identical, only file padding differs; the two scripts differ from the old ones only by the intended lines.
+- Decision: the STEM-credited `SetupBiollanteAI` is NOT used (community content, authors not asked). The recipe has our own SetupBiollanteAI built only from the game's standard Easy/Medium/Hard setups. Biollante's AI tuning is therefore the stock level, not STEM's.
