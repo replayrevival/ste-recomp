@@ -19,3 +19,7 @@ Retail disc has all her files (docs\FEATURE_BIOLLANTE.md). The earlier pack `bio
 3. `bundle-edit` recipe entry + Biollante recipe; Prepare-mods integration (same launcher note pattern).
 4. Action mode entry; effects check of her attacks; short clip when the launcher asks.
 5. The generic image-to-mod item (already shipped as `iso_to_mod.py`; the guide for MODDING.md still to write).
+
+## Progress 2026-11-21
+- Step 2 done: `tools\mods\pw_bundle.py` + `test_pw_bundle.py`. Round trip byte-identical on all 99 retail `.bdl` files; synthetic edit/add/name-order tests pass. Format note updated. Own implementation (no GZBuildr code). Add-entry in game not yet tested.
+- Step 1 (human P2 check) waiting: launcher had the game busy for 0.3.1 smoke tests.
