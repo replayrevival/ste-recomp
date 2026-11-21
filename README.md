@@ -52,32 +52,21 @@
 - A graphics card that supports **DirectX 11**.
 - A controller is recommended. The keyboard works too.
 
-## What's new in v0.3.1
+## What's new in v0.4.0
 
-- **Solo Destruction.** A new SOLO DESTRUCTION row on the main menu: pick any monster and any city and destroy at your own pace, with a round length of 1 to 10 minutes or no time limit. It is a mod that your PC builds from your own game files (nothing of the game is in the download), switched off until you turn it on in the launcher's **Mods** tab. Inspired by ANILORAK's Godzilla Ultra research (our own code; no code from ANILORAK used). Full credits: https://github.com/replayrevival/ste-recomp/blob/main/CREDITS.md How it works: the **[guide](https://github.com/replayrevival/launcher/blob/main/docs/MODDING.md#mods-that-are-built-on-your-pc-script-mods)**.
+![Biollante on the character select screen](docs/screenshots/0.4.0_biollante_select.png)
+
+- **Biollante is playable.** She has her own place on a new third row of the character select screen. Play her as player 1, as the computer opponent, or with a **second human player on a second pad**, in Versus, Melee, Action mode and Solo Destruction. Her models, animations, HUD and sounds are the original game's own; nothing of the game is in the download. The mod holds only a recipe, and your PC builds it from **your own game files** when you press Play. It is switched off until you turn it on in the launcher's **Mods** tab. Biollante's data is the retail game's; the third select row is inspired by ANILORAK's research (our own code; no code from ANILORAK used). Step by step: the **[guide](https://github.com/replayrevival/launcher/blob/main/docs/MODDING.md#mods-that-are-built-on-your-pc-script-mods)**.
+- **Solo Destruction.** A new SOLO DESTRUCTION row on the main menu: pick any monster and any city and destroy at your own pace, with a round length of 1 to 10 minutes or no time limit. Built the same way (from your own game files), switched off until you turn it on. Inspired by ANILORAK's Godzilla Ultra research (our own code; no code from ANILORAK used).
+- **Mods can be combined.** Solo Destruction and Biollante work together; if two mods ever change the same thing, the launcher tells you which two.
 - **Photo mode.** Pause a fight and fly a free camera: wider or narrower view, roll, hide the HUD and save full-resolution PNG screenshots. Open it from the in-game menu, with F8, or by holding Back and Y.
-- Everything from 0.2.3 is in it too: sound packs, retexturing any monster, instant name typing, playing straight from your disc image, the controller-only in-game menu, borderless Fullscreen, and the credited "G:STEM-inspired options".
+- Everything from 0.2.3 is in it too: sound packs, retexturing any monster, instant name typing, playing straight from your disc image, the controller-only in-game menu, borderless Fullscreen, and the "G:STEM-inspired options" (inspired by G:STEM, our own code).
 
-Making mods? See the [modding guide](https://github.com/replayrevival/launcher/blob/main/docs/MODDING.md).
+Making mods? See the [modding guide](https://github.com/replayrevival/launcher/blob/main/docs/MODDING.md), including "Add a monster to the roster".
 
-**Known issues:** photo mode works during a fight only; Unlimited draw distance can still show buildings popping in and out at the far skyline (not fixed, not verified either way); in Tokyo a UFO can leave the playing area; looping a replaced sound is untested. The full list is in the release notes.
+**Known issues:** when the select screen reopens, a monster in the third row is not preselected; the Solo Destruction title is English only; in photo mode the HUD clock picture keeps counting while it is shown; in Tokyo a UFO can leave the playing area; Unlimited draw distance can still show buildings popping in and out at the far skyline (not fixed, not verified either way); looping a replaced sound is untested. The full list is in the release notes.
 
-Earlier: 0.2.3 added sound packs (replace sounds and music). 0.2.2 added retexturing any monster from the Mods tab. 0.2.1 made typing a name instant. 0.2.0 added playing from a disc image, the controller-only in-game menu, borderless Fullscreen and the G:STEM credit. 0.1.7 made cheats from the in-game menu work at once, even in the middle of a fight. 0.1.6 brought back Mechagodzilla 3's missile trails and typing your name with the keyboard. 0.1.5a fixed a freeze when opening the in-game menu. 0.1.5 added the menu and made the text follow your button style ("PRESS START" becomes "PRESS MENU"). 0.1.4 made the game start about 20 seconds sooner and made mods that change the game's own files work. 0.1.3 brought unlimited draw distance at a smooth 60 fps, a big performance boost, Xbox / PlayStation / original Xbox button pictures, the Mods tab and Save crash report.
-
-[Read the full release notes](https://github.com/replayrevival/ste-recomp/releases/tag/v0.3.1-alpha).
-
-**Coming next:** more checks of the game's effects, a beta, then 1.0. Linux and Mac come later.
-
-<table>
-<tr>
-<td><img src="docs/screenshots/0.1.6_launcher_video.png" alt="Video settings"></td>
-<td><img src="docs/screenshots/0.1.6_launcher_controllers_playstation.png" alt="Controller settings with PlayStation button pictures"></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/0.1.5_button_prompts_xbox.png" alt="The character-select screen with Xbox button pictures"></td>
-<td><img src="docs/screenshots/0.1.5_button_prompts_playstation.png" alt="The character-select screen with PlayStation button pictures"></td>
-</tr>
-</table>
+**Credits:** [CREDITS.md](https://github.com/replayrevival/ste-recomp/blob/main/CREDITS.md) lists everything we used (code and assets, with licences) and everyone whose research or ideas inspired us (nothing of theirs is included).
 
 ## FAQ
 
