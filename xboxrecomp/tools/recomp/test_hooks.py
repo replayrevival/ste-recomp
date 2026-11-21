@@ -53,3 +53,15 @@ def test_replace_on_branch_is_refused():
 
 def test_unused_reported():
     assert hooks.unused({1: [], 2: []}, {1}) == [2]
+
+
+def test_return_mode(tmp_path):
+    h = hooks.load_hooks(_toml(tmp_path, '[[hook]]\naddr = 0x20\nfn = "hr"\nmode = "return"\npop = 4\n'))
+    assert h == {0x20: [("return", "hr")]} and hooks.RETURN_POP[0x20] == 4
+    bb = NS(instructions=[_insn(0x20, "fld"), _insn(0x22)])
+    out, _ = hooks.lift_block_with_hooks(_fake_lift, None, bb, None, h, set())
+    text = "\n".join(out)
+    assert "if (hr()) { esp += 8u; return; }" in text
+    assert text.index("hr()") < text.index("/* fld 20 */")
+    with pytest.raises(ValueError):
+        hooks.load_hooks(_toml(tmp_path, '[[hook]]\naddr = 1\nfn = "a"\nmode = "return"\npop = 3\n'))

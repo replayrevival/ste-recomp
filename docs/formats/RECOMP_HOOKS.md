@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+﻿<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
 # Instruction-address hooks for the xboxrecomp translator (`--hooks hooks.toml`)
 
 Purpose: change or observe ONE guest instruction (or add a call before/after it) without keeping an edited copy of a
@@ -8,22 +8,25 @@ same file works for the DAMM Xbox port and any other title built with this tool.
 
 Where: `tools/recomp/hooks.py` (parser + weaving), `translator.py` (`INSN_HOOKS`, one call site in the emit pass),
 `__main__.py` (`--hooks FILE`), tests in `tools/recomp/test_hooks.py`. Added 2026-10-29 (STE c198) to both
-`xboxrecomp/tools/recomp` in this repository.
+`tools/xboxrecomp-v014` (the generator that produced candidate86) and `tools/xboxrecomp-v014k`.
 
 ## hooks.toml
 ```toml
 [[hook]]
 addr = 0x0010D36A            # guest address of one instruction
 fn   = "ste_hook_knock_dec"  # `int fn(void)` defined in the manual file, extern-declared by the emitted code
-mode = "replace"             # before | after | replace   (default before)
+mode = "replace"             # before | after | replace | return   (default before)
+pop  = 4                     # only for mode return: argument bytes the early return pops (ret N), default 0
 ```
 | mode | emitted | rule |
 |---|---|---|
 | before | `{ extern int fn(void); (void)fn(); }` ahead of the instruction | any instruction |
 | after | the same call after the instruction | not on branch/call/ret (never reached) |
 | replace | `{ extern int fn(void); if (!fn()) { <instruction> } }` | the instruction runs only if `fn()` returns 0; non-zero = skip it. Not on branch/call/ret. |
+| return (0.3.1) | `{ extern int fn(void); if (fn()) { esp += 4 + pop; return; } }` ahead of the instruction | for the FIRST instruction of a function: non-zero makes the function return at once like `ret N` (`pop = N`, a multiple of 4). Use only where the caller needs nothing from eax/st0 (void-like functions). One per address. |
 
 Several hooks per address: all `before`, then the single `replace`, then all `after`.
+The `return` mode (added for STE 0.3.1, photo mode) lets a feature skip a whole per-frame update function while it is active (photo mode skips `World_Update(dt)` and the game-time accumulator). Without any `return` hook the output is unchanged: regenerating STE with the 0.3.1 generator and the 0.3.0 hook list gives all 21 generated files byte-identical (SHA-256 list in `ste/gen/expected_generated.sha256`).
 
 ## Contract
 * The hook reads/writes machine state through the generated code's own globals: `g_eax..g_edi`, `g_esp`, `MEM32(addr)` / `G32`.
@@ -38,4 +41,4 @@ Several hooks per address: all `before`, then the single `replace`, then all `af
 
 ## Usage
 `python -m tools.recomp <xbe> --functions f.json --exclude-manual recomp_manual.c --hooks hooks.toml --all --split 1000 --gen-dir gen -o out`
-(STE: `ste/scripts/generate.py` passes `--hooks`; STE's hooks live in `ste/gen/ste_hooks.toml`.)
+(STE: `mission-l6\tests\regen_hooks.ps1 -Out <dir> -Hooks <hooks.toml>`; STE's hooks live in `mission-l6\hooks\ste_hooks.toml`.)

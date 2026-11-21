@@ -115,6 +115,8 @@ static int cb_apply(void *u, const char *key, const char *value)
     fprintf(stderr, "[OVERLAY] setting %s = '%s'\n", key, value); fflush(stderr);
     if (ends_with(key, "master_volume")) { int v = value[0] ? atoi(value) : 100; if (v < 0) v = 0; if (v > 100) v = 100; ste_audio_set_master_volume(v); return STE_APPLIED_NOW; }
     if (ends_with(key, "hide_cursor")) { g_cursor_mode = !strcmp(value, "always") ? 1 : !strcmp(value, "never") ? 2 : 0; return STE_APPLIED_NOW; }
+    if (!strcmp(key, "camera.open_photo_mode")) { extern void ste_photo_request(int on); ste_photo_request(value[0] && strcmp(value, "0") && strcmp(value, "off")); return STE_APPLIED_NOW; }   /* 0.3.1: the overlay's "Photo mode" entry */
+    if (!strcmp(key, "camera.photo_mode")) return STE_APPLIED_AFTER_RESTART;                               /* [camera] photo_mode on/off in the ini */
     if (!strcmp(key, "input.mapping")) return STE_APPLIED_NOW;           /* the next pad poll re-reads nothing yet; used at the next start */
     if (!strcmp(key, "input.button_prompts")) return STE_APPLIED_NEXT_MATCH;
     if (!strncmp(key, "enhance.cheat_", 14)) {   /* 0.1.7: the in-match cheats switch on and off at once */

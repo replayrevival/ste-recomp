@@ -1,0 +1,9 @@
+# NOTE FOR THE LAUNCHER SESSION: 0.3.1 promoted = c434 (photo mode)
+Exe: mission-l6\artifacts\ste_recomp_mission_l6_candidate434.exe, SHA-256 19DE48B1757B769838D30286A6D86F9D272EA90621659F6E50D51F5934D9D58A, version resource 0.3.1 / 0.3.1+c434, capabilities.json adds "photo_mode". Validator PASS (candidate86 root) and the public ste\scripts\verify_generated.py PASS. Not published. Base c433; changes: generator hook mode `return` (publish xboxrecomp\tools\recomp\hooks.py + test), three photo hooks in ste\gen\ste_hooks.toml (regenerated chunks 0004, 0012; expected_generated.sha256 updated; the other 19 generated files byte-identical, proof in docs\REPORT_0.3.md section 8), ste\src\ste_photo.c (new) + small hooks in recomp_manual.c / ste_pb_hook.c / ste_settings_glue.c, runtime: HUD-hide draw filter (nv2a_kelvin.c) and PNG capture (d3d8_device.c). ste\scripts\build.ps1 now also compiles ste_photo.c.
+## Lines you can quote (verified in game, Tokyo and New York, 16:9 and 21:9, controller-only pass)
+1. "Photo mode: pause the match and fly a free camera; wider/narrower FOV, roll, hide the HUD, save full-resolution PNG screenshots, close back into the same match."
+2. "Open it from the overlay menu (Photo mode), with F8, or with Back + Y held."
+Not verified here (say "untested" or leave out): keyboard/mouse flying and the overlay button (headless harness cannot press keys); live free camera while the match runs (not in 0.3.1); the HUD clock picture keeps counting while the HUD is shown (the match clock itself is frozen).
+## Files for you
+docs\NOTE_FOR_LAUNCHER_0.3.1_photo_mode.md (overlay button, ini keys, controls text), docs\formats\photo_mode.md, proof screenshots E:\GodzillaSTE\release\media\0.3.1\photo_mode_proof (README.txt; 20 PNGs, Tokyo + New York, 16:9 + 21:9). No new clip recorded (only on request).
+Machine: my game is not running (launcher clear).

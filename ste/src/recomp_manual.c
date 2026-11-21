@@ -701,7 +701,9 @@ void sub_002D8D7E(void)
         extern int ste_overlay_visible(void);
         extern void ste_sdl_chord_check(int port, const XBOX_INPUT_STATE *st);
         ste_sdl_chord_check(port, &st);   /* Back+Start held: also for scripted and XInput pads (the SDL/keyboard branches above call it too; it fires once per hold) */
-        if (ste_overlay_visible()) { DWORD pk = st.dwPacketNumber; memset(&st, 0, sizeof st); st.dwPacketNumber = pk; }
+        extern void ste_photo_feed_pad(int port, const XBOX_INPUT_STATE *st); extern int ste_photo_active(void);   /* 0.3.1 photo mode: the free camera reads the pad, the game gets a released one */
+        ste_photo_feed_pad(port, &st);
+        if (ste_overlay_visible() || ste_photo_active()) { DWORD pk = st.dwPacketNumber; memset(&st, 0, sizeof st); st.dwPacketNumber = pk; }
         else if ((st.Gamepad.wButtons & 0x30) == 0x30) st.Gamepad.wButtons &= (WORD)~0x30;   /* Back+Start held together is the overlay chord: the game does not see it (otherwise Start would also open its own pause menu) */
     }
     if (ps) memcpy(GPTR(ps), &st, 22);            /* Xbox XINPUT_STATE = 4 + 2 + 8 + 4*2 bytes */
@@ -1360,3 +1362,20 @@ int ste_hook_qvol_post(void) { qv_restore(g_qv_last); return 0; }
 /* c316: D3DDevice_Swap entry (guest 0x00222630, XbSymbolDatabase). The frame hook that drives the Kelvin pushbuffer replay used to be patched into the generated C by a script; it is a normal ste_hooks.toml hook now, so a build from the published recipe renders. */
 extern void ste_pb_frame_hook(void);
 int ste_hook_swap(void) { ste_pb_frame_hook(); return 0; }
+
+/* ---- 0.3.1 photo mode hooks (generator hooks in ste/gen/ste_hooks.toml; logic in ste_photo.c, docs\formats\photo_mode.md) ---------------------------------------------------- */
+extern int ste_photo_update(float *p, int in_match, void *proj);
+extern int ste_photo_active(void);
+/* `return` hooks (generator mode added in 0.3.1) on World_Update(dt) sub_00084800 and the game-time accumulator sub_000861C0(dt), both `ret 4`: non-zero = return at once while photo mode is open, so the simulation and the match clock stand still; nothing else changes. */
+int ste_hook_photo_freeze(void) { return ste_photo_active(); }
+/* Game::Update(dt) sub_00086F70, before hook: dt = 0 while photo mode is open (whatever the return hooks do not skip - effects, UI animation - then stands still as well). */
+int ste_hook_photo_dt0(void) { if (ste_photo_active()) G32(g_esp + 4) = 0u; return 0; }
+/* the fight camera manager sub_001E9E60 just before sub_0001FA30(camera, p): esp -> p (12 floats, D3D view layout), ecx = the camera object. The shared HUD/room camera 0x425EB0 passes through. */
+int ste_hook_photo_cam(void)
+{
+    uint32_t pp = G32(g_esp), cam = g_ecx, st = G32(0x003562B4u);
+    if (st != 4u && st != 5u) { ste_photo_update(NULL, 0, NULL); return 0; }          /* not in a fight: closes photo mode if it was open */
+    if (cam == 0x00425EB0u || cam < 0x10000u || pp < 0x10000u) return 0;              /* HUD / room camera: untouched */
+    ste_photo_update((float *)GPTR(pp), 1, GPTR(cam + 0x60u));
+    return 0;
+}

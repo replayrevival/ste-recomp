@@ -168,3 +168,6 @@ Interim workaround for anyone on plain 0.1.5: rename `ste_overlay.dll` next to t
 | Black Mamba (owner) | `play_dist_original.bat`, `_4`, `_8` at 1080p and its native resolution; report fps in the title bar, pop-in, any stutter; send `data\logs\play_dist_*.log`; two-monitor window test when asked |
 | Low-end 4-core / iGPU | `play_dist_original.bat` at 1280x720 and 1920x1080 (the 60 fps floor), then `_4`; the governor should hold the frame rate by shortening the distance |
 Record for each run: exe SHA-256, resolution, mode, median fps, worst frame, `[QGUARD]` cap range, crash/replay lines (`[CRASH]`, `[PB-REPLAY]`, `[KELVIN-OOB]`).
+
+## 0.3.1 (draft): photo mode
+| Photo mode | a paused free camera in every fight: overlay entry "Photo mode" (or F8, or Back + Y held), fly with the sticks/WASD, wider/narrower FOV, roll, HUD on/off, full-resolution PNG screenshots to `<data>\screenshots`, B / Esc closes into the exact same match. `[camera]` settings in the ini. Needs the 0.3.1 generator (`return` hook mode) | built and verified in game (Tokyo, New York, 16:9 and 21:9, controller-only pass); keyboard/mouse and the overlay button not exercised in the headless harness |

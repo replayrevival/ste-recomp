@@ -1117,6 +1117,14 @@ static BOOL d3d8_capture_backbuffer_bmp(const char *path)
                                  D3D11_MAP_READ, 0, &mapped);
     if (FAILED(hr)) goto cleanup;
 
+    {   /* 0.3.1: a path ending in .png is written as a PNG (full-resolution backbuffer, photo mode screenshots) */
+        size_t pl = strlen(path);
+        if (pl > 4 && !_stricmp(path + pl - 4, ".png")) {
+            ok = ring_write_png(path, (const unsigned char *)mapped.pData, mapped.RowPitch, desc.Width, desc.Height, 1) ? TRUE : FALSE;
+            ID3D11DeviceContext_Unmap(capture_context, (ID3D11Resource *)staging, 0);
+            goto cleanup;
+        }
+    }
     row = (unsigned char *)malloc((size_t)desc.Width * 4u);
     if (!row) {
         ID3D11DeviceContext_Unmap(capture_context,

@@ -80,6 +80,12 @@ extern void d3d8_set_kelvin_vertex_fog(int on);
 /* Wide mode: 3D draws stretch across the whole (wider) surface, 2D/HUD draws stay a centred 640x480 block.  A draw is 2D when
  * the title loaded the canonical screen mapping (c96..c99 = 1/320, -1/240) -- the D3D pre-transform state. */
 static void kelvin_apply_xmap(int stretch, int untextured_fullscreen);
+volatile unsigned g_ste_hide_2d_cnt, g_ste_hide_2d_seen;   /* draws dropped / draws that looked 2D-canonical (diagnostics) */
+volatile int g_ste_hide_2d;
+static void hide2d_dump(const char *path, uint32_t count);
+/* 0.3.1 photo mode: the HUD / banner draws map pixels to clip space with a 1/320 .. 1/160 scale (c96.x = 1/320 for unscaled elements, c97.y = -1/240) in a 640x480 viewport (c58 = 320,-240); world draws have a real
+ * projection (|c96.x| >> 0.01) and particles/billboards use a 640x480 viewport with large terms. Returns 1 for a HUD draw. */
+static int kelvin_is_hud(const float (*c)[4]) { return fabsf(c[58][0] - 320.0f) < 0.5f && fabsf(c[58][1] + 240.0f) < 0.5f && fabsf(c[96][0]) < 0.01f && fabsf(c[97][1]) < 0.01f && (c[96][0] != 0.0f || c[97][1] != 0.0f); }   /* 0.3.1 photo mode: 1 = skip the 2D/HUD draws (see the draw path) */
 static int g_no_fog;          /* KELVIN_NO_FOG=1 */
 static int g_fog_user_scale;  /* c267: fog_scale came from the env / ini: the draw_distance=unlimited hint (kelvin_fog_scale_default) does not override it */
 static float g_fog_scale = 1.0f;/* ste_video.ini fog_scale / STE_VIDEO_FOG_SCALE: fog distances x scale (divides the fog slope g_fog_p[1]) */
@@ -2199,6 +2205,15 @@ static void setup_draw_state(IDirect3DDevice8 *dev, int textured[4], IDirect3DTe
     }
 }
 
+static void hide2d_dump(const char *path, uint32_t count)
+{   /* STE_HIDE2D_DUMP=1: while photo mode hides the HUD, print the screen-mapping constants of every draw of every 90th frame (up to 400 lines): which draws are the HUD? */
+    static int on = -1; static unsigned lines;
+    if (on < 0) { const char *e = getenv("STE_HIDE2D_DUMP"); on = e && *e && *e != '0'; }
+    if (on && g_ste_hide_2d && (K.frame % 90u) < 1u && lines < 6000) {
+        const float (*c)[4] = (const float (*)[4])K.constants; lines++;
+        fprintf(stderr, "[HIDE2D] f=%u %s n=%u P=%d d=%u b=%u t=%d c96=%g c97=%g c58=%g,%g\n", K.frame, path, count, K.program_mode, K.depth_test, K.blend_enable, K.tex[0].offset != 0, c[96][0], c[97][1], c[58][0], c[58][1]);
+    }
+}
 static void kelvin_apply_xmap(int stretch, int untextured_fullscreen)
 {
     const D3D8VideoCfg *vc = d3d8_video_cfg();
@@ -2621,6 +2636,13 @@ static int gpu_vp_draw(IDirect3DDevice8 *dev, uint32_t count, int (*fetch)(uint3
         if (on && K.frame >= first && (K.frame % 120) == 0 && nlines < 800 && K.cull_enable && count >= 60) {
             if (K.frame != last_frame) { last_frame = K.frame; in_frame = 0; }
             if (in_frame < 100) { ++in_frame; ++nlines; g_d3d8_cullprobe_tag = (K.frame << 8) | in_frame | 0x80u; g_d3d8_cullprobe_req = 1; }
+        }
+    }
+    {   /* 0.3.1 photo mode: the GPU vertex-program path hides the same canonical-2D draws (see the CPU path) */
+        const float (*c2)[4] = (const float (*)[4])K.constants;
+        hide2d_dump("gpu", count);
+        if (g_ste_hide_2d && kelvin_is_hud(c2)) {
+            g_ste_hide_2d_cnt++; K.stats.draws++; K.stats.vertices += count; K.stats.program_draws++; return 1;
         }
     }
     {   int dr = d3d8_kvp_draw(e->prog, &dd);
@@ -3181,7 +3203,13 @@ static void submit(uint32_t count, int (*fetch)(uint32_t i, Vec4 v[16]))
             if (in_frame < 100) { ++in_frame; ++nlines; g_d3d8_cullprobe_tag = (K.frame << 8) | in_frame; g_d3d8_cullprobe_req = 1; }
         }
     }
-    dev->lpVtbl->DrawPrimitiveUP(dev, d3dprim, prims, draw, sizeof(OutVertex));
+    {   /* 0.3.1 photo mode: g_ste_hide_2d (set by the game program) drops every draw that uses the canonical 640x480 screen mapping = HUD, banners, flash and fade quads; 3D draws never use it */
+        const float (*c2)[4] = (const float (*)[4])K.constants;
+        hide2d_dump("cpu", count);
+        int hide2d = g_ste_hide_2d && kelvin_is_hud(c2);
+        if (hide2d) g_ste_hide_2d_cnt++;
+        if (!hide2d) dev->lpVtbl->DrawPrimitiveUP(dev, d3dprim, prims, draw, sizeof(OutVertex));
+    }
     g_kelvin_perf[2] += kperf_now() - _t0; g_kelvin_perf[3]++;
 
     K.stats.draws++;

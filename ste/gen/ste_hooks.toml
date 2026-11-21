@@ -148,3 +148,27 @@ mode = "before"
 addr = 0x00222630
 fn   = "ste_hook_swap"
 mode = "before"
+
+# 0.3.1 photo mode (docs/formats/photo_mode.md; logic in ste/src/ste_photo.c).
+# World_Update(dt) sub_00084800: returns at once (ret 4) while photo mode is open, so the simulation is frozen exactly while the frame keeps rendering.
+[[hook]]
+addr = 0x00084800
+fn   = "ste_hook_photo_freeze"
+mode = "return"
+pop  = 4
+# fight camera manager sub_001E9E60, the call sub_0001FA30(camera, p): p (view matrix) is replaced by the free camera while photo mode is open.
+[[hook]]
+addr = 0x001EA1D8
+fn   = "ste_hook_photo_cam"
+mode = "before"
+# the game clock: Game::Update's time accumulator sub_000861C0(dt) does [this+0x1204] += dt (the round timer and every script timer run on it); it must stand still too, or the round clock runs out while the camera flies.
+[[hook]]
+addr = 0x000861C0
+fn   = "ste_hook_photo_freeze"
+mode = "return"
+pop  = 4
+# Game::Update(dt) sub_00086F70 (the per-frame update of every game subsystem, the HUD clock included): while photo mode is open its dt argument is set to 0, so the parts that are not skipped above (HUD, effects) stand still too.
+[[hook]]
+addr = 0x00086F70
+fn   = "ste_hook_photo_dt0"
+mode = "before"

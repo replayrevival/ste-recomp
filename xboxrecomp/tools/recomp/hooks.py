@@ -15,6 +15,11 @@ Modes
            control never gets there).
   replace  the instruction runs only when fn() returns 0; a non-zero return skips it
            (the hook has done the work itself). Not allowed on branches/calls/returns.
+  return   (added for STE 0.3.1) at the FIRST instruction of a function: when fn() returns non-zero the
+           function returns at once, as `ret N` would (pops the return address and `pop` argument
+           bytes, `pop = N` in the hook table, default 0); otherwise the function runs normally. Only for
+           functions whose caller needs nothing in eax/st0 (e.g. void). Generic: used for a per-frame
+           update that a feature wants to skip while it is active.
 
 The hook sees the machine state through the same globals the generated code uses
 (g_eax .. g_edi, g_esp, MEM32 ...). Registers are globals in the generated
@@ -26,7 +31,8 @@ address: all `before` hooks run first, then the (single) `replace`, then the
 """
 import sys
 
-MODES = ("before", "after", "replace")
+MODES = ("before", "after", "replace", "return")
+RETURN_POP = {}   # addr -> argument bytes popped by the early return (filled by load_hooks)
 
 
 def load_hooks(path):
@@ -46,10 +52,17 @@ def load_hooks(path):
             raise ValueError(f"{path}: hook #{i + 1}: mode must be one of {MODES}, not {mode!r}")
         if not fn.isidentifier():
             raise ValueError(f"{path}: hook #{i + 1}: fn {fn!r} is not a C identifier")
+        if mode == "return":
+            pop = int(h.get("pop", 0))
+            if pop < 0 or pop % 4:
+                raise ValueError(f"{path}: hook #{i + 1}: pop must be a non-negative multiple of 4")
+            RETURN_POP[addr] = pop
         hooks.setdefault(addr, []).append((mode, fn))
     for addr, lst in hooks.items():
         if sum(1 for m, _ in lst if m == "replace") > 1:
             raise ValueError(f"{path}: address 0x{addr:08X} has more than one replace hook")
+        if sum(1 for m, _ in lst if m == "return") > 1:
+            raise ValueError(f"{path}: address 0x{addr:08X} has more than one return hook")
     return hooks
 
 
@@ -84,6 +97,9 @@ def lift_block_with_hooks(lift_basic_block, lifter, bb, flag_state, hooks, used)
         for mode, fn in lst:
             if mode == "before":
                 stmts.append(f"{{ extern int {fn}(void); (void){fn}(); }} /* {tag} before */")
+        for mode, fn in lst:
+            if mode == "return":
+                stmts.append(f"{{ extern int {fn}(void); if ({fn}()) {{ esp += {4 + RETURN_POP.get(insn.address, 0)}u; return; }} }} /* {tag} return */")
         repl = [fn for m, fn in lst if m == "replace"]
         if repl:
             if _transfers(insn):

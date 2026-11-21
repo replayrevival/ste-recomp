@@ -86,7 +86,7 @@ static LRESULT CALLBACK ste_wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
     if (m == WM_CLOSE) { ExitProcess(0); }
     switch (m) {
-    case WM_MOUSEMOVE: g_last_move = GetTickCount(); break;
+    case WM_MOUSEMOVE: g_last_move = GetTickCount(); { extern void ste_photo_mouse(int x, int y, int drag); ste_photo_mouse((short)LOWORD(l), (short)HIWORD(l), (w & (MK_RBUTTON | MK_LBUTTON)) != 0); } break;
     case WM_SETCURSOR:
         if (LOWORD(l) == HTCLIENT && ste_cursor_should_hide()) { SetCursor(NULL); return TRUE; }
         break;
@@ -327,6 +327,10 @@ static void ste_process_range(uint32_t from, uint32_t cur, uint32_t lo, uint32_t
     if (g_frame == 20 || (g_frame % 600) == 0) ste_print_unhandled();
     { extern void ste_te_frame(unsigned frame); ste_te_frame(g_frame); }   /* c401: keyboard text entry state machine */
     { long long _t = ste_q(); d3d8_PresentFrame(); g_t_pf += ste_q() - _t; }
+    {   /* 0.3.1 photo mode: a pending screenshot (ste_photo.c) is captured here, after the frame was presented: full-resolution PNG in <data>\screenshots */
+        extern int ste_photo_take_shot(char *path, size_t n); char pp[MAX_PATH];
+        if (ste_photo_take_shot(pp, sizeof pp)) { d3d8_capture_backbuffer_bmp_public(pp); fprintf(stderr, "[PHOTO] screenshot %s\n", pp); fflush(stderr); }
+    }
     {   /* c135 probe: STE_SHOT_FIGHT="n1,n2,..." (+ STE_SHOT_DIR): frame-synchronised screenshots for A/B runs of the fight intro. The trigger is the first frame with game-state word 4 (in-game)
          * and >= 350 draws; shots are taken n frames after it (file fs_<n>.bmp) and the draw count is logged ([FSHOT]). Probe only. */
         static int init, nn, trig, done_n; static unsigned list[512]; static unsigned trig_frame;
