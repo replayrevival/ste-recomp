@@ -57,3 +57,6 @@ So the Xbox game already has **two complete network paths in its own code**: Sys
 
 ## 6. Decision wanted from Miko
 Approve Phase 1 (NIC emulation + tunnel, hardware-level, no XDK overrides) as the first build, with the security layer designed in from the start; decide whether Insignia is to be checked first; keep cross-play as a research item.
+
+## 7. Update 2026-11-21
+Insignia check, Phase 1 design details and the pop-in plan: docs\REPORT_BETA_RESEARCH.md.
