@@ -12,6 +12,7 @@ bytes do not diff): it is recorded as "zip-of" and rebuilt deterministically (zl
 Needs Python 3.9+, standard library only. Private input data stays where it is; nothing is written next to it."""
 import sys, os, io, json, hashlib, struct, zipfile, zlib
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'step-diff'))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import step_diff
 
 class Src:
@@ -133,6 +134,20 @@ def cmd_make(a):
         print('NOT EXPRESSIBLE (new files without a --new-base): %s' % ', '.join(mod.name(n) for n in unhandled_new))
     if removed and '--partial' not in a: print('note: %d retail files are missing from the modded image (a mod cannot remove files): %s' % (len(removed), ', '.join(ret.name(n) for n in removed[:10])))
 
+def write_recipe_mod(out, mid, name, lic, desc, recipes):
+    """recipes: [(target, base bytes, result bytes, [edit dicts])] -> manifest api 2 with format 'bsf-edit' entries.
+    The mod holds only the edit lists and the hashes (no game bytes), so it can be shared; prepare builds the files from the player's own."""
+    if os.path.exists(out) and os.listdir(out): raise SystemExit('%s exists and is not empty' % out)
+    os.makedirs(os.path.join(out, 'edits'), exist_ok=True); entries = []
+    for tgt, base, res, edits in recipes:
+        pf = 'edits/' + tgt.replace('/', '__') + '.json'
+        json.dump({'format': 'bsf-edit', 'edits': edits}, open(os.path.join(out, pf), 'w'), indent=1)
+        entries.append({'target': tgt.replace('/', '\\'), 'format': 'bsf-edit', 'patch': pf.replace('/', '\\'), 'base_sha256': 'sha256:' + sha(base),
+                        'result_sha256': 'sha256:' + sha(res), 'size': len(res)})
+    json.dump({'api': 2, 'id': mid, 'name': name, 'version': '1.0.0', 'game': 'STE-Xbox', 'profile': 'content', 'license': lic, 'description': desc,
+               'patch_tool': 'bsf_edit 1.0', 'patches': entries}, open(os.path.join(out, 'manifest.json'), 'w'), indent=2)
+
+
 def cmd_prepare(a):
     mdir, ret = a[0], Src(a[1]); man = json.load(open(os.path.join(mdir, 'manifest.json'))); ok = True; patched = {}
     for e in man['patches']:
@@ -141,7 +156,11 @@ def cmd_prepare(a):
         if not ret.has(tgt): print('%s: not in your game, skipped' % tgt); ok = False; continue
         orig = ret.read(tgt)
         if 'sha256:' + sha(orig) != e['base_sha256']: print('%s: BASE MISMATCH (your file differs from the one the mod was made for)' % tgt); ok = False; continue
-        res = step_diff.apply(orig, open(os.path.join(mdir, e['patch'].replace('\\', '/')), 'rb').read())
+        if e.get('format') == 'bsf-edit':
+            import bsf_edit
+            try: res = bsf_edit.apply_edits(orig, json.load(open(os.path.join(mdir, e['patch'].replace('\\', '/'))))['edits'])
+            except bsf_edit.BsfError as x: print('%s: %s' % (tgt, x)); ok = False; continue
+        else: res = step_diff.apply(orig, open(os.path.join(mdir, e['patch'].replace('\\', '/')), 'rb').read())
         if 'sha256:' + sha(res) != e['result_sha256']: print('%s: RESULT MISMATCH' % tgt); ok = False; continue
         os.makedirs(os.path.dirname(dst), exist_ok=True); open(dst, 'wb').write(res); patched[tgt.lower()] = res; print('%s: built' % tgt)
     for e in man['patches']:

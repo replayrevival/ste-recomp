@@ -1,12 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """build_solo_destruction.py - build the "Solo Destruction" patch mod from YOUR OWN game files.
 
-  python -I build_solo_destruction.py <game folder or .iso> <out mod folder> --gzbuildr <gste_script_tool_v3.py> [--id ste.solo-destruction]
+  python -I build_solo_destruction.py <game folder or .iso> <out mod folder> [--id ste.solo-destruction]
 
 What it does (nothing from the game is stored in this file): it reads three of the game's own script files
-(ActionData\\ChallengeDemolition.bsf, ActionData\\Game.bsf, ShellData\\mainmenu.bsf), turns them into readable text with the
-external GZBuildr script tool (GPL-3.0, https://github.com/Digitzaki/GZBuildr, a separate download, used offline), applies the
-text edits below, compiles them again, and writes a manifest-api-2 patch mod (iso_to_mod.py make) into <out mod folder>.
+(ActionData\\ChallengeDemolition.bsf, ActionData\\Game.bsf, ShellData\\mainmenu.bsf), edits them at token level with our own
+script editor (bsf_edit.py, no third-party tool needed), applies the edits below, and writes a manifest-api-2 patch mod (iso_to_mod.py make) into <out mod folder>.
 Install the folder through the launcher's Mods tab (or put it in the mods folder) and run "Prepare mods" / iso_to_mod.py prepare.
 
 The mode (see docs\\formats\\solo_destruction.md): a new main-menu row "SOLO DESTRUCTION" starts the normal Versus flow (monster,
@@ -17,15 +16,19 @@ import os, sys, subprocess, tempfile, shutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import iso_to_mod
+import iso_to_mod, bsf_edit
 
 FLAG = '4194304.000000'   # shell cheat bit 1<<22: transient flag set by the menu row, cleared by Game.bsf when it loads the script
+FLAG2 = '8388608.000000'  # shell cheat bit 1<<23: "no time limit" chosen on the solo Rules screen (read and cleared by ChallengeDemolition.bsf)
+NOLIM = '1.000000'        # value of the Rules spinner "NO TIME LIMIT: YES" (the YES/NO spinner of the unused Reset-arenas row)
 FILES = ['ActionData/ChallengeDemolition.bsf', 'ActionData/Game.bsf', 'ShellData/mainmenu.bsf']
 
-def sub(s, old, new):
-    if s.count(old) != 1:
-        raise SystemExit('script text does not match what this tool expects (%d matches for: %s ...): is this the retail Xbox game?' % (s.count(old), old[:60].strip()))
-    return s.replace(old, new)
+REC = []   # every edit as {"old","new"} in order, written into the recipe
+
+def sub(toks, old, new):
+    REC.append({'old': old, 'new': new})
+    try: return bsf_edit.replace(toks, old, new)
+    except bsf_edit.BsfError as e: raise SystemExit(str(e))
 
 def edit_demolition(s):
     s = sub(s, '''		gameLoadLevelData("ChallengeDemolition", doDay);
@@ -37,7 +40,10 @@ def edit_demolition(s):
 ''', '''		if(gi.getGameType() == 1.000000){
 			gameLoadLevelData(gi.getCityName(), gi.getDaylight());
 			gi.setPlayers(1.000000);
-			if(gi.getRoundTime() >= 599.000000) gi.setRoundTime(5999.900000);
+			if(gi.getShellCheats() & ''' + FLAG2 + '''){
+				gi.setShellCheats(gi.getShellCheats() - ''' + FLAG2 + ''');
+				gi.setRoundTime(5999.900000);
+			}
 		} else{
 			gameLoadLevelData("ChallengeDemolition", doDay);
 			gi.setPlayers(1.000000);
@@ -85,35 +91,81 @@ def edit_mainmenu(m):
 		sgi.setGameType(gt);
 		gShell.createGame(gt, mode);''', '''		sgi = gShell.getGameInfo();
 		if(sgi.getShellCheats() & ''' + FLAG + ''') sgi.setShellCheats(sgi.getShellCheats() - ''' + FLAG + ''');
+		if(sgi.getShellCheats() & ''' + FLAG2 + ''') sgi.setShellCheats(sgi.getShellCheats() - ''' + FLAG2 + ''');
 		sgi.setGameType(gt);
 		gShell.createGame(gt, mode);
-		if(gSoloNext) sgi.setShellCheats(sgi.getShellCheats() + ''' + FLAG + ''');''')
+		if(gSoloNext){
+			sgi.setShellCheats(sgi.getShellCheats() + ''' + FLAG + ''');
+		}''')
     return sub(m, '\tShellListBox ListBox;\n', '\tShellListBox ListBox;\n\tnumber gSoloNext;\n')
 
-EDITS = {FILES[0]: edit_demolition, FILES[1]: edit_game, FILES[2]: edit_mainmenu}
+SOLO = '(gShell.getGameInfo().getShellCheats() & ' + FLAG + ')'
+
+SOLO = '(gShell.getGameInfo().getShellCheats() & ' + FLAG + ')'
+
+def edit_monsterselect(m):
+    """solo screen: the one-player layout (no VS graphic, no second box, no second bios, no COM step), own title, only the
+    ROUND LENGTH rule. Normal Versus (flag not set) takes the original branches."""
+    m = sub(m, 'else if((gt == 5.000000) || (gt == 6.000000)){ obj = OnePlayer;',
+            'else if((gt == 5.000000) || (gt == 6.000000) || @S@){ obj = OnePlayer;'.replace('@S@', SOLO))
+    old = """else if((gt == 5.000000) || (gt == 6.000000)){
+			OnePlayer.showObject(); TwoPlayer.hideObject(); FourPlayer.hideObject();
+			if(gt == 5.000000){ s = gApp.localizeString("adventure"); AMScore.showObject(); }
+			else s = gApp.localizeString("survival");
+			setupDifficulty();"""
+    new = """else if((gt == 5.000000) || (gt == 6.000000) || @S@){
+			OnePlayer.showObject(); TwoPlayer.hideObject(); FourPlayer.hideObject();
+			if(gt == 5.000000){ s = gApp.localizeString("adventure"); AMScore.showObject(); }
+			else if(@S@) s = "SOLO DESTRUCTION";
+			else s = gApp.localizeString("survival");
+			{
+				ShellObject sdf;
+				sdf = OnePlayer.findObject("Difficulty");
+				if(@S@){ if(sdf.isValid()) sdf.hideObject(); }
+				else{ if(sdf.isValid()) sdf.showObject(); setupDifficulty(); }
+			}""".replace('@S@', SOLO)
+    m = sub(m, old, new)
+    m = sub(m, 'if(gt == 1.000000){ return rule != 2.000000; }',
+            'if(gt == 1.000000){ if(@S@) return rule == 3.000000 || rule == 4.000000; return rule != 2.000000; }'.replace('@S@', SOLO))
+    # the YES/NO "reset arenas" row becomes "NO TIME LIMIT" (own storage key, so Versus keeps its own setting)
+    m = sub(m, 'else if(rule == 4.000000) return prefix + "reset_arenas";',
+            'else if(rule == 4.000000){ if(gt == 1.000000 && @S@) return "rule_solo_notimelimit"; return prefix + "reset_arenas"; }'.replace('@S@', SOLO))
+    m = sub(m, 'void updateWhichRules(){ hideUnusedRules(); setRuleCursor(0.000000);',
+            'void updateWhichRules(){ if(getGameType() == 1.000000 && @S@) ((ShellText) Names[4.000000]).setText("NO TIME LIMIT"); hideUnusedRules(); setRuleCursor(0.000000);'.replace('@S@', SOLO))
+    # the game starts here: set the no-limit bit from the stored choice (after every recreateGame of the rules screen)
+    return sub(m, 'sgi.setPlayers(plyrs); Lobby.closeLobby();',
+               '''sgi.setPlayers(plyrs);
+		if(@S@){
+			ShellGameInfo sg;
+			sg = gShell.getGameInfo();
+			if(sg.getShellCheats() & @F2@) sg.setShellCheats(sg.getShellCheats() - @F2@);
+			if(sgi.getShellCheats() & @F2@) sgi.setShellCheats(sgi.getShellCheats() - @F2@);
+			if((Rules -- getRuleValue(4.000000)) == @N@){
+				sg.setShellCheats(sg.getShellCheats() + @F2@);
+				sgi.setShellCheats(sgi.getShellCheats() + @F2@);
+			}
+		}
+		Lobby.closeLobby();'''.replace('@S@', SOLO).replace('@F2@', FLAG2).replace('@N@', NOLIM))
+
+FILES.append('ShellData/monsterselect.bsf')
+EDITS = {FILES[0]: edit_demolition, FILES[1]: edit_game, FILES[2]: edit_mainmenu, FILES[3]: edit_monsterselect}
 
 def main(a):
-    if len(a) < 2 or '--gzbuildr' not in a: print(__doc__); return 1
-    game, out = a[0], a[1]; gz = a[a.index('--gzbuildr') + 1]
+    if len(a) < 2: print(__doc__); return 1
+    game, out = a[0], a[1]
     mid = a[a.index('--id') + 1] if '--id' in a else 'ste.solo-destruction'
-    if not os.path.isfile(gz): print('GZBuildr script tool not found: %s' % gz); return 1
-    src = iso_to_mod.Src(game); work = tempfile.mkdtemp(prefix='solo_build_'); modsrc = os.path.join(work, 'modsrc')
-    try:
-        for rel in FILES:
-            if not src.has(rel): print('%s is not in your game (needs the retail Xbox files)' % rel); return 1
-            name = os.path.basename(rel); orig = os.path.join(work, name); txt = os.path.join(work, name + '.txt')
-            open(orig, 'wb').write(src.read(rel))
-            subprocess.run([sys.executable, '-I', gz, orig, '-o', txt], check=True, stdout=subprocess.DEVNULL)
-            s = open(txt, encoding='utf-8').read(); s = EDITS[rel](s)
-            open(txt, 'w', encoding='utf-8', newline='').write(s)
-            dst = os.path.join(modsrc, rel.replace('/', os.sep)); os.makedirs(os.path.dirname(dst), exist_ok=True)
-            subprocess.run([sys.executable, '-I', gz, txt, '-o', dst], check=True, stdout=subprocess.DEVNULL)
-            print('edited and compiled %s' % rel)
-        iso_to_mod.cmd_make([modsrc, game, out, '--id', mid, '--name', 'Solo Destruction', '--license', 'GPL-2.0-or-later', '--partial'])
-        print('\nDone. Mod folder: %s\nInstall it in the launcher (Mods tab), then Prepare mods, then play: main menu > SOLO DESTRUCTION.' % out)
-        return 0
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
+    src = iso_to_mod.Src(game); recipes = []
+    for rel in FILES:
+        if not src.has(rel): print('%s is not in your game (needs the retail Xbox files)' % rel); return 1
+        del REC[:]; orig = src.read(rel)
+        try: res = bsf_edit.emit(EDITS[rel](bsf_edit.parse(orig)))
+        except bsf_edit.BsfError as e: print('%s: %s' % (rel, e)); return 1
+        recipes.append((src.name(rel), orig, res, list(REC))); print('edited %s' % rel)
+    iso_to_mod.write_recipe_mod(out, mid, 'Solo Destruction', 'GPL-2.0-or-later',
+        'Adds a SOLO DESTRUCTION row to the main menu: free destruction in any city with any monster. Contains only edit recipes, no game data; '
+        'the scripts are built on your PC from your own game files (Prepare mods). Based on ANILORAK\'s Godzilla Ultra research.', recipes)
+    print('\nDone. Mod folder: %s (recipe only, safe to share). Install it in the launcher (Mods tab), then Prepare mods, then play: main menu > SOLO DESTRUCTION.' % out)
+    return 0
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv[1:]))
