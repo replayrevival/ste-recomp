@@ -6,7 +6,7 @@
   "game": "STE-Xbox",
   "profile": "content",
   "license": "GPL-2.0-or-later",
-  "description": "Adds a SOLO DESTRUCTION row to the main menu: free destruction in any city with any monster. Contains only edit recipes, no game data; the scripts are built on your PC from your own game files (Prepare mods). Based on ANILORAK's Godzilla Ultra research.",
+  "description": "Adds a SOLO DESTRUCTION row to the main menu: free destruction in any city with any monster. Contains only edit recipes, no game data; the scripts are built on your PC from your own game files (Prepare mods). Inspired by ANILORAK's Godzilla Ultra research (our own code; no code from ANILORAK used). Full credits: https://github.com/replayrevival/ste-recomp/blob/main/CREDITS.md",
   "patch_tool": "bsf_edit 1.0",
   "patches": [
     {

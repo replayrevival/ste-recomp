@@ -9,8 +9,9 @@ script editor (bsf_edit.py, no third-party tool needed), applies the edits below
 Install the folder through the launcher's Mods tab (or put it in the mods folder) and run "Prepare mods" / iso_to_mod.py prepare.
 
 The mode (see docs\\formats\\solo_destruction.md): a new main-menu row "SOLO DESTRUCTION" starts the normal Versus flow (monster,
-rules, city); the game then runs the Demolition challenge script on the chosen monster and city. Based on ANILORAK's Godzilla
-Ultra research (the idea of a solo destruction mode); the scripts are our own edits of the game's retail scripts.
+rules, city); the game then runs the Demolition challenge script on the chosen monster and city. Inspired by ANILORAK's Godzilla
+Ultra research (our own code; no code from ANILORAK used). Full credits: https://github.com/replayrevival/ste-recomp/blob/main/CREDITS.md
+The scripts are our own edits of the game's retail scripts.
 """
 import os, sys, subprocess, tempfile, shutil
 
@@ -163,7 +164,7 @@ def main(a):
         recipes.append((src.name(rel), orig, res, list(REC))); print('edited %s' % rel)
     iso_to_mod.write_recipe_mod(out, mid, 'Solo Destruction', 'GPL-2.0-or-later',
         'Adds a SOLO DESTRUCTION row to the main menu: free destruction in any city with any monster. Contains only edit recipes, no game data; '
-        'the scripts are built on your PC from your own game files (Prepare mods). Based on ANILORAK\'s Godzilla Ultra research.', recipes)
+        'the scripts are built on your PC from your own game files (Prepare mods). Inspired by ANILORAK\'s Godzilla Ultra research (our own code; no code from ANILORAK used). Full credits: https://github.com/replayrevival/ste-recomp/blob/main/CREDITS.md', recipes)
     print('\nDone. Mod folder: %s (recipe only, safe to share). Install it in the launcher (Mods tab), then Prepare mods, then play: main menu > SOLO DESTRUCTION.' % out)
     return 0
 

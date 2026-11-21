@@ -46,7 +46,7 @@ def main():
     rc, out = run(root, game, 'a.mod,c.mod'); assert rc == 2 and 'CONFLICT c.mod: Data' in out and 'a.mod' in out, out
     assert not os.path.exists(os.path.join(c, '_built', 'Data', 'x.txt')) and built(a) == b'alpha=10\nbeta=2\ngamma=3\n'
     # order.json: c before a -> a is the one in conflict
-    json.dump({'api': 1, 'order': ['c.mod', 'a.mod']}, open(os.path.join(root, 'order.json'), 'w'))
+    open(os.path.join(root, 'order.json'), 'w', encoding='utf-8-sig').write(json.dumps({'api': 1, 'order': ['c.mod', 'a.mod']}))   # with a UTF-8 BOM (PowerShell)
     rc, out = run(root, game, 'a.mod,c.mod'); assert rc == 2 and 'CONFLICT a.mod' in out, out
     print('stack tests: OK')
 

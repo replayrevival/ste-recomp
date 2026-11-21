@@ -9,7 +9,7 @@ Draft prepared 2026-11-10, 0.1.4 section added 2026-11-14, 0.1.5 section 2026-11
 ## 0.3 (draft, in progress): Solo Destruction, photo mode, Biollante assessment
 | Feature | What | Status |
 |---|---|---|
-| Solo Destruction | a patch mod (`ste.solo-destruction`, built locally from the player's own scripts with `tools\modsuild_solo_destruction.py`): main menu row SOLO DESTRUCTION runs the retail Demolition challenge on any monster and city, own select screen (no COM step), Rules ROUND LENGTH 1-10 MIN and NO TIME LIMIT. Heading GODZILLA ULTRA FEATURES, "Based on ANILORAK's Godzilla Ultra research." Docs: docsormats\solo_destruction.md | built and verified in game (Tokyo, Osaka North, results screen); 16:9 and 21:9 checked |
+| Solo Destruction | a patch mod (`ste.solo-destruction`, built locally from the player's own scripts with `tools\modsuild_solo_destruction.py`): main menu row SOLO DESTRUCTION runs the retail Demolition challenge on any monster and city, own select screen (no COM step), Rules ROUND LENGTH 1-10 MIN and NO TIME LIMIT. Heading GODZILLA ULTRA FEATURES, "Inspired by ANILORAK's Godzilla Ultra research (our own code; no code from ANILORAK used). Full credits: https://github.com/replayrevival/ste-recomp/blob/main/CREDITS.md" Docs: docsormats\solo_destruction.md | built and verified in game (Tokyo, Osaka North, results screen); 16:9 and 21:9 checked |
 | Photo mode | free camera with the game paused | not started |
 | Biollante assessment | docs\FEATURE_BIOLLANTE.md | not started |
 

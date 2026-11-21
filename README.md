@@ -54,7 +54,7 @@
 
 ## What's new in v0.3.1
 
-- **Solo Destruction.** A new SOLO DESTRUCTION row on the main menu: pick any monster and any city and destroy at your own pace, with a round length of 1 to 10 minutes or no time limit. It is a mod that your PC builds from your own game files (nothing of the game is in the download), switched off until you turn it on in the launcher's **Mods** tab. Based on ANILORAK's Godzilla Ultra research (our own rewrite; none of his files are included). How it works: the **[guide](https://github.com/replayrevival/launcher/blob/main/docs/MODDING.md#mods-that-are-built-on-your-pc-script-mods)**.
+- **Solo Destruction.** A new SOLO DESTRUCTION row on the main menu: pick any monster and any city and destroy at your own pace, with a round length of 1 to 10 minutes or no time limit. It is a mod that your PC builds from your own game files (nothing of the game is in the download), switched off until you turn it on in the launcher's **Mods** tab. Inspired by ANILORAK's Godzilla Ultra research (our own code; no code from ANILORAK used). Full credits: https://github.com/replayrevival/ste-recomp/blob/main/CREDITS.md How it works: the **[guide](https://github.com/replayrevival/launcher/blob/main/docs/MODDING.md#mods-that-are-built-on-your-pc-script-mods)**.
 - **Photo mode.** Pause a fight and fly a free camera: wider or narrower view, roll, hide the HUD and save full-resolution PNG screenshots. Open it from the in-game menu, with F8, or by holding Back and Y.
 - Everything from 0.2.3 is in it too: sound packs, retexturing any monster, instant name typing, playing straight from your disc image, the controller-only in-game menu, borderless Fullscreen, and the credited "G:STEM-inspired options".
 
@@ -138,6 +138,6 @@ Details, expected output and the validation steps are in [BUILD.md](BUILD.md).
 `ste-recomp.exe --game <folder that contains default.xbe>`; options are read from `ste_video.ini` / `ste_enhance.ini` (see [docs/LAUNCHER_INTERFACE.md](docs/LAUNCHER_INTERFACE.md)). A disc image (`--game <file.iso>` or `.xiso`) is mounted read-only by the game program itself (nothing is unpacked); a folder works too.
 
 ## Licence and credits
-The gameplay options grouped as "G:STEM-inspired options" in the Enhancements settings are based on G:STEM's gameplay options: credit to Gojirex, Shame Devs, GR8GODZILLAGOD and the STEM community.
+The gameplay options grouped as "G:STEM-inspired options" in the Enhancements settings are inspired by G:STEM's research and gameplay options (our own code; no code from G:STEM used): thanks to Gojirex, Shame Devs, GR8GODZILLAGOD and the STEM community. Solo Destruction is inspired by ANILORAK's Godzilla Ultra research (our own code; no code from ANILORAK used). **Credits:** every project and person we used or learned from is listed in [CREDITS.md](CREDITS.md), in two parts: code and assets that are included (with licences), and research and inspiration (nothing included).
 
 Own code: **GPL-2.0-or-later** (see [LICENSE](LICENSE)). Third-party components keep their own licences ([THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), [CREDITS.md](CREDITS.md), `xboxrecomp/NOTICE`). Binary releases are published together with the matching source from this repository.

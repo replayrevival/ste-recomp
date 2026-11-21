@@ -54,6 +54,11 @@ class Src:
 
 SKIP = ('udata/', 'tdata/', 'cache/')   # save-game and cache files of an extracted copy are not disc content
 def disc_files(s): return sorted(k for k in s.files if not k.startswith(SKIP))
+def _jload(path):
+    """JSON file reader that tolerates a UTF-8 BOM (PowerShell's Set-Content/Out-File -Encoding utf8 writes one)."""
+    with open(path, encoding='utf-8-sig') as f: return json.load(f)
+
+
 def sha(b): return hashlib.sha256(b).hexdigest()
 
 def zip_single(blob):
@@ -155,7 +160,7 @@ def write_recipe_mod(out, mid, name, lic, desc, recipes):
 BUILTINS = ('bio_ui',)   # builders shipped with these tools; a manifest can only name one of these (never arbitrary modules)
 
 def cmd_prepare(a):
-    mdir, ret = a[0], Src(a[1]); man = json.load(open(os.path.join(mdir, 'manifest.json'))); ok = True; patched = {}
+    mdir, ret = a[0], Src(a[1]); man = _jload(os.path.join(mdir, 'manifest.json')); ok = True; patched = {}
     for e in man['patches']:
         tgt = e['target'].replace('\\', '/'); dst = os.path.join(mdir, '_built', e['target'].replace('/', '\\'))
         if e.get('format') == 'zip-of': continue
@@ -164,11 +169,11 @@ def cmd_prepare(a):
         if 'sha256:' + sha(orig) != e['base_sha256']: print('%s: BASE MISMATCH (your file differs from the one the mod was made for)' % tgt); ok = False; continue
         if e.get('format') == 'bsf-edit':
             import bsf_edit
-            try: res = bsf_edit.apply_edits(orig, json.load(open(os.path.join(mdir, e['patch'].replace('\\', '/'))))['edits'])
+            try: res = bsf_edit.apply_edits(orig, _jload(os.path.join(mdir, e['patch'].replace('\\', '/')))['edits'])
             except bsf_edit.BsfError as x: print('%s: %s' % (tgt, x)); ok = False; continue
         elif e.get('format') == 'text-edit':
             res = orig
-            for ed in json.load(open(os.path.join(mdir, e['patch'].replace('\\', '/'))))['edits']:
+            for ed in _jload(os.path.join(mdir, e['patch'].replace('\\', '/')))['edits']:
                 o, n = ed['old'].encode('latin-1'), ed['new'].encode('latin-1')
                 if res.count(o) != 1: print('%s: text edit does not match exactly once' % tgt); ok = False; res = None; break
                 res = res.replace(o, n)
@@ -198,13 +203,13 @@ def _mod_order(root, only=None):
     for d in sorted(os.listdir(root)):
         mp = os.path.join(root, d, 'manifest.json')
         if not os.path.isfile(mp): continue
-        try: m = json.load(open(mp, encoding='utf-8'))
+        try: m = _jload(mp)
         except ValueError: continue
         if not m.get('patches') or m.get('api', 1) < 2 or not m.get('id'): continue
         mods[m['id']] = {'dir': os.path.join(root, d), 'man': m, 'enabled': bool(m.get('enabled', True)), 'pos': 1 << 20, 'prio': m.get('priority', 100)}
     oj = os.path.join(root, 'order.json')
     if os.path.isfile(oj):
-        o = json.load(open(oj, encoding='utf-8'))
+        o = _jload(oj)
         for i, mid in enumerate(o.get('order', [])):
             if mid in mods: mods[mid]['pos'] = i
         for mid, en in (o.get('enabled') or {}).items():
@@ -224,7 +229,7 @@ def _apply_layer(e, mdir, base, mid, touched):
     prior = touched.get(e['target'].replace(chr(92), '/').lower(), [])
     on_top = ' (already changed by %s)' % ', '.join(prior) if prior else ''
     if fmt in ('bsf-edit', 'text-edit'):
-        edits = json.load(open(os.path.join(mdir, e['patch'].replace('\\', '/'))))['edits']
+        edits = _jload(os.path.join(mdir, e['patch'].replace('\\', '/')))['edits']
         if fmt == 'bsf-edit':
             import bsf_edit
             toks = bsf_edit.parse(base)

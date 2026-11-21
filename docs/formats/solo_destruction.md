@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
 # Solo Destruction mod (0.3) - how it works and how to build it
 
-Idea credit: ANILORAK's Godzilla Ultra research ("Solo Destruction" mode). The scripts here are our own edits of the game's retail scripts; nothing of his is copied. Based on ANILORAK's Godzilla Ultra research.
+Idea credit: ANILORAK's Godzilla Ultra research ("Solo Destruction" mode). The scripts here are our own edits of the game's retail scripts; nothing of his is copied. Inspired by ANILORAK's Godzilla Ultra research (our own code; no code from ANILORAK used). Full credits: https://github.com/replayrevival/ste-recomp/blob/main/CREDITS.md
 
 ## What the player sees
 Main menu: a new row **SOLO DESTRUCTION** (between MULTI-PLAYER and PURCHASE ITEMS). It opens its own select screen (the one-player layout the game uses for Action/Survival: title SOLO DESTRUCTION, no VS graphic, no second box, no COM step): pick YOUR monster (A), X = Rules, then the city. Rules shows two rows: **ROUND LENGTH 1-10 MIN** (exactly that many minutes, applied by the game as in Versus) and **NO TIME LIMIT NO/YES** (YES = the clock shows 99:59 and counts down, the round never ends by time). The match is the retail Demolition challenge on that monster and city: SCORE counter, "Destroyed: <building>" points, countdown; at 0:00 (or when the monster is down) CHALLENGE RESULTS shows SUCCESS with the points (the goal is 0, there is nothing to fail), CONTINUE returns to the select screen. Off unless the mod is enabled; with the mod disabled the menu and every mode are retail, and normal Versus is unchanged while the mod is on.

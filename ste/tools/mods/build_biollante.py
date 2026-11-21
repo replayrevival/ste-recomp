@@ -79,7 +79,8 @@ def main(a):
     recipes.append((src.name(rel), orig, bio_ui.build(orig), 'bio_ui', 'builtin')); print('built %s' % rel)
     iso_to_mod.write_recipe_mod(out, mid, 'Biollante', 'GPL-2.0-or-later',
         'Makes Biollante a normal character (19th select-grid slot, unlocked, with fight AI). Her models, animations, HUD and sounds are on the retail disc; '
-        'this mod holds only edit recipes and hashes and is built on your PC from your own game files (Prepare mods).', recipes)
+        "this mod holds only edit recipes and hashes and is built on your PC from your own game files (Prepare mods). Credits: Biollante's data is the retail game's; "
+        "the third select row idea is inspired by ANILORAK's research (our own code; no code from ANILORAK used). Full credits: https://github.com/replayrevival/ste-recomp/blob/main/CREDITS.md", recipes)
     print('\nDone. Mod folder: %s (recipe only, safe to share). Install it in the launcher (Mods tab), then Prepare mods.' % out)
     return 0
 

@@ -1,5 +1,7 @@
 # Credits, sources and third-party code
 
+> Authoritative credits: see [CREDITS.md](../CREDITS.md) (two parts: code and assets used / research and inspiration). This file is the detailed working record.
+
 Living record of every external resource used or referenced by this project. Required before any public
 release. RULE: whenever a new tool, repo, library, document, dataset or person's work is used or consulted,
 add a row here (what, where, version/commit, license, how it was used, code copied yes/no).
