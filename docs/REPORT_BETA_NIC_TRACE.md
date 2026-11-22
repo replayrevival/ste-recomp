@@ -16,14 +16,21 @@ The driver is active right after boot (about 1.6 s after the first NIC access), 
 Never reached (because nothing answers the MII access): enabling the receiver/transmitter, the interrupt unmask, any descriptor writes, any reads of the MAC.
 Offsets are consistent with the public nForce NIC register layout (the Linux `forcedeth` documentation: rings at 0x100/0x104/0x108, MII at 0x180..0x190); names will be added only where confirmed by what the game does. Raw log kept privately.
 
-## Finding that matters for the plan
-- **With the link forced up and no PHY answer the title crashes** (access violation in the game's `stricmp` on a garbage pointer, return addresses in the XNET section 0x0027xxxx..0x0028xxxx) in 4/4 trace runs, and intermittently without the trace (1 of 2 runs on c437/c438, so it is not caused by the trace). That is the failure the default `STE_ETHERNET_LINK=down` avoids (0.1.4) and the reason a real PHY model is needed: the driver expects the MII busy bit to clear and the link state register to answer.
-- So the first behaviour step is small and well defined: a minimal PHY (MII busy clears at once, PHY id and link status registers answer "100 Mbit full duplex, link up", auto-negotiation complete). That is behaviour, so it waits for the maintainer's OK (no change was made).
+## Finding that matters for the plan (corrected 2026-11-22)
+- **Correction.** An earlier version of this section blamed the link-up crash on a missing PHY model. That was wrong. The crash (access violation in the game's `stricmp`, XNET section) was a missing `#include <stdlib.h>` in `kernel_xbox.c`: `getenv` was implicitly declared `int`, so the pointer it returned was truncated and sign-extended. It depended on where the OS placed the process memory, which is why it was intermittent and independent of the trace. Fixed in 0.4.1; the default (link down) was never affected.
+- **The driver never reads the PHY over MMIO.** Link, speed and duplex come from the kernel call `PhyGetLinkState`. With `STE_ETHERNET_LINK=up` it now answers `0x0B` (active, 100 Mbit, full duplex; before it answered `0x01`), and the default still answers `0`.
 
-## Next (proposal, not started)
-1. (needs OK) PHY model so the driver finishes initialisation with link up; log again to see the rest (enable, interrupt unmask, ring use, the first transmitted frame: expect DHCP/ARP on the System Link screen).
-2. Own TX/RX descriptor code + frame validation + unit tests with synthetic frames.
-3. Tunnel with Monocypher (not yet in the tree: **it goes into CREDITS.md part 1 (version, licence, hash, files) in the commit that adds it**; listing it before it is included would be wrong).
-4. Two-instance test on test PC A (separate `RECOMP_SAVE_DIR`s, loopback), then the LAN test ([ONLINE_TEST_STEPS.md](ONLINE_TEST_STEPS.md)).
+## What the title sends with link up (c447 trace, 2026-11-22)
+- Ring layout (to confirm against more traces): the ring at `+0x100` (size = low half of `+0x108`, 11 entries) is the **TX** ring; the ring at `+0x104` (high half, 8 entries) is the **RX** ring, with 2046-byte buffers owned by the NIC and never filled. Descriptors are 8 bytes: buffer address, then length-1 with flags (bit 31 = owned by the NIC, bit 16 = last fragment).
+- Right after driver start the stack sends **DHCP DISCOVER** broadcasts (342 bytes: Ethernet FF:FF:FF:FF:FF:FF, IPv4 0.0.0.0:68 -> 255.255.255.255:67, same transaction id each time), **10 of them about 2.03 s apart (1.75 s ... 20.1 s)**. Nothing is answered, so the stack gives up. **After that nothing more is sent, also on Multi-player > System Link** (reached with link up; the "games available" list stays empty). `PhyGetLinkState` is polled at roughly 300 calls/s for the whole run.
+- **The source MAC in those frames is 00:00:00:00:00:00.** The driver asks the kernel for the factory Ethernet address (`ExQueryNonVolatileSetting` index `0x104`, currently "unhandled") and gets nothing. A usable MAC (locally administered, unique per player) is a prerequisite for any tunnel.
+- No interrupt is ever delivered to the driver (mask `0x5F` is written; nothing raises one). Whether the stack needs completions to proceed is not yet known.
 
-Credits: register layout knowledge from public documentation of the nForce NIC; xemu's nvnet was not used as code. Inspired by no one's code. Full credits: [CREDITS.md](../CREDITS.md).
+## Next (proposal; each step is reported before the next)
+1. Online mode only: answer `XC_FACTORY_ETHERNET_ADDR` with a configured MAC; complete TX descriptors and raise the TX-done interrupt; feed RX buffers. Default (online off) stays byte-identical.
+2. A minimal DHCP responder inside the host's virtual switch (or let the stack fall back to a link-local address) so System Link has an address; then see what System Link sends.
+3. Own TX/RX descriptor code + frame validation + unit tests with synthetic frames.
+4. Tunnel with Monocypher, as in [ONLINE_DESIGN.md](ONLINE_DESIGN.md) (it goes into CREDITS.md part 1 in the commit that adds it).
+5. Two-instance test on test PC A, then the LAN test ([ONLINE_TEST_STEPS.md](ONLINE_TEST_STEPS.md)).
+
+Credits: register layout knowledge from public documentation of the nForce NIC; xemu's nvnet was not used as code. Full credits: [CREDITS.md](../CREDITS.md).
