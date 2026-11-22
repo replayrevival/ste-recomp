@@ -1,15 +1,15 @@
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
-# Launcher interface (Godzilla: Save the Earth recomp, Stream PC)
+# Launcher interface (Godzilla: Save the Earth recomp, test PC A)
 
 Contract between the game executable and the launcher. Keep it current; the launcher reads it.
 Last updated 2026-11-02 for build c250 (version 0.1.0). Items marked **planned** are not in the exe yet.
-This closes the mismatches M1-M6 in `E:\GodzillaSTE\launcher\docs\INTERFACE_ASSUMPTIONS.md` (see the last section).
+This closes the mismatches M1-M6 in `the development tree\launcher\docs\INTERFACE_ASSUMPTIONS.md` (see the last section).
 
 ## 1. Executable, version, working directory
 | | |
 |---|---|
 | Stable name | `ste-recomp.exe` (c247 and later release builds; copied from the promoted candidate, same bytes). Development builds keep `ste_recomp_mission_l6_candidate<N>.exe`. |
-| Folder | `E:\GodzillaSTE\ste-recomp\mission-l6\artifacts\` in the development tree; in a release, the exe folder holds `fsr1\`, `texturepacks\`, `mods\`, `saves\` (see section 6). |
+| Folder | `artifacts\` in the development tree; in a release, the exe folder holds `fsr1\`, `texturepacks\`, `mods\`, `saves\` (see section 6). |
 | Working directory | the exe's folder. Every relative lookup (`fsr1`, `texturepacks`, `mods`, `saves`, `ste_video.ini`, `ste_enhance.ini` defaults) is relative to the **exe**, not the working directory. |
 | Version | Windows VERSIONINFO resource: `FileVersion` = `x.y.z.<build>` (c247 = `0.1.0.247`), `ProductVersion` = `x.y.z+c<build>` (`0.1.0+c247`), `InternalName` = `ste-recomp`, `OriginalFilename` = `ste-recomp.exe`. Builds before c246 have no version resource. |
 | `--version` | prints `ste-recomp 0.1.0 (STE_CANDIDATE_ID=247;)` on stdout and exits 0 before anything else starts. |
@@ -129,7 +129,7 @@ Folders next to the exe: `fsr1\` (FSR shaders), `texturepacks\` (packs, all disa
 (data segments + referenced memory, a few MB; `STE_DUMP_FULL=1` = full memory) goes to, in this order: `STE_DUMP_DIR` (**the launcher should set it to `<data>\logs\dumps`**) -> `<data>\logs\dumps` derived from `STE_VIDEO_INI` (`<data>\<settings folder>\ste_video.ini`, when `<data>\logs` exists) -> `<exe dir>\data\logs\dumps` (portable layout) -> `..\logs\dumps` -> `.\dumps`. `STE_NO_CRASHDUMP=1` turns the handler off; `STE_CRASH_CONTINUE=1` hands the crash to Windows error reporting / a debugger instead of exiting.
 The game never writes `ste_video.ini`, `ste_enhance.ini` or the input mapping file (checked in the source and by file hash and timestamp after a full run, c257); it only reads them.
 
-Logs (c367: see the Subsystem row of section 1 for the no-redirect case): the game writes to stdout/stderr; the caller may redirect them (the .bat launchers use `mission-l6\logs\play_<yyyyMMdd-HHmmss>.out/.err`). Useful lines: `[CONFIG] game=`, `[CONFIG] ste_enhance.ini=`, `[VIDEO] ini=`, `[SESSION]` (desktop size, DPI, RDP), `[DRAWDIST]`, `[ENHANCE]`, `[GAME-OWNED-WRITE-BLOCKED]` (must stay absent), `[XA2] underrun`, `[ICALL FAIL]` / `[STUB HIT]` (fatal). `mods\last_report.txt` is rewritten at each start.
+Logs (c367: see the Subsystem row of section 1 for the no-redirect case): the game writes to stdout/stderr; the caller may redirect them (the .bat launchers use `logs\play_<yyyyMMdd-HHmmss>.out/.err`). Useful lines: `[CONFIG] game=`, `[CONFIG] ste_enhance.ini=`, `[VIDEO] ini=`, `[SESSION]` (desktop size, DPI, RDP), `[DRAWDIST]`, `[ENHANCE]`, `[GAME-OWNED-WRITE-BLOCKED]` (must stay absent), `[XA2] underrun`, `[ICALL FAIL]` / `[STUB HIT]` (fatal). `mods\last_report.txt` is rewritten at each start.
 
 ## 7b. Video start-up log and present rules (c251-c257)
 Every start logs, in this order: `[VIDEO] DPI awareness: per-monitor`, `[VIDEO] display request=N -> monitor \\.\DISPLAYk at x,y size WxH (SDL3 order|primary)`, `[VIDEO] ini=... out=WxH render=WxH mode=0|1|2 aspect=0|2 ... vsync=0|1`, `[VIDEO] vrr=...`, and

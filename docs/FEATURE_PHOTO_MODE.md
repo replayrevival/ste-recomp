@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
 # Photo mode / free cam: design and findings (2026-11-20, report first, nothing built yet)
 
-## 1. Spec (Miko)
+## 1. Spec (the maintainer)
 v1 photo mode: in-game menu entry + optional hotkey; pauses the match like the overlay does; HUD toggle; free camera from the current view; pad (LS move, RS look, LT/RT down/up, LB/RB slow/fast, A screenshot, B exit) and keyboard/mouse (WASD + mouse, Q/E, Shift, F12, Esc); FOV, optional roll; exact camera restore; scene queries follow the camera; limited flying range; works with the overlay, fullscreen, 16:9/21:9, controller only. `[camera] photo_mode` setting. v2 live free cam: report first (section 4).
 
 ## 2. What exists

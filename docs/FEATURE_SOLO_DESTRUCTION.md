@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
 # Feasibility: Solo Destruction (city destruction mode) on the Xbox recomp (2026-11-19, report only)
 
-Question (Miko): ANILORAK's Godzilla Ultra mode "Solo Destruction" launches with `setSoloDestro(k)` + `createGame(6, 7700)` (his recipes 10 and 12); is that a retail feature in the Xbox build, and what would it take to offer it? Evidence below is from the Xbox game files (read-only), the decompiled Xbox scripts (his `bsf.py dec`, run on copies) and his recipes (reference only; none of his code is used). **Nothing was run in the game for this report** (see "Not tested").
+Question (the maintainer): ANILORAK's Godzilla Ultra mode "Solo Destruction" launches with `setSoloDestro(k)` + `createGame(6, 7700)` (his recipes 10 and 12); is that a retail feature in the Xbox build, and what would it take to offer it? Evidence below is from the Xbox game files (read-only), the decompiled Xbox scripts (his `bsf.py dec`, run on copies) and his recipes (reference only; none of his code is used). **Nothing was run in the game for this report** (see "Not tested").
 
 ## 1. What the Xbox build has
 | Item | Finding | Evidence |
@@ -36,11 +36,11 @@ So the retail game already ships a complete, self-contained "solo city destructi
 - Whether the Xbox Challenges list shows Demolition first/with its locked state is not confirmed.
 - The meaning of his mission numbers (`createGame(6, 7700)`) is his; game type 6 is not a retail challenge type in the Xbox scripts I read (retail challenges use types 7/8 with missions 0..77).
 
-## 6. Decision wanted from Miko
+## 6. Decision wanted from the maintainer
 Approve step 1 (prove the retail Demolition challenge in the recomp, test-only trigger) and step 2 (a menu entry through the mod system) as the first, cheap version of "Solo Destruction"; the bigger Ultra-style mode waits for the Ultra port work.
 
 ## 7. Step 1 proven in game (2026-11-20, c432)
-Retail Demolition challenge, reached through MAIN MENU > CHALLENGES (fifth entry: Battleships, Vorillium Basketball, Osaka Crunch, Monster Bowling, **Demolition**; all listed with "Unlock all challenges") with a scripted pad (`mission-l6\tests\pads\demolition_probe.pad.txt`, pad times are process-age seconds; run `F:\GodzillaSTE_work\soak\q1b\demo_run2`, screenshots every 8 s):
+Retail Demolition challenge, reached through MAIN MENU > CHALLENGES (fifth entry: Battleships, Vorillium Basketball, Osaka Crunch, Monster Bowling, **Demolition**; all listed with "Unlock all challenges") with a scripted pad (`tests\pads\demolition_probe.pad.txt`, pad times are process-age seconds; run `a private archive`, screenshots every 8 s):
 - Briefing/pause screen: "DEMOLITION: Destroy the city. Earn 15,000 destruction points before the timer runs out. Game tip: a club can be a useful tool for destruction." (Press START to continue).
 - Play: San Francisco at night, Godzilla 2000, HUD with health bar, **countdown timer** (1:41 ... 0:06 in the sampled shots) and a **SCORE** counter (2175 -> 2450 -> 2775 -> 2825) with floating "325" points popups while buildings fall.
 - End: at 0:00 the CHALLENGE RESULTS screen shows **FAILED!**, DESTRUCTION POINTS 2825, GOAL 15000, CONTINUE. (The scripted pad was a blunt button masher; a win needs 15,000.)

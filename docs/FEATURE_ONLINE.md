@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
 # Feasibility: online play for the Xbox recomp (2026-11-19, report only, nothing built)
 
-Question (Miko): online play like ANILORAK's PS2 mod. PS2 used GameSpy (his lobby: qr2 UDP 27900, server browsing TCP 28910, peerchat TCP 6667; matches peer-to-peer UDP 1000/1001); the Xbox version used Xbox Live. His pack (`online/GUIDE.md`, `lobby/lobby.py`) was used as REFERENCE ONLY for the PS2 side; no code of his is used or copied. Everything about the Xbox side below comes from our own files and the Xbox scripts (decompiled copies, read-only). **No game or network test was run for this report.**
+Question (the maintainer): online play like ANILORAK's PS2 mod. PS2 used GameSpy (his lobby: qr2 UDP 27900, server browsing TCP 28910, peerchat TCP 6667; matches peer-to-peer UDP 1000/1001); the Xbox version used Xbox Live. His pack (`online/GUIDE.md`, `lobby/lobby.py`) was used as REFERENCE ONLY for the PS2 side; no code of his is used or copied. Everything about the Xbox side below comes from our own files and the Xbox scripts (decompiled copies, read-only). **No game or network test was run for this report.**
 
 ## 1. What the Xbox build contains (evidence)
 | Layer | Finding | Evidence |
@@ -17,7 +17,7 @@ So the Xbox game already has **two complete network paths in its own code**: Sys
 ## 2. Phases (proposal)
 ### Phase 1: System Link between two PCs (LAN or a private network/VPN)
 - **Approach A (recommended): emulate the NIC at hardware level.** The game's own XNet stack (77 KB, ARP/IP/UDP/DHCP, XNKID keys) stays untouched and talks to an emulated NVIDIA nForce NIC ("nvnet": register file, MAC, PHY, TX/RX descriptor rings in DMA memory, interrupts). Frames are carried to the other PC by a **frame tunnel over one UDP port** (each side encapsulates Ethernet frames in UDP to the peer; no pcap/Npcap, no admin rights, works over LAN, Tailscale/ZeroTier or a forwarded port). Hardware emulation is not an override of game logic, so it stays inside our rules. Unknown: how much of nvnet the XDK 5849 driver needs (xemu's implementation is the reference for the behaviour; our own code must be written independently).
-- Approach B (not recommended): HLE of the XNet/WSA socket functions onto host UDP sockets. Faster to a first demo but it replaces XDK library functions with our code (a "new HLE override of an XDK function" = the STOP class in CLAUDE.md, needs Miko's decision) and every XNet feature the lobby uses (XNKID, secure addresses, link-local addressing) would have to be re-implemented by hand.
+- Approach B (not recommended): HLE of the XNet/WSA socket functions onto host UDP sockets. Faster to a first demo but it replaces XDK library functions with our code (a "new HLE override of an XDK function" = the STOP class in CLAUDE.md, needs the maintainer's decision) and every XNet feature the lobby uses (XNKID, secure addresses, link-local addressing) would have to be re-implemented by hand.
 - Game side needs nothing: the System Link screens exist. Our work: nvnet device (MMIO, DMA, IRQ), the tunnel, a settings row (peer address, tunnel port), a link-up answer when a peer is configured.
 - **Effort: L (about 3-6 weeks).** Risk: timing/IRQ details of the NIC driver; a second PC to test with.
 
@@ -29,7 +29,7 @@ So the Xbox game already has **two complete network paths in its own code**: Sys
 - Recommendation: Phase 1, then option 1 (same tunnel + rendezvous), check Insignia in parallel.
 
 ### Phase 3: cross-play with PS2 (PCSX2/XBSX2 with ANILORAK's patch)
-- Not shown to be possible. What is known: both games share the engine's lobby classes (DNetLobby exists in both programs), the scripts are shared, and his notes give the PS2 match layer as UDP 1000/1001 with a lobby on 1001. What would have to match: the in-match packet format (state/inputs), the lobby messages, the game versions, and the **platform value** (`getPlatform()` is 2 on PS2: scripts branch on it). A bridge (our lobby speaks his GameSpy-replacement protocol AND carries Xbox System Link frames) is only worthwhile if the in-match packets turn out to be identical; the cheap first step is a **packet capture of a PS2 match** (Miko/ANILORAK) compared with a capture of our Phase 1 match. **Effort: M for the analysis, then unknown (L-XL) for a bridge.** Treat as speculative.
+- Not shown to be possible. What is known: both games share the engine's lobby classes (DNetLobby exists in both programs), the scripts are shared, and his notes give the PS2 match layer as UDP 1000/1001 with a lobby on 1001. What would have to match: the in-match packet format (state/inputs), the lobby messages, the game versions, and the **platform value** (`getPlatform()` is 2 on PS2: scripts branch on it). A bridge (our lobby speaks his GameSpy-replacement protocol AND carries Xbox System Link frames) is only worthwhile if the in-match packets turn out to be identical; the cheap first step is a **packet capture of a PS2 match** (the maintainer/ANILORAK) compared with a capture of our Phase 1 match. **Effort: M for the analysis, then unknown (L-XL) for a bridge.** Treat as speculative.
 
 ## 3. Security plan (the 2004 netcode was never hardened)
 - Assume every packet the game parses is hostile: the game's DNetLobby/XNet code does its own parsing and we do not patch it, so **we limit who can reach it**: (a) only frames from configured peers enter the emulated NIC; the tunnel is **authenticated** (a per-session key from the rendezvous/invite, AEAD or HMAC on every datagram; drop everything else); (b) our NIC layer validates frames before they reach guest memory: Ethernet length 60..1514, descriptor ring bounds, DMA addresses inside the guest RAM window, rate limit (packets/s, bytes/s), drop broadcasts/ICMP/anything not UDP to the game's ports, no fragments reassembly outside the guest; (c) the guest never sees host network access: no gateway to the host LAN or the internet except the tunnel (the emulated network is closed: only the other player's console exists); (d) crash isolation: if the guest faults inside a network handler, the existing crash handler writes the dump and exits cleanly (as now).
@@ -55,7 +55,7 @@ So the Xbox game already has **two complete network paths in its own code**: Sys
 - Two-PC test setup (a second machine or two instances with the tunnel on loopback; **two game instances on one PC are forbidden by our save-lock rule**, so a second PC or a separate user session is needed).
 - Packet compatibility with the PS2 match layer (needs captures).
 
-## 6. Decision wanted from Miko
+## 6. Decision wanted from the maintainer
 Approve Phase 1 (NIC emulation + tunnel, hardware-level, no XDK overrides) as the first build, with the security layer designed in from the start; decide whether Insignia is to be checked first; keep cross-play as a research item.
 
 ## 7. Update 2026-11-21

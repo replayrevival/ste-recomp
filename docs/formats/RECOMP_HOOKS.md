@@ -41,4 +41,4 @@ The `return` mode (added for STE 0.3.1, photo mode) lets a feature skip a whole 
 
 ## Usage
 `python -m tools.recomp <xbe> --functions f.json --exclude-manual recomp_manual.c --hooks hooks.toml --all --split 1000 --gen-dir gen -o out`
-(STE: `mission-l6\tests\regen_hooks.ps1 -Out <dir> -Hooks <hooks.toml>`; STE's hooks live in `mission-l6\hooks\ste_hooks.toml`.)
+(STE: `tests\regen_hooks.ps1 -Out <dir> -Hooks <hooks.toml>`; STE's hooks live in `hooks\ste_hooks.toml`.)

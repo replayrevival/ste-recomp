@@ -118,7 +118,7 @@ const D3D8VideoCfg *d3d8_video_cfg(void)
         vid_get("STE_VIDEO_HEIGHT", "height", ini, b, sizeof(b)); H = b[0] ? (UINT)atoi(b) : 0;
         vid_get("STE_VIDEO_MODE", "mode", ini, b, sizeof(b));
         if (!_stricmp(b, "borderless")) mode = D3D8V_BORDERLESS;
-        else if (!_stricmp(b, "exclusive") || !_stricmp(b, "fullscreen_exclusive")) mode = D3D8V_FULLSCREEN;   /* c418: true exclusive fullscreen is an advanced option (menu-open freeze on Black Mamba, 0.1.7) */
+        else if (!_stricmp(b, "exclusive") || !_stricmp(b, "fullscreen_exclusive")) mode = D3D8V_FULLSCREEN;   /* c418: true exclusive fullscreen is an advanced option (menu-open freeze on test PC B, 0.1.7) */
         else if (!_stricmp(b, "fullscreen")) { mode = D3D8V_BORDERLESS; fprintf(stderr, "[VIDEO] mode=fullscreen uses borderless fullscreen (flip-model chain on a borderless window covering the monitor); mode=exclusive selects true exclusive fullscreen\n"); }
         { int dsp = -1; RECT mr; char mdev[40]; vid_get("STE_VIDEO_DISPLAY", "display", ini, b, sizeof(b)); if (b[0] >= '0' && b[0] <= '9') dsp = atoi(b);   /* c252 */
           vid_pick_monitor(dsp, &mr, mdev, sizeof mdev); g_vcfg.display = dsp; g_vcfg.mon_x = mr.left; g_vcfg.mon_y = mr.top; g_vcfg.mon_w = mr.right - mr.left; g_vcfg.mon_h = mr.bottom - mr.top;
@@ -666,7 +666,7 @@ int ste_overlay_visible_none(void) { return 0; }
 /* c404/0.1.7: opt-in gameplay recorder (STE_RECORD=<file.mkv>). The presented frame (the swap-chain back buffer after the upscale/blit, i.e. what the screenshots show, bars included; the in-game overlay is
  * left out unless STE_RECORD_OVERLAY=1) is copied on the GPU into a ring of REC_SLOTS staging textures (the render thread only issues the copy and, a few frames later, a non-blocking Map), and a worker thread
  * repacks the mapped rows into its own buffer and writes them to the stdin of an ffmpeg process (STE_FFMPEG = path to ffmpeg.exe, default "ffmpeg" on PATH). So the render thread never memcpy's a frame and
- * never waits for the encoder: if ffmpeg stalls the ring fills and frames are DROPPED and counted, they never slow the game. 0.1.7 (Miko: the 4K takes stuttered): the default encoder is x264 ultrafast (NVENC next to the game halved
+ * never waits for the encoder: if ffmpeg stalls the ring fills and frames are DROPPED and counted, they never slow the game. 0.1.7 (the maintainer: the 4K takes stuttered): the default encoder is x264 ultrafast (NVENC next to the game halved
  * the frame rate on the dev PC, so it is opt-in) and ffmpeg runs at below-normal priority.
  * Timestamps: STE_RECORD_TS=frames (default): the frames are written at a constant STE_RECORD_FPS (default 60), one video frame per presented frame, so a clip has exactly the frames the player was shown
  * (no wall-clock duplicates or drops added by ffmpeg); =wall uses the wall clock instead (use_wallclock_as_timestamps, cfr). [RECORD] at stop logs frames written, dropped (ring full), map retries, and how

@@ -89,4 +89,4 @@ A shader cache is created next to the exe (`shadercache\`); the first run compil
 4. Answers to: Does the logo movie play and have sound? Does it reach the main menu? Does a pad work (and which)? Does the fight run at a steady frame rate (note the `[RFT]` lines every 10 s: `p50/p99` frame times)? Any visual breakage that the Windows build does not show.
 5. Optional second test: `launcher.exe` under the same prefix (the launcher is SDL3 + OpenGL 3.3 and should run natively under Wine; report whether it opens, finds the game folder, and starts the game).
 
-Send results to Miko; do not post logs that contain your home path publicly without checking them.
+Send results to the maintainer; do not post logs that contain your home path publicly without checking them.

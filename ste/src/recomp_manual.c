@@ -105,7 +105,7 @@ static void wrap_00015512(void)
 }
 
 /* ======================================================================
- * XPP (USB / XID) host overrides -- mission-l6 candidate3, 2026-10-16
+ * XPP (USB / XID) host overrides -- the work directory candidate3, 2026-10-16
  *
  * The XDK XPP library drives the OHCI host controller at 0xFED00000 directly
  * (XInitDevices -> sub_002D85EA stores the base), which is zeroed memory here.

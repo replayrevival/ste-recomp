@@ -1,7 +1,7 @@
 import importlib.util, math, os, struct, sys
-spec = importlib.util.spec_from_file_location('sp', r'E:\GodzillaSTE\ste-recomp\mission-l6\tools\mods\sound_pack.py'); sp = importlib.util.module_from_spec(spec); spec.loader.exec_module(sp)
+spec = importlib.util.spec_from_file_location('sp', r'tools\mods\sound_pack.py'); sp = importlib.util.module_from_spec(spec); spec.loader.exec_module(sp)
 C = sys.argv[1]
-G = r'E:\GodzillaSTE\game-owned\xbox\STE\extracted\SoundData'
+G = r'the development tree\game-owned\xbox\STE\extracted\SoundData'
 
 def peak_freq(x, rate):
     best = (0, 0); n = min(len(x), 3000)

@@ -63,7 +63,7 @@ Not in this release: the stuck Tokyo UFO, the missing "RAGE" announcer line, ver
 | Out-of-bounds UFO (Tokyo), missing "RAGE" announcer | investigated, not fixed (findings in REPORT_0.1.8) | slipped |
 | Version | exe resource and `--version` say 0.1.8 | in |
 
-Known: the Black Mamba fullscreen freeze is unconfirmed (no evidence arrived, not reproduced); x4 Unlimited cannot be recorded at 1080p60 on the test PC (x2 clip made).
+Known: the test PC B fullscreen freeze is unconfirmed (no evidence arrived, not reproduced); x4 Unlimited cannot be recorded at 1080p60 on the test PC (x2 clip made).
 
 ## 0.1.7 (draft, 2026-11-19)
 | Area | Change | Status |
@@ -89,15 +89,15 @@ Known: Mechagodzilla 2 has no finger-rocket attack that could be triggered from 
 | Version | exe resource and `--version` say 0.1.6 | to do at release prep |
 
 ## 0.1.5a: hotfix for the in-game menu freeze (replaces 0.1.5)
-**Do not publish plain 0.1.5.** On Miko's other PC (true fullscreen, V-Sync on) opening the in-game menu froze the game: the window greyed out, the close button and Alt+F4 did nothing, the pointer stayed invisible. Cause: the game window belongs to the render thread, which only handled window messages while it was drawing game frames. The menu pauses the game, no frames arrive, and the window stopped answering Windows for good (true fullscreen additionally makes the display driver wait for that window). Reproduced on the Stream PC (window hung for the whole test, close request ignored), fixed, and checked again.
+**Do not publish plain 0.1.5.** On the maintainer's other PC (true fullscreen, V-Sync on) opening the in-game menu froze the game: the window greyed out, the close button and Alt+F4 did nothing, the pointer stayed invisible. Cause: the game window belongs to the render thread, which only handled window messages while it was drawing game frames. The menu pauses the game, no frames arrive, and the window stopped answering Windows for good (true fullscreen additionally makes the display driver wait for that window). Reproduced on the test PC A (window hung for the whole test, close request ignored), fixed, and checked again.
 | Area | Change | Status |
 |---|---|---|
 | Window while the game is paused or stalled | the render thread keeps handling window messages while it waits for work, and the menu's pause wait does too: the window never greys out, the close button and Alt+F4 work with the menu open, a long load no longer makes the window "not responding" | fixed |
 | Pointer | forced visible while the menu is open | in |
 | Hang watchdog | no game frame for 3 s while the menu is NOT open: `[HANG]` line in the log, pointer restored (class cursor, clip rectangle, hide count), every thread's stack and a minidump in the dumps folder (max 3 per run). `STE_HANG_SECS` (default 3, 0 = off). The old 120 s watchdog stays | new |
 | Guide button | no longer opens the menu by default (opt-in: `[input] overlay_guide = 1`); Back+Start (held 1 s) and F1 stay | changed |
-| Checked | window mode x V-Sync x VRR at 16:9 plus 21:9 in all three window modes (15 runs): menu opens, window answers for 12 s, a close request ends the game with exit code 0; true fullscreen with the menu held open 60 s; Alt+Tab out and back with the menu open (window kept answering) | PASS on the Stream PC |
-| Not checked here | the owner's own setup (true fullscreen at a high refresh rate, a real pad's Guide button): Miko re-tests before anything is published | open |
+| Checked | window mode x V-Sync x VRR at 16:9 plus 21:9 in all three window modes (15 runs): menu opens, window answers for 12 s, a close request ends the game with exit code 0; true fullscreen with the menu held open 60 s; Alt+Tab out and back with the menu open (window kept answering) | PASS on the test PC A |
+| Not checked here | the owner's own setup (true fullscreen at a high refresh rate, a real pad's Guide button): the maintainer re-tests before anything is published | open |
 
 Interim workaround for anyone on plain 0.1.5: rename `ste_overlay.dll` next to the game to turn the menu off.
 
@@ -146,13 +146,13 @@ Interim workaround for anyone on plain 0.1.5: rename `ste_overlay.dll` next to t
 - Mechagodzilla 2's finger rockets were not specifically re-checked in 0.1.6 (the point-sprite fix is generic; the sampled frames of the effects sweep showed no defect). Mechagodzilla 3's missiles are fixed in 0.1.6 (older notes in docs\ITEM_D_MISSILES.md).
 - A rare freeze (no more frames, window stays open) was fixed in 0.1.3a (c370): the emulated vblank could wait for ever on an interrupt-status bit when another thread queued work at the same moment. It was seen three times in test runs, never in normal play reports.
 - Possible rare stall in the sound code: in two test runs of an earlier build (c367, debug frame-sleep on) the game stopped producing frames while its main thread sat in the DirectSound buffer routine (the game's audio set-up). Not reproduced since and not fixed in c370; if the game freezes, please send the log from `<logs>`.
-- Black Mamba (the owner's other PC) feedback is pending: two-monitor window test (c261) and the distance/performance test zip `ste-recomp-distance-perf.zip`.
+- test PC B (the owner's other PC) feedback is pending: two-monitor window test (c261) and the distance/performance test zip `ste-recomp-distance-perf.zip`.
 - 1%-low frame rate reads ~52 fps in every mode (frame-pacing jitter, about 18-19 ms p99); average is ~59 fps.
 - `query_scale` above 1 draws far objects the game never draws at that distance; some may look odd (stale vertex data is zero-filled, so they vanish rather than glitch). The governor lowers the distance in heavy fights.
 - Linux/macOS are not supported yet (see `PORTABILITY_AUDIT.md`).
 
 ## Release checklist (before anyone publishes)
-1. Licence audit of the merged tree file by file (GPL-2.0-or-later for our code; compiled-in third-party code GPL-compatible; Apache-2.0 compiled in => binaries ship as GPL-3.0). Reports: `F:\GodzillaFamily_Assets\reports\hermes2\license_audit.md`.
+1. Licence audit of the merged tree file by file (GPL-2.0-or-later for our code; compiled-in third-party code GPL-compatible; Apache-2.0 compiled in => binaries ship as GPL-3.0). Reports: `internal reports (kept privately)`.
 2. No game data anywhere: no default.xbe, no extracted files, no generated C in the repo (`.gitignore` covers `generated/`); screenshots with game imagery stay out. Run the repo scan.
 3. GPL notices, `THIRD_PARTY_NOTICES.md`, `CREDITS.md` current; `GAME_DATA_NOTICE.md` in the package.
 4. Disclaimer in README, About and the launcher: "Not affiliated with or endorsed by Toho, Atari or Pipeworks. You must own the game."
@@ -165,7 +165,7 @@ Interim workaround for anyone on plain 0.1.5: rename `ste_overlay.dll` next to t
 | PC | What |
 |---|---|
 | Dev PC (RTX 2080 SUPER, Windows 11) | done: 1765x993 and 3840x2160, original / x4 / x8, Tokyo + New York, 3 x 19-min x8 + 1 NY + 1 x4 soaks |
-| Black Mamba (owner) | `play_dist_original.bat`, `_4`, `_8` at 1080p and its native resolution; report fps in the title bar, pop-in, any stutter; send `data\logs\play_dist_*.log`; two-monitor window test when asked |
+| test PC B (owner) | `play_dist_original.bat`, `_4`, `_8` at 1080p and its native resolution; report fps in the title bar, pop-in, any stutter; send `data\logs\play_dist_*.log`; two-monitor window test when asked |
 | Low-end 4-core / iGPU | `play_dist_original.bat` at 1280x720 and 1920x1080 (the 60 fps floor), then `_4`; the governor should hold the frame rate by shortening the distance |
 Record for each run: exe SHA-256, resolution, mode, median fps, worst frame, `[QGUARD]` cap range, crash/replay lines (`[CRASH]`, `[PB-REPLAY]`, `[KELVIN-OOB]`).
 
