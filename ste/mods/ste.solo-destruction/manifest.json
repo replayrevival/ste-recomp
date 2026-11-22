@@ -14,32 +14,40 @@
       "format": "bsf-edit",
       "patch": "edits\\ActionData__ChallengeDemolition.bsf.json",
       "base_sha256": "sha256:992621a3bf1a826b527c2702418f2d5bf7352197f5b26a60a805f3d55055805a",
-      "result_sha256": "sha256:04c81c9a1ae2b130fe0194daca1de0aefc4970f3442e7ab2729102fece26d6ef",
-      "size": 13627
+      "result_sha256": "sha256:791cdfd86b3b1d3cbd33ccd48a709cfef5a7b9a6ced5c028f3c0130507e9cc39",
+      "size": 13615
     },
     {
       "target": "ActionData\\Game.bsf",
       "format": "bsf-edit",
       "patch": "edits\\ActionData__Game.bsf.json",
       "base_sha256": "sha256:edd23bd2f1f2597fb6381fe9a5e068ffc41ded057be857702dc28544040370b0",
-      "result_sha256": "sha256:b606a8ed366bb268a584fd3832ede11a3a9cb3441e01268f765881a1edeef33d",
-      "size": 33981
+      "result_sha256": "sha256:1feea6412ce2e3f0414d48e54dc6a8129de876a82e091afae729d60ba622ee6b",
+      "size": 33969
     },
     {
       "target": "ShellData\\mainmenu.bsf",
       "format": "bsf-edit",
       "patch": "edits\\ShellData__mainmenu.bsf.json",
       "base_sha256": "sha256:9f726b06dd0b6e637a018241f2427c1936e580b5b9bc8c1ce4493f28ada0abda",
-      "result_sha256": "sha256:ce99739723c566030f294232b9b6f96cce093042f5c62ac631d05e6633e168bf",
-      "size": 18084
+      "result_sha256": "sha256:8770e03e8ccfd69cb4e2c73f7acceb3a6070aa65b2ca5ce69f5528528522af77",
+      "size": 18307
     },
     {
       "target": "ShellData\\monsterselect.bsf",
       "format": "bsf-edit",
       "patch": "edits\\ShellData__monsterselect.bsf.json",
       "base_sha256": "sha256:26030ebe7d707cbbb254d6f06f84a9ed2292a988fb48f5ba3d42e8daaf4c4866",
-      "result_sha256": "sha256:dd4e5a8ff3e0cbeae5e30a7d481603bac3bca240eae48c23d656f4b086f94d4a",
-      "size": 81297
+      "result_sha256": "sha256:5138d3ab6e0c0009880fcdec3b1dd50b7a15f607dde771bcb926781d24827cd6",
+      "size": 81286
+    },
+    {
+      "target": "ShellData\\ControlRoom.bdl",
+      "format": "builtin",
+      "patch": "builtin:solo_ui",
+      "base_sha256": "sha256:4700a24dceee46441cf56d5872dbd7bf49451edf5482ea0847e349f9b10c58b2",
+      "result_sha256": "sha256:58f321d0ffac4391561d17d971b40818dff7d8dc302a36a43fe505ea921b27a7",
+      "size": 10196992
     }
   ]
 }

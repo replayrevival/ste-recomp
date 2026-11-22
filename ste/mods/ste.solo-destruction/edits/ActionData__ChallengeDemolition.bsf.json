@@ -3,7 +3,7 @@
  "edits": [
   {
    "old": "\t\tgameLoadLevelData(\"ChallengeDemolition\", doDay);\n\t\tgi.setPlayers(1.000000);\n\t\tif(gApp.debugSetting(\"game\", \"bShortMatches\", 0.000000)){\n\t\t\tgi.setRoundTime(15.000000 + 0.900000);\n\t\t\tPOINTS_GOAL = 600.000000;\n\t\t} else gi.setRoundTime(60.000000 * 3.000000 + 0.900000);\n",
-   "new": "\t\tif(gi.getGameType() == 1.000000){\n\t\t\tgameLoadLevelData(gi.getCityName(), gi.getDaylight());\n\t\t\tgi.setPlayers(1.000000);\n\t\t\tif(gi.getShellCheats() & 8388608.000000){\n\t\t\t\tgi.setShellCheats(gi.getShellCheats() - 8388608.000000);\n\t\t\t\tgi.setRoundTime(5999.900000);\n\t\t\t}\n\t\t} else{\n\t\t\tgameLoadLevelData(\"ChallengeDemolition\", doDay);\n\t\t\tgi.setPlayers(1.000000);\n\t\t\tif(gApp.debugSetting(\"game\", \"bShortMatches\", 0.000000)){\n\t\t\t\tgi.setRoundTime(15.000000 + 0.900000);\n\t\t\t\tPOINTS_GOAL = 600.000000;\n\t\t\t} else gi.setRoundTime(60.000000 * 3.000000 + 0.900000);\n\t\t}\n"
+   "new": "\t\tif(gi.getGameType() == 1.000000){\n\t\t\tgameLoadLevelData(gi.getCityName(), gi.getDaylight());\n\t\t\tgi.setPlayers(1.000000);\n\t\t\tif(gi.getShellCheats() & 8388608.000000){\n\t\t\t\tgi.clearShellCheats(8388608.000000);\n\t\t\t\tgi.setRoundTime(5999.900000);\n\t\t\t}\n\t\t} else{\n\t\t\tgameLoadLevelData(\"ChallengeDemolition\", doDay);\n\t\t\tgi.setPlayers(1.000000);\n\t\t\tif(gApp.debugSetting(\"game\", \"bShortMatches\", 0.000000)){\n\t\t\t\tgi.setRoundTime(15.000000 + 0.900000);\n\t\t\t\tPOINTS_GOAL = 600.000000;\n\t\t\t} else gi.setRoundTime(60.000000 * 3.000000 + 0.900000);\n\t\t}\n"
   },
   {
    "old": "if(gi.getGameType() != 5.000000){\n\t\t\tpd.setMonsterName(\"godzilla2k\");",

@@ -9,6 +9,7 @@
  * EEPROM-based encryption on PC.
  */
 
+#include <stdlib.h>   /* c439: getenv declared (an implicit int return truncates the pointer) */
 #include "kernel.h"
 #include <string.h>
 

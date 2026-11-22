@@ -11,7 +11,11 @@
   },
   {
    "old": "\t\tsgi = gShell.getGameInfo();\n\t\tsgi.setGameType(gt);\n\t\tgShell.createGame(gt, mode);",
-   "new": "\t\tsgi = gShell.getGameInfo();\n\t\tif(sgi.getShellCheats() & 4194304.000000) sgi.setShellCheats(sgi.getShellCheats() - 4194304.000000);\n\t\tif(sgi.getShellCheats() & 8388608.000000) sgi.setShellCheats(sgi.getShellCheats() - 8388608.000000);\n\t\tsgi.setGameType(gt);\n\t\tgShell.createGame(gt, mode);\n\t\tif(gSoloNext){\n\t\t\tsgi.setShellCheats(sgi.getShellCheats() + 4194304.000000);\n\t\t}"
+   "new": "\t\tsgi = gShell.getGameInfo();\n\t\tif(sgi.getShellCheats() & 4194304.000000) sgi.clearShellCheats(4194304.000000);\n\t\tif(sgi.getShellCheats() & 8388608.000000) sgi.clearShellCheats(8388608.000000);\n\t\tsgi.setGameType(gt);\n\t\tgShell.createGame(gt, mode);\n\t\t { ShellGameInfo scl; scl = gShell.getGameInfo(); if(scl.getShellCheats() & 4194304.000000) scl.clearShellCheats(4194304.000000); if(scl.getShellCheats() & 8388608.000000) scl.clearShellCheats(8388608.000000); } \n\t\tif(gSoloNext){\n\t\t\tsgi.setShellCheats(sgi.getShellCheats() + 4194304.000000);\n\t\t}"
+  },
+  {
+   "old": "setCheatBit(-1.000000, 0.000000);\n\t\t\tGainFocusGrowShrink(ival);",
+   "new": "setCheatBit(-1.000000, 0.000000);\n\t\t\t { ShellGameInfo scl; scl = gShell.getGameInfo(); if(scl.getShellCheats() & 4194304.000000) scl.clearShellCheats(4194304.000000); if(scl.getShellCheats() & 8388608.000000) scl.clearShellCheats(8388608.000000); } \n\t\t\tGainFocusGrowShrink(ival);"
   },
   {
    "old": "\tShellListBox ListBox;\n",

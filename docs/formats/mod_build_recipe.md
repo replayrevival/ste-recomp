@@ -37,7 +37,7 @@ the author's own copy to compute `result_sha256`; the edit lists are written wit
 
 ## More entry formats (0.4)
 - `format: "text-edit"`: `patch` = `edits\<name>.json` with `{"format":"text-edit","edits":[{"old","new"}]}`; each `old` must occur exactly once in the original file's text (latin-1); used for `ShellData\attributes.xfg`.
-- `format: "builtin"`: `patch` = `builtin:<module>`; the result is `<module>.build(original bytes)` from the tools folder. Only the modules named in `iso_to_mod.BUILTINS` (now `bio_ui`) are accepted, a manifest cannot name any other module. Used where the build generates data (the Biollante grid tiles) and an edit list cannot express it. Same hash rules as the other formats (`base_sha256` / `result_sha256`).
+- `format: "builtin"`: `patch` = `builtin:<module>`; the result is `<module>.build(original bytes)` from the tools folder. Only the modules named in `iso_to_mod.BUILTINS` (now `bio_ui`, `solo_ui`) are accepted, a manifest cannot name any other module. Used where the build generates data (the Biollante grid tiles) and an edit list cannot express it. Same hash rules as the other formats (`base_sha256` / `result_sha256`).
 - Example: `tools\mods\build_biollante.py <game> <out mod folder>` writes the Biollante recipe mod (3 edit lists + one builtin); it needs `pw_bundle.py`, `bio_ui.py`, `texlib.py`, `bsf_edit.py` next to `iso_to_mod.py`.
 
 ## Stacked recipes (0.4): several recipe mods that touch the same file

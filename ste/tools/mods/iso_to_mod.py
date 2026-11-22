@@ -157,7 +157,7 @@ def write_recipe_mod(out, mid, name, lic, desc, recipes):
                'patch_tool': 'bsf_edit 1.0', 'patches': entries}, open(os.path.join(out, 'manifest.json'), 'w'), indent=2)
 
 
-BUILTINS = ('bio_ui',)   # builders shipped with these tools; a manifest can only name one of these (never arbitrary modules)
+BUILTINS = ('bio_ui', 'solo_ui')   # builders shipped with these tools; a manifest can only name one of these (never arbitrary modules)
 
 def cmd_prepare(a):
     mdir, ret = a[0], Src(a[1]); man = _jload(os.path.join(mdir, 'manifest.json')); ok = True; patched = {}

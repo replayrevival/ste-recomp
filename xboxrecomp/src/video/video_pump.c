@@ -11,6 +11,7 @@
  */
 #if defined(_WIN32)
 #define COBJMACROS
+#include <stdlib.h>   /* c439: getenv declared (an implicit int return truncates the pointer) */
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>

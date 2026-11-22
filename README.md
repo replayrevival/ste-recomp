@@ -52,6 +52,16 @@
 - A graphics card that supports **DirectX 11**.
 - A controller is recommended. The keyboard works too.
 
+## What's new in v0.4.1 (hotfix)
+
+**After updating, open the launcher and press PLAY once.** The Mods tab shows "Needs build" and your script mods are rebuilt from your own game files (a few seconds). The launcher swaps in the new Solo Destruction mod by itself; your on/off choices stay.
+
+- **Fixed:** after SOLO DESTRUCTION (or backing out of it), Versus, Action and Melee could open the Solo select screen. It is cleared properly now.
+- **Fixed:** the SOLO DESTRUCTION title now looks like the VERSUS title (same font, size and colour).
+- **Fixed:** a crash that could happen when the network link was forced up with an environment variable. Normal play was not affected.
+- **Not reproduced yet, details wanted:** the Biollante tile on the Solo select screen, a black picture during the attract movie, and the globe on the ultrawide main menu. If you see one, please [open an issue](https://github.com/replayrevival/ste-recomp/issues) (Windows version, graphics card, aspect ratio, what you did).
+- Solo Destruction is inspired by ANILORAK's research (our own code; no code from ANILORAK used). Full credits: [CREDITS.md](https://github.com/replayrevival/ste-recomp/blob/main/CREDITS.md).
+
 ## What's new in v0.4.0
 
 ![Biollante on the character select screen](docs/screenshots/0.4.0_biollante_select.png)

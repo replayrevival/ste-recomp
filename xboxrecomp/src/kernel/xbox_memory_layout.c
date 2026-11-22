@@ -783,6 +783,7 @@ static void ac97_arm_write_trap(void)
 #include "apu/apu.h"
 #include "apu/apu_wav.h"
 #include "usb/ohci.h"
+#include "nvnet.h"
 
 #define MMIO_APU_BASE 0xFE800000u   /* what MemoryLayoutInit unmaps for the APU */
 #define MMIO_APU_END  0xFE880000u
@@ -828,6 +829,8 @@ int xbox_VehMmioFault(void *exception_pointers)
                    ep->ExceptionRecord->ExceptionInformation[0] ? 1 : 0);
     if (xbox_OhciOwnsAddress(va))
         return xbox_OhciHandleMmio(ep->ContextRecord, va);
+    if (xbox_NvnetOwnsAddress(va))
+        return xbox_NvnetHandleMmio(ep->ContextRecord, va);
     return 0;
 }
 #else
@@ -3364,6 +3367,8 @@ BOOL xbox_MemoryLayoutInit(const void *xbe_data, size_t xbe_size)
             fprintf(stderr, "  MCPX device aperture: %u MB at Xbox VA "
                     "0x%08X (APU/AC97/USB/NIC, zeroed)\n",
                     XBOX_MCPX_SIZE / (1024 * 1024), XBOX_MCPX_BASE);
+            /* c438: NIC register trace (STE_NIC_TRACE=1), logging only; see nvnet.c */
+            xbox_NvnetInit();
         } else {
             fprintf(stderr, "  WARNING: MCPX aperture at 0x%08X failed "
                     "(error %lu); USB/audio register access will fault\n",

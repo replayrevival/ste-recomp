@@ -23,7 +23,7 @@
   },
   {
    "old": "sgi.setPlayers(plyrs); Lobby.closeLobby();",
-   "new": "sgi.setPlayers(plyrs);\n\t\tif((gShell.getGameInfo().getShellCheats() & 4194304.000000)){\n\t\t\tShellGameInfo sg;\n\t\t\tsg = gShell.getGameInfo();\n\t\t\tif(sg.getShellCheats() & 8388608.000000) sg.setShellCheats(sg.getShellCheats() - 8388608.000000);\n\t\t\tif(sgi.getShellCheats() & 8388608.000000) sgi.setShellCheats(sgi.getShellCheats() - 8388608.000000);\n\t\t\tif((Rules -- getRuleValue(4.000000)) == 1.000000){\n\t\t\t\tsg.setShellCheats(sg.getShellCheats() + 8388608.000000);\n\t\t\t\tsgi.setShellCheats(sgi.getShellCheats() + 8388608.000000);\n\t\t\t}\n\t\t}\n\t\tLobby.closeLobby();"
+   "new": "sgi.setPlayers(plyrs);\n\t\tif((gShell.getGameInfo().getShellCheats() & 4194304.000000)){\n\t\t\tShellGameInfo sg;\n\t\t\tsg = gShell.getGameInfo();\n\t\t\tif(sg.getShellCheats() & 8388608.000000) sg.clearShellCheats(8388608.000000);\n\t\t\tif(sgi.getShellCheats() & 8388608.000000) sgi.clearShellCheats(8388608.000000);\n\t\t\tif((Rules -- getRuleValue(4.000000)) == 1.000000){\n\t\t\t\tsg.setShellCheats(sg.getShellCheats() + 8388608.000000);\n\t\t\t\tsgi.setShellCheats(sgi.getShellCheats() + 8388608.000000);\n\t\t\t}\n\t\t}\n\t\tLobby.closeLobby();"
   }
  ]
 }

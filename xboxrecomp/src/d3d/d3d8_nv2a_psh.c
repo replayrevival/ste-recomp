@@ -19,6 +19,7 @@
  * modes, clip-plane discards, colour keys, point sprites.
  */
 
+#include <stdlib.h>   /* c439: getenv declared (an implicit int return truncates the pointer) */
 #include "d3d8_internal.h"
 #include "d3d8_nv2a_psh.h"
 #include <d3dcompiler.h>

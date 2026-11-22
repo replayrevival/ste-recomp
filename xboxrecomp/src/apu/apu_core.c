@@ -19,6 +19,7 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdlib.h>   /* c439: getenv declared (an implicit int return truncates the pointer) */
 #include "apu_state.h"
 #include "apu.h"
 #include "apu_xaudio2.h"

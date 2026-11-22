@@ -17,12 +17,17 @@ import os, sys, subprocess, tempfile, shutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import iso_to_mod, bsf_edit
+import iso_to_mod, bsf_edit, solo_ui
 
 FLAG = '4194304.000000'   # shell cheat bit 1<<22: transient flag set by the menu row, cleared by Game.bsf when it loads the script
 FLAG2 = '8388608.000000'  # shell cheat bit 1<<23: "no time limit" chosen on the solo Rules screen (read and cleared by ChallengeDemolition.bsf)
 NOLIM = '1.000000'        # value of the Rules spinner "NO TIME LIMIT: YES" (the YES/NO spinner of the unused Reset-arenas row)
 FILES = ['ActionData/ChallengeDemolition.bsf', 'ActionData/Game.bsf', 'ShellData/mainmenu.bsf']
+
+# h041 (0.4.1): the solo flag lives in the shell cheat bits (which the profile can save), so it is cleared wherever a game is not being started by the Solo row:
+# when the main menu gets focus (boot, Back from the select screens, after a match) and right after every createGame
+CLEAR = (' { ShellGameInfo scl; scl = gShell.getGameInfo(); if(scl.getShellCheats() & ' + FLAG + ') scl.clearShellCheats(' + FLAG + '); '
+         'if(scl.getShellCheats() & ' + FLAG2 + ') scl.clearShellCheats(' + FLAG2 + '); } ')
 
 REC = []   # every edit as {"old","new"} in order, written into the recipe
 
@@ -42,7 +47,7 @@ def edit_demolition(s):
 			gameLoadLevelData(gi.getCityName(), gi.getDaylight());
 			gi.setPlayers(1.000000);
 			if(gi.getShellCheats() & ''' + FLAG2 + '''){
-				gi.setShellCheats(gi.getShellCheats() - ''' + FLAG2 + ''');
+				gi.clearShellCheats(''' + FLAG2 + ''');
 				gi.setRoundTime(5999.900000);
 			}
 		} else{
@@ -63,7 +68,7 @@ def edit_demolition(s):
 
 def edit_game(g):
     return sub(g, '\t\tgGame.loadScript("ConventionalGame.bsf");\n\t}\n\tnumber sendHudMessage',
-               '\t\tif(gi.getShellCheats() & ' + FLAG + '){\n\t\t\tgi.setShellCheats(gi.getShellCheats() - ' + FLAG + ');\n\t\t\tgGame.loadScript("ChallengeDemolition.bsf");\n\t\t} else gGame.loadScript("ConventionalGame.bsf");\n\t}\n\tnumber sendHudMessage')
+               '\t\tif(gi.getShellCheats() & ' + FLAG + '){\n\t\t\tgi.clearShellCheats(' + FLAG + ');\n\t\t\tgGame.loadScript("ChallengeDemolition.bsf");\n\t\t} else gGame.loadScript("ConventionalGame.bsf");\n\t}\n\tnumber sendHudMessage')
 
 def edit_mainmenu(m):
     m = sub(m, '''			else ListBox.findObject("SystemLinkCheat").hideObject();
@@ -91,13 +96,15 @@ def edit_mainmenu(m):
     m = sub(m, '''		sgi = gShell.getGameInfo();
 		sgi.setGameType(gt);
 		gShell.createGame(gt, mode);''', '''		sgi = gShell.getGameInfo();
-		if(sgi.getShellCheats() & ''' + FLAG + ''') sgi.setShellCheats(sgi.getShellCheats() - ''' + FLAG + ''');
-		if(sgi.getShellCheats() & ''' + FLAG2 + ''') sgi.setShellCheats(sgi.getShellCheats() - ''' + FLAG2 + ''');
+		if(sgi.getShellCheats() & ''' + FLAG + ''') sgi.clearShellCheats(''' + FLAG + ''');
+		if(sgi.getShellCheats() & ''' + FLAG2 + ''') sgi.clearShellCheats(''' + FLAG2 + ''');
 		sgi.setGameType(gt);
 		gShell.createGame(gt, mode);
+		''' + CLEAR + '''
 		if(gSoloNext){
 			sgi.setShellCheats(sgi.getShellCheats() + ''' + FLAG + ''');
 		}''')
+    m = sub(m, 'setCheatBit(-1.000000, 0.000000);\n\t\t\tGainFocusGrowShrink(ival);', 'setCheatBit(-1.000000, 0.000000);\n\t\t\t' + CLEAR + '\n\t\t\tGainFocusGrowShrink(ival);')
     return sub(m, '\tShellListBox ListBox;\n', '\tShellListBox ListBox;\n\tnumber gSoloNext;\n')
 
 SOLO = '(gShell.getGameInfo().getShellCheats() & ' + FLAG + ')'
@@ -128,6 +135,8 @@ def edit_monsterselect(m):
     m = sub(m, old, new)
     m = sub(m, 'if(gt == 1.000000){ return rule != 2.000000; }',
             'if(gt == 1.000000){ if(@S@) return rule == 3.000000 || rule == 4.000000; return rule != 2.000000; }'.replace('@S@', SOLO))
+    # h041: the retail title object fits its text into a 175 px width (maxwidth in MonsterSelect.ifc) by shrinking it, which made the longer "SOLO DESTRUCTION" small;
+    # the title keeps the normal text scale (same font, size and colour as VERSUS) for the solo screen
     # the YES/NO "reset arenas" row becomes "NO TIME LIMIT" (own storage key, so Versus keeps its own setting)
     m = sub(m, 'else if(rule == 4.000000) return prefix + "reset_arenas";',
             'else if(rule == 4.000000){ if(gt == 1.000000 && @S@) return "rule_solo_notimelimit"; return prefix + "reset_arenas"; }'.replace('@S@', SOLO))
@@ -139,8 +148,8 @@ def edit_monsterselect(m):
 		if(@S@){
 			ShellGameInfo sg;
 			sg = gShell.getGameInfo();
-			if(sg.getShellCheats() & @F2@) sg.setShellCheats(sg.getShellCheats() - @F2@);
-			if(sgi.getShellCheats() & @F2@) sgi.setShellCheats(sgi.getShellCheats() - @F2@);
+			if(sg.getShellCheats() & @F2@) sg.clearShellCheats(@F2@);
+			if(sgi.getShellCheats() & @F2@) sgi.clearShellCheats(@F2@);
 			if((Rules -- getRuleValue(4.000000)) == @N@){
 				sg.setShellCheats(sg.getShellCheats() + @F2@);
 				sgi.setShellCheats(sgi.getShellCheats() + @F2@);
@@ -162,6 +171,10 @@ def main(a):
         try: res = bsf_edit.emit(EDITS[rel](bsf_edit.parse(orig)))
         except bsf_edit.BsfError as e: print('%s: %s' % (rel, e)); return 1
         recipes.append((src.name(rel), orig, res, list(REC))); print('edited %s' % rel)
+    rel = 'ShellData/ControlRoom.bdl'   # h041: select-screen title wide enough for SOLO DESTRUCTION at the normal title size (builtin solo_ui)
+    if not src.has(rel): print('%s is not in your game (needs the retail Xbox files)' % rel); return 1
+    orig = src.read(rel)
+    recipes.append((src.name(rel), orig, solo_ui.build(orig), 'solo_ui', 'builtin')); print('built %s' % rel)
     iso_to_mod.write_recipe_mod(out, mid, 'Solo Destruction', 'GPL-2.0-or-later',
         'Adds a SOLO DESTRUCTION row to the main menu: free destruction in any city with any monster. Contains only edit recipes, no game data; '
         'the scripts are built on your PC from your own game files (Prepare mods). Inspired by ANILORAK\'s Godzilla Ultra research (our own code; no code from ANILORAK used). Full credits: https://github.com/replayrevival/ste-recomp/blob/main/CREDITS.md', recipes)
