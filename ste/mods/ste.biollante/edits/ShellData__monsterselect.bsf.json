@@ -12,6 +12,10 @@
   {
    "old": "if(monster == \"rodan\") return 0.000000;",
    "new": "if(monster == \"rodan\") return 0.000000;\n\t\tif(monster == \"biollante\") return 0.000000;"
+  },
+  {
+   "old": "|| (name == \"random\")) {",
+   "new": "|| (name == \"random\") || (name == \"biollante\")) {"
   }
  ]
 }

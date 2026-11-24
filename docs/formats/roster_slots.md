@@ -14,3 +14,6 @@ One dict per extra monster: `name` (script name), `row` (2 = the extra row; rows
 
 ## Front-end state word
 The game-state word `0x003562B4` is `0x27` in the front-end of the retail game and `0x28` once the grid has a 19th child. The widescreen code (`d3d8_front_end_active()` and the camera hook) accepts `0x27..0x3F` since build c435; before that the roster mod lost the 4:3 menu pillarbox and stretched the fight HUD (docs\REPORT_0.4.md).
+
+## Always available (0.4.2)
+A roster slot is drawn dim (the "disabled" tile) unless the profile's per-monster storage flag says the monster is unlocked (`gShell.getStorage(name, physical) == 0` in `initializeThumbnail`). A new monster has no such flag on any profile, so its tile looked like a dark silhouette. The Biollante recipe now adds `|| (name == "biollante")` to that test, so she is shown with her icon and selectable on every profile, without "unlock all monsters". Other roster mods that add a slot need the same one-token edit for their own monster name. The base game is unchanged with the mod off.

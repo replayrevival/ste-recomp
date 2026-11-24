@@ -22,8 +22,8 @@
       "format": "bsf-edit",
       "patch": "edits\\ShellData__monsterselect.bsf.json",
       "base_sha256": "sha256:26030ebe7d707cbbb254d6f06f84a9ed2292a988fb48f5ba3d42e8daaf4c4866",
-      "result_sha256": "sha256:75243c6b99469f2a42b1e2604b74ba45962ff442de59b981f6a8e7b1daaa153c",
-      "size": 80562
+      "result_sha256": "sha256:4f270ad69f08a1f89c0764539fbbdc97c875d5ca891be5d18a59514fdac9951b",
+      "size": 80576
     },
     {
       "target": "ShellData\\attributes.xfg",
