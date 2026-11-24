@@ -52,6 +52,14 @@
 - A graphics card that supports **DirectX 11**.
 - A controller is recommended. The keyboard works too.
 
+## What's new in v0.4.3
+
+**After updating, open the launcher and press PLAY once** so your script mods are rebuilt from your own game files (a few seconds).
+
+- **Fixed:** with the Biollante mod on, the character grid no longer overlaps the screen above it. On the Solo Destruction screen the top row of tiles used to cover the bottom of the portrait card and the stats panel (also when a fourth icon wraps). The grid is a little smaller and sits under the panel and above the Back/Select hints, on every select screen and in 16:9, 21:9 and 4:3. With the mods off nothing changed.
+- **Still waiting for details:** a black picture during the attract movie and the globe on the ultrawide main menu (Fullscreen or Borderless? does the globe stay or only flash while going back?). If you see one, please [open an issue](https://github.com/replayrevival/ste-recomp/issues).
+- Biollante's third-row idea is inspired by ANILORAK's research (our own code; no code from ANILORAK used). Full credits: [CREDITS.md](https://github.com/replayrevival/ste-recomp/blob/main/CREDITS.md).
+
 ## What's new in v0.4.2
 
 **After updating, open the launcher and press PLAY once** so your script mods are rebuilt from your own game files (a few seconds).
