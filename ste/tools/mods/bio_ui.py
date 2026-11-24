@@ -66,10 +66,10 @@ SLOTS = [
     {'name': 'biollante', 'row': 2, 'art': 'biollante_en', 'crop': (28, 34, 92)},
 ]
 # 3-row layout: the retail grid (2 rows, 52 px tiles, 57 px pitch) is scaled so a third row fits above the Back/Select buttons inside the 4:3 menu area
-GRID_SCALE = 0.78
+GRID_SCALE = 0.70                     # 0.4.3: 0.78 put the first row about 10 units inside the bios panel / portrait cards; 0.70 fits three rows between the panel bottom and the button hints
 FRAME_CX = 318.7                      # horizontal centre of the menu frame in the 640x480 menu space
 GRID_CX = 322                         # centre of a retail 9-column row in the grid's own space (76 + (9*55-3)/2)
-GRID_TOP = 279                        # final y of the first row (just under the portrait boxes); three rows then end ~11 units above the button hints
+GRID_TOP = 292.5                        # final y of the first row: just under the bios panel and portrait cards (their bottom edge is at about 289 in the 640x480 menu space, also with a wrapped fourth icon); three rows then end about 9 units above the button hints
 GRID_POS = (round(FRAME_CX - GRID_SCALE * GRID_CX, 1), round(GRID_TOP - GRID_SCALE * 308, 1))
 MAX_PER_ROW = 12                      # 12 tiles at pitch 55 * 0.78 fit inside the menu frame
 ROW_Y = {0: 308, 1: 365, 2: 422}     # row origins in the grid's own (unscaled) space

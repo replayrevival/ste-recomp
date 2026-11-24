@@ -1,0 +1,9 @@
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+# 0.4.3 work log
+
+## Third-row grid overlapped the screen above it (fixed in the mod, local)
+Report: with the third-row layout the character grid overlapped the portrait card and the bios panel on the Solo Destruction select screen (the top row of tiles covered the bottom of the card and the panel, and the wrapped Resists icon).
+Cause: 0.4.0-0.4.2 scaled the grid to 0.78 and put the first row at y = 279 (640x480 menu space); the panel and cards end at about 289, so the first row started about 10 units inside them, while there were about 11 units of slack above the button hints.
+Fix (`ste\tools\mods\bio_ui.py`): `GRID_SCALE = 0.70`, `GRID_TOP = 292.5`: tiles 36.4, pitch 39.9, three rows span 292.5..409; the grid is still centred. Mod `ste.biollante` is 1.0.2 (the manifest hash and size of `ShellData\ControlRoom.bdl` changed: players must run Prepare mods again). Retail screens are unchanged with the mods off (the edit exists only in the mod's built file).
+Test (c460, both mods stacked, fresh profile, no unlock-all): Action, Versus, Melee (4 boxes), Survival, Solo Destruction, with P1 on Biollante (bios panel with a wrapped fourth icon) and on retail monsters with four icons, at 1920x1080 (16:9), 2560x1080 (21:9) and 1440x1080 (4:3 area): the grid is clear of the cards, the panel and the hints on every screen. Mock row of 12 tiles (developer build, not shipped): fits inside the frame at 16:9, still clear. Challenges has no grid. P2 side: Versus P2 box is empty in single-player; the grid is shared by P1/P2 cursors, so the same position applies. Crops are kept privately. Logs: 0 ICALL FAIL / STUB HIT / crash in all runs.
+Not covered by a run: 2-4 human players in Melee (four boxes visible with P1 only; the boxes end above the grid in every aspect).

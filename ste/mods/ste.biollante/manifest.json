@@ -2,7 +2,7 @@
   "api": 2,
   "id": "ste.biollante",
   "name": "Biollante",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "game": "STE-Xbox",
   "profile": "content",
   "license": "GPL-2.0-or-later",
@@ -38,7 +38,7 @@
       "format": "builtin",
       "patch": "builtin:bio_ui",
       "base_sha256": "sha256:4700a24dceee46441cf56d5872dbd7bf49451edf5482ea0847e349f9b10c58b2",
-      "result_sha256": "sha256:f9036176cfbd3fbf0488e12e07e86fa69824ca36e1dfa5a70a80f9e1fba17cbe",
+      "result_sha256": "sha256:e269379837dda64e38fdbf58184937ddd66614531b9a0c174177f6ac67826f4e",
       "size": 10256982
     }
   ]
