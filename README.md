@@ -52,6 +52,14 @@
 - A graphics card that supports **DirectX 11**.
 - A controller is recommended. The keyboard works too.
 
+## What's new in v0.4.2
+
+**After updating, open the launcher and press PLAY once** so your script mods are rebuilt from your own game files (a few seconds).
+
+- **Fixed:** with the Biollante mod on, Biollante is always shown with her icon and can be picked on every profile. Before, her tile looked like a dark empty square until the profile had unlocked her (or "unlock all monsters" was on).
+- **Still waiting for details:** a black picture during the attract movie and the globe on the ultrawide main menu (which screen mode, Fullscreen or Borderless? does the globe stay or only flash while going back?). If you see one, please [open an issue](https://github.com/replayrevival/ste-recomp/issues).
+- Biollante's third-row idea is inspired by ANILORAK's research (our own code; no code from ANILORAK used). Full credits: [CREDITS.md](https://github.com/replayrevival/ste-recomp/blob/main/CREDITS.md).
+
 ## What's new in v0.4.1 (hotfix)
 
 **After updating, open the launcher and press PLAY once.** The Mods tab shows "Needs build" and your script mods are rebuilt from your own game files (a few seconds). The launcher swaps in the new Solo Destruction mod by itself; your on/off choices stay.

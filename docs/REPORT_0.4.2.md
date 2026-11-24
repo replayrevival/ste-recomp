@@ -7,3 +7,6 @@ Test (fresh profile, no unlock-all, both mods stacked, 1920x1080): the third-row
 
 ## Waiting for the reporter
 Black attract movie (Fullscreen only, or Borderless too) and the menu-side globe (stays, or only during the Back transition): no changes until the answers arrive.
+
+## Promotion build
+c460 = c459 sources with version 0.4.2 (SHA-256 `AC4EDB6F85EE7A16BFCB1163469CF9503AA6E85B3B7FE9B27306E7FAAD60986B`). Source sync: `xboxrecomp/src/kernel/{nvnet.c,nvnet.h,kernel_xbox.c,kernel_bridge.c}` carry the opt-in online-mode NIC model and logging hooks (active only with `STE_ETHERNET_LINK=up`; default unchanged). Smoke (fresh profile, no unlock-all, both mods stacked, c460): Biollante selectable (screenshots kept privately). Validator: no FAIL.

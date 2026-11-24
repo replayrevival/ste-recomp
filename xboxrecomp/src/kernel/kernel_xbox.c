@@ -9,8 +9,10 @@
  * EEPROM-based encryption on PC.
  */
 
+#include <stdio.h>
 #include <stdlib.h>   /* c439: getenv declared (an implicit int return truncates the pointer) */
 #include "kernel.h"
+#include "nvnet.h"
 #include <string.h>
 
 /* ============================================================================
@@ -203,6 +205,18 @@ NTSTATUS __stdcall xbox_ExQueryNonVolatileSetting(
         }
         break;
 
+    case 0x101: /* XC_FACTORY_ETHERNET_ADDR (c451; c448-c450 wrongly used 0x104 = game region): only in online mode (STE_ETHERNET_LINK=up); otherwise falls to the unchanged default below */
+        {   UCHAR mac[6];
+            static int logged;
+            if (!logged && xbox_NvnetEmuOn()) { logged = 1; fprintf(stderr, "  [NICEMU] ExQueryNonVolatileSetting 0x101 (factory MAC): ValueLength=%u Type=%p\n", (unsigned)ValueLength, (void *)Type); fflush(stderr); }
+            if (ValueLength >= 1 && xbox_NvnetGetMac(mac)) {
+                memcpy(Value, mac, ValueLength < 6 ? ValueLength : 6);
+                if (Type) *Type = 3; /* REG_BINARY */
+                if (ResultLength) *ResultLength = ValueLength < 6 ? ValueLength : 6;
+                break;
+            }
+        }
+        /* fall through */
     default:
         xbox_log(XBOX_LOG_WARN, XBOX_LOG_XBOX,
             "ExQueryNonVolatileSetting: unhandled index 0x%02X", ValueIndex);
@@ -244,7 +258,8 @@ ULONG __stdcall xbox_PhyGetLinkState(BOOLEAN Verify)
      * ~20 s timeout on every launch (391 million interrupt-level raise/lower pairs in a polling loop, then the game continued offline). A console with no cable reports link down
      * and skips it. STE_ETHERNET_LINK=up restores the old answer. */
     {   static int up = -1; if (up < 0) { const char *e = getenv("STE_ETHERNET_LINK"); up = e && !_stricmp(e, "up"); }
-        return up ? 0x01 : 0x00; /* XNET_ETHERNET_LINK_ACTIVE or none */
+        xbox_NvnetNoteLink((int)Verify, up ? 0x0B : 0x00);
+        return up ? 0x0B : 0x00; /* c442: up = ACTIVE(1)|100MBPS(2)|FULL_DUPLEX(8) (was 0x01 only, no speed/duplex bit); default (link down) unchanged */
     }
 }
 

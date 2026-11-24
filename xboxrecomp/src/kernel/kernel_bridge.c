@@ -26,6 +26,7 @@
  */
 
 #include "kernel.h"
+#include "nvnet.h"
 #include "guest_vmem.h"
 #include "kernel_missing.h"
 #include "xbox_memory_layout.h"
@@ -2670,6 +2671,7 @@ static void bridge_KeInsertQueueDpc(void)
         return;
     }
     if (g_vblank_isr_active) g_vblank_dpc_va = dpc;
+    if (xbox_NvnetInIsr()) xbox_NvnetNoteDpc(dpc, BRIDGE_MEM32(dpc + 12));   /* c454 log only */
     g_dpc_queue[tail].dpc  = dpc;
     g_dpc_queue[tail].arg1 = arg1;
     g_dpc_queue[tail].arg2 = arg2;
@@ -2856,6 +2858,7 @@ static void kernel_drain_dpcs(void)
                 static int sd = -1; LARGE_INTEGER q0, q1, qf;
                 if (sd < 0) { const char *e = getenv("KERNEL_SLOW_DPC_MS"); sd = e ? atoi(e) : 0; }
                 if (sd > 0) QueryPerformanceCounter(&q0);
+                if (xbox_NvnetIsNicDpc(d.dpc)) { fprintf(stderr, "[NICEMU] NIC DPC 0x%08X running\n", d.dpc); fflush(stderr); }
                 kernel_run_dpc(d.dpc, d.arg1, d.arg2);
                 if (sd > 0) {
                     static volatile LONG nd; double ms;

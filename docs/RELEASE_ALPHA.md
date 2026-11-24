@@ -179,6 +179,12 @@ Record for each run: exe SHA-256, resolution, mode, median fps, worst frame, `[Q
 | Menu-state fix | the widescreen code treated any front-end state other than 0x27 as a fight: with a roster mod the menus lost their 4:3 pillarbox and the HUD stretched (c435) | verified at 16:9, 21:9, 4:3; retail unchanged |
 Known issues: no preselect of a monster in the extra row when the select screen reopens; Solo Destruction title is English only; photo mode HUD clock picture keeps counting while the HUD is visible; Biollante's AI is the stock difficulty level; the attack/effects check was a scripted sample, not every move. Credits: Biollante data = retail game; third-select-page idea (PS2): ANILORAK (research only); the STEM Biollante AI function and DylanRocket's tutorial were not used.
 
+## 0.4.2 (draft): Biollante always available
+- **Fixed: Biollante's tile is always drawn with her icon and selectable** when the `ste.biollante` mod is on, on every profile (it showed the dim "disabled" tile unless the profile had her unlocked, which no profile has). The select script's per-monster availability test gets one more name in the mod (`docsormatsoster_slots.md`, "Always available"). Base game unchanged with the mod off. Tested on a fresh profile without "unlock all monsters", both mods stacked.
+- Mod `ste.biollante` is now 1.0.1 (its manifest hash for `monsterselect.bsf` changed): after updating, **Prepare mods again**.
+- Not reproduced / waiting for details: black attract movie (Fullscreen only or also Borderless?) and the globe on the ultrawide main menu (stays, or only flashes during the Back transition?).
+- Credits: the third select row is inspired by ANILORAK's research (our own code; no code from ANILORAK used). Full credits: CREDITS.md.
+
 ## 0.4.1 (draft): hotfix for 0.4.0
 - **Fixed: Solo Destruction no longer sticks.** After choosing SOLO DESTRUCTION (and backing out), Versus, Action and Melee could open the Solo select screen. The script flag was never cleared (`setShellCheats(x - bit)` does not clear bits; `clearShellCheats` does). It is now cleared when the main menu gets focus and after every game start. Needs the updated Solo Destruction mod (Prepare mods again).
 - **Fixed: the SOLO DESTRUCTION title** is now the same font, size and colour as VERSUS (it was shrunk to fit the retail 175 px title width; the mod widens that limit).
